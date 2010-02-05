@@ -22,7 +22,7 @@
  * is in use, and have a global lock to check the status register. Also,
  * the bulk of the work should be handled out-of-interrupt. The ugly loops
  * that occur during interrupt scare me. The ISR should merely signal
- * thread context and ACK the interrupt, and move on. */
+ * thread context and ACK the interrupt, and move on. -- BenC */
 
 #include <linux/kernel.h>
 
