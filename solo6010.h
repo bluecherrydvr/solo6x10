@@ -119,6 +119,8 @@ struct solo6010_dev {
 	unsigned int video_vsize;
 	unsigned int vout_hstart;
 	unsigned int vout_vstart;
+	int old_write;
+	u8 dma_buf[4096 * 1000];
 };
 
 

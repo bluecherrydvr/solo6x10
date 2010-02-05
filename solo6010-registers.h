@@ -137,6 +137,9 @@
 
 /* Video in registers and values */
 #define SOLO_VI_CH_ENA			0x010C
+#define SOLO_VI_STATUS0			0x0128
+#define   SOLO_VI_STATUS0_PAGE(__n)	((__n) & 0x07)
+#define SOLO_VI_STATUS1			0x012C
 #define SOLO_VI_WIN_SW			0x0240
 
 /* Video Out Encoder */

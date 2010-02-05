@@ -24,6 +24,11 @@
 #include <media/v4l2-ioctl.h>
 
 #include "solo6010-v4l2.h"
+#include "solo6010-p2m.h"
+
+#define H_SIZE_FDMA		2048
+#define SOLO_PAGE_SIZE		4
+#define SOLO_DISP_BUF_SIZE	(64 << 10)
 
 static unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
@@ -109,7 +114,7 @@ static int solo_disp_open(struct file *file)
 	return 0;
 }
 
-/* Try to obtain and/or verify the a fh can read the display device. Only
+/* Try to obtain and/or verify that a fh can read the display device. Only
  * one file descriptor can do this at a time and it retains exclusivity
  * until the file descriptor is closed. */
 static int solo_disp_can_read(struct solo_filehandle *fh)
@@ -142,12 +147,57 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 			      size_t count, loff_t *ppos)
 {
 	struct solo_filehandle *fh = file->private_data;
-	//struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+	unsigned int fdma_addr;
+	int cur_page;
+	int cur_write;
+	int v_size;
+	int fdma_addr_offset;
+	int frame_size_fdma;
+	int i, j, k;
 
 	if (!solo_disp_can_read(fh))
 		return -EBUSY;
 
-	return -EINVAL;
+	v_size = solo_dev->video_vsize * 2;
+	fdma_addr_offset = H_SIZE_FDMA * v_size;
+	frame_size_fdma = H_SIZE_FDMA * v_size;
+
+	/* XXX: Is this really a good idea? */
+	do {
+		unsigned int status = solo_reg_read(solo_dev, SOLO_VI_STATUS0);
+		cur_write = SOLO_VI_STATUS0_PAGE(status);
+		if (cur_write != solo_dev->old_write)
+			break;
+		msleep_interruptible(1);
+	} while(1);
+
+	solo_dev->old_write = cur_write;
+	cur_page = cur_write % SOLO_PAGE_SIZE;
+
+	fdma_addr = SOLO_DISP_EXT_ADDR(solo6010) +
+			(cur_page * fdma_addr_offset);
+
+	for (i = 0; i < frame_size_fdma / SOLO_DISP_BUF_SIZE; i++) {
+		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
+				     solo_dev->dma_buf + (i * SOLO_DISP_BUF_SIZE),
+				     fdma_addr + (i * SOLO_DISP_BUF_SIZE),
+				     SOLO_DISP_BUF_SIZE) < 0) {
+			return -EFAULT;
+		}
+
+		for (j = 0; j < SOLO_DISP_BUF_SIZE / H_SIZE_FDMA; j++) {
+			k = 2 * solo_dev->video_hsize *
+				(i * SOLO_DISP_BUF_SIZE / H_SIZE_FDMA + j);
+			if (copy_to_user(data + k, solo_dev->dma_buf
+					 + (i * SOLO_DISP_BUF_SIZE) +
+					 (j * H_SIZE_FDMA),
+					 2 * solo_dev->video_hsize))
+				return -EFAULT;
+		}
+        }
+
+        return frame_size_fdma;
 }
 
 static int solo_disp_release(struct file *file)
