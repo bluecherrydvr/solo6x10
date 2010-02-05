@@ -22,6 +22,7 @@
 #include <linux/pci.h>
 #include <linux/i2c.h>
 #include <linux/semaphore.h>
+#include <linux/mutex.h>
 #include <media/v4l2-device.h>
 #include <asm/io.h>
 
@@ -79,6 +80,11 @@ struct solo_p2m_dev {
 	u32			desc[SOLO_P2M_DESC_SIZE];
 };
 
+struct solo_filehandle {
+	struct solo6010_dev	*solo_dev;
+	enum v4l2_buf_type	type;
+};
+
 /* The SOLO6010 PCI Device */
 struct solo6010_dev {
 	/* General stuff */
@@ -104,6 +110,15 @@ struct solo6010_dev {
 	/* V4L2 items */
 	struct v4l2_device	v4l2_dev;
 	struct video_device	*vfd;
+	struct mutex		v4l2_mutex;
+	struct solo_filehandle	*v4l2_reader;
+
+	/* Current video settings */
+	unsigned int video_type;
+	unsigned int video_hsize;
+	unsigned int video_vsize;
+	unsigned int vout_hstart;
+	unsigned int vout_vstart;
 };
 
 

@@ -19,6 +19,8 @@
 #ifndef __SOLO6010_REGISTERS_H
 #define __SOLO6010_REGISTERS_H
 
+#include "solo6010-offsets.h"
+
 /* Global 6010 system configuration */
 #define SOLO_SYS_CFG			0x0000
 #define   SOLO_SYS_CFG_FOUT_EN		0x00000001
@@ -133,6 +135,58 @@
 #define SOLO_P2M_EXT_ADR(__n)		(((__n) * 0x20) + 0x009c)
 #define SOLO_P2M_BUFFER(__i)		(((__i) * 4) + 0x2000)
 
+/* Video in registers and values */
+#define SOLO_VI_CH_ENA			0x010C
+#define SOLO_VI_WIN_SW			0x0240
+
+/* Video Out Encoder */
+#define SOLO_VO_FMT_ENC			0x0300
+#define   SOLO_VO_SCAN_MODE_PROGRESSIVE	0x80000000
+#define   SOLO_VO_FMT_TYPE_PAL		0x40000000
+#define   SOLO_VO_USER_SET		0x20000000
+#define   SOLO_VO_FI_CHANGE		0x00100000
+#define   SOLO_VO_USER_COLOR_SET_VSYNC	0x00080000
+#define   SOLO_VO_USER_COLOR_SET_HSYNC	0x00040000
+#define   SOLO_VO_USER_COLOR_SET_NAV	0x00020000
+#define   SOLO_VO_USER_COLOR_SET_NAH	0x00010000
+#define   SOLO_VO_NA_COLOR_Y(__n)       (((__n) & 0xff) << 8)
+#define   SOLO_VO_NA_COLOR_CB(__n)	((((__n) / 16) & 0x0f) << 4) 
+#define   SOLO_VO_NA_COLOR_CR(__n)	((((__n) / 16) & 0x0f) << 0) 
+
+#define SOLO_VO_ACT_H			0x0304
+#define   SOLO_VO_H_BLANK(__n)		(((__n) & 0x3ff) << 22) 
+#define   SOLO_VO_H_START(__n)		(((__n) & 0x7ff) << 11)
+#define   SOLO_VO_H_STOP(__n)		(((__n) & 0x7ff) << 0)
+
+#define SOLO_VO_ACT_V			0x0308
+#define   SOLO_VO_V_BLANK(__n)		(((__n) & 0x3ff) << 22)
+#define   SOLO_VO_V_START(__n)		(((__n) & 0x7ff) << 11)
+#define   SOLO_VO_V_STOP(__n)		(((__n) & 0x7ff) << 0)
+
+#define SOLO_VO_RANGE_HV		0x030C
+#define   SOLO_VO_SYNC_INVERT		0x01000000
+#define   SOLO_VO_HSYNC_INVERT		0x00800000
+#define   SOLO_VO_VSYNC_INVERT		0x00400000
+#define   SOLO_VO_H_LEN(__n)		(((__n) & 0x7ff) << 11)
+#define   SOLO_VO_V_LEN(__n)		(((__n) & 0x7ff) << 0)
+
+#define SOLO_VO_DISP_CTRL		0x0310
+#define   SOLO_VO_DISP_ON		0x80000000
+#define   SOLO_VO_DISP_ERASE_COUNT(__n)	(((__n) & 0x000f) << 24)
+#define   SOLO_VO_DISP_DOUBLE_SCAN	0x00400000
+#define   SOLO_VO_DISP_SINGLE_PAGE	0x00200000
+#define   SOLO_VO_DISP_BASE(__n)	(((__n) >> 16) & 0xffff)
+
+#define SOLO_VO_DISP_ERASE		0x0314
+#define   SOLO_VO_DISP_ERASE_ON		0x00000001
+
+#define SOLO_VO_BKG_COLOR		0x0320
+#define SOLO_VO_BG_YUV(__y, __u, __v) \
+	((((__y) & 0xff) << 16) | (((__u) & 0xff) << 8) | (((__v) & 0xff)))
+
+#define SOLO_VO_BORDER_LINE_COLOR	0x0330
+#define SOLO_VO_BORDER_FILL_COLOR	0x0334
+
 /* I2C config and control */
 #define SOLO_IIC_CFG			0x0b20
 #define   SOLO_IIC_PRESCALE(__n)	(((__n) & 0xff) << 0)
@@ -160,5 +214,10 @@
 #define SOLO_TIMER_WATCHDOG		0x0be4
 #define SOLO_TIMER_USEC			0x0be8
 #define SOLO_TIMER_SEC			0x0bec
+
+/* Watchdog register and status */
+#define SOLO_WATCHDOG			0x0BE4
+#define SOLO_WATCHDOG_ENABLE		0x00000100
+#define SOLO_WATCHDOG_TIME(__n)		(((__n) & 0xff) << 0)
 
 #endif /* __SOLO6010_REGISTERS_H */
