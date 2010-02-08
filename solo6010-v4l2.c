@@ -329,9 +329,15 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 static int solo_set_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
+	struct solo_filehandle *fh = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	/* If there is currently a reader, we do not change the format */
+	if (solo_dev->v4l2_reader != NULL)
+		return -EBUSY;
+
 	/* For right now, if it doesn't match our running config,
 	 * then fail */
-
 	return solo_try_fmt_cap(file, priv, f);
 }
 
