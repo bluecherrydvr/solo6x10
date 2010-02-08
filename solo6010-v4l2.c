@@ -26,7 +26,7 @@
 #include "solo6010-v4l2.h"
 #include "solo6010-p2m.h"
 
-#define H_SIZE_FDMA		2048
+#define SOLO_H_SIZE_FDMA	2048
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_BUF_SIZE	(64 << 10)
 
@@ -42,10 +42,12 @@ static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 	/* Here, we just keep window/channel the same */
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(ch),
 		       SOLO_VI_WIN_CHANNEL(ch) |
+		       SOLO_VI_WIN_SX(on ? solo_dev->vout_hstart : 0) |
 		       SOLO_VI_WIN_EX(on ? solo_dev->vout_hsize : 0) |
 		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
+		       SOLO_VI_WIN_SY(on ? solo_dev->vout_vstart : 0) |
 		       SOLO_VI_WIN_EY(on ? solo_dev->vout_vsize : 0));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch),
@@ -73,6 +75,13 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 {
         int i;
 
+	/* Start out with NTSC */
+	solo_dev->vout_type = SOLO_VO_FMT_TYPE_NTSC;
+	solo_dev->vout_hsize = 704;
+	solo_dev->vout_vsize = 240;
+	solo_dev->vout_hstart = 6;
+	solo_dev->vout_vstart = 8;
+
 	solo_reg_write(solo_dev, SOLO_VO_BORDER_LINE_COLOR,
 		       (0xa0 << 24) | (0x88 << 16) | (0xa0 << 8) | 0x88);
 	solo_reg_write(solo_dev, SOLO_VO_BORDER_FILL_COLOR,
@@ -81,15 +90,21 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 		       SOLO_VO_BG_YUV(16, 128, 128));
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
-		((solo_dev->vout_type == 0) ? 0 : SOLO_VO_FMT_TYPE_PAL) |
-		SOLO_VO_USER_COLOR_SET_NAV | SOLO_VO_NA_COLOR_Y(0) |
-		SOLO_VO_NA_COLOR_CB(0) | SOLO_VO_NA_COLOR_CR(0));
+		       solo_dev->vout_type |
+		       SOLO_VO_USER_COLOR_SET_NAV |
+		       SOLO_VO_NA_COLOR_Y(0) |
+		       SOLO_VO_NA_COLOR_CB(0) |
+		       SOLO_VO_NA_COLOR_CR(0));
 
 	solo_reg_write(solo_dev, SOLO_VO_ACT_H,
-		       SOLO_VO_H_STOP(solo_dev->vout_hsize));
+		       SOLO_VO_H_START(solo_dev->vout_hstart) |
+		       SOLO_VO_H_STOP(solo_dev->vout_hstart +
+				      solo_dev->vout_hsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_ACT_V,
-		       SOLO_VO_V_STOP(solo_dev->vout_vsize));
+		       SOLO_VO_V_START(solo_dev->vout_vstart) |
+		       SOLO_VO_V_STOP(solo_dev->vout_vstart +
+				      solo_dev->vout_vsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_RANGE_HV,
 		       SOLO_VO_H_LEN(solo_dev->vout_hsize) |
@@ -169,17 +184,13 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	unsigned int fdma_addr;
 	int cur_page;
 	int cur_write;
-	int v_size;
-	int fdma_addr_offset;
-	int frame_size_fdma;
-	int i, j, k;
+	int frame_size;
+	int i;
 
 	if (!solo_disp_can_read(fh))
 		return -EBUSY;
 
-	v_size = solo_dev->vout_vsize * 2;
-	fdma_addr_offset = H_SIZE_FDMA * v_size;
-	frame_size_fdma = H_SIZE_FDMA * v_size;
+	frame_size = SOLO_H_SIZE_FDMA * solo_dev->vout_vsize * 2;
 
 	/* XXX: Is this really a good idea? */
 	do {
@@ -194,28 +205,17 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	cur_page = cur_write % SOLO_PAGE_SIZE;
 
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo6010) +
-			(cur_page * fdma_addr_offset);
+			(cur_page * frame_size);
 
-	for (i = 0; i < frame_size_fdma / SOLO_DISP_BUF_SIZE; i++) {
+	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
 		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
-				     solo_dev->dma_buf + (i * SOLO_DISP_BUF_SIZE),
-				     fdma_addr + (i * SOLO_DISP_BUF_SIZE),
-				     SOLO_DISP_BUF_SIZE) < 0) {
+				 data + (i * SOLO_DISP_BUF_SIZE),
+				 fdma_addr + (i * SOLO_DISP_BUF_SIZE),
+				 SOLO_DISP_BUF_SIZE) < 0)
 			return -EFAULT;
-		}
-
-		for (j = 0; j < SOLO_DISP_BUF_SIZE / H_SIZE_FDMA; j++) {
-			k = 2 * solo_dev->vout_hsize *
-				(i * SOLO_DISP_BUF_SIZE / H_SIZE_FDMA + j);
-			if (copy_to_user(data + k, solo_dev->dma_buf
-					 + (i * SOLO_DISP_BUF_SIZE) +
-					 (j * H_SIZE_FDMA),
-					 2 * solo_dev->vout_hsize))
-				return -EFAULT;
-		}
         }
 
-        return frame_size_fdma;
+        return frame_size;
 }
 
 static int solo_disp_release(struct file *file)
@@ -280,6 +280,78 @@ static int solo_get_input(struct file *file, void *priv, unsigned int *index)
 	return 0;
 }
 
+static int solo_enum_fmt_cap(struct file *file, void *priv,
+			     struct v4l2_fmtdesc *f)
+{
+	if (f->index)
+		return -EINVAL;
+
+	f->pixelformat = V4L2_PIX_FMT_YUYV;
+	snprintf(f->description, sizeof(f->description),
+		 "%s", "YUV 4:2:2 Packed");
+
+	return 0;
+}
+
+static int solo_try_fmt_cap(struct file *file, void *priv,
+			    struct v4l2_format *f)
+{
+	struct solo_filehandle *fh = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct v4l2_pix_format *pix = &f->fmt.pix;
+	u32 sizeimage = SOLO_H_SIZE_FDMA * solo_dev->vout_vsize * 2;
+
+	/* Check supported sizes */
+	if (pix->width > solo_dev->vout_hsize)
+		pix->width = solo_dev->vout_hsize;
+	if (pix->height > solo_dev->vout_vsize)
+		pix->width = solo_dev->vout_vsize;
+	if (pix->sizeimage > sizeimage)
+		pix->sizeimage = sizeimage;
+
+	if (pix->width     != solo_dev->vout_hsize ||
+	    pix->height    != solo_dev->vout_vsize ||
+	    pix->sizeimage != sizeimage)
+		return -EINVAL;
+
+	/* Check formats */
+	if (pix->field == V4L2_FIELD_ANY)
+		pix->field = V4L2_FIELD_INTERLACED;
+
+	if (pix->pixelformat != V4L2_PIX_FMT_YUYV ||
+	    pix->field       != V4L2_FIELD_INTERLACED ||
+	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int solo_set_fmt_cap(struct file *file, void *priv,
+			    struct v4l2_format *f)
+{
+	/* For right now, if it doesn't match our running config,
+	 * then fail */
+
+	return solo_try_fmt_cap(file, priv, f);
+}
+
+static int solo_get_fmt_cap(struct file *file, void *priv,
+			    struct v4l2_format *f)
+{
+	struct solo_filehandle *fh = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct v4l2_pix_format *pix = &f->fmt.pix;
+
+	pix->width = solo_dev->vout_hsize;
+	pix->height = solo_dev->vout_vsize;
+	pix->pixelformat = V4L2_PIX_FMT_YUYV;
+	pix->field = V4L2_FIELD_INTERLACED;
+	pix->sizeimage = SOLO_H_SIZE_FDMA * solo_dev->vout_vsize * 2;
+	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
+
+	return 0;
+}
+
 static const struct v4l2_file_operations solo_disp_fops = {
 	.owner			= THIS_MODULE,
 	.open			= solo_disp_open,
@@ -289,10 +361,16 @@ static const struct v4l2_file_operations solo_disp_fops = {
 };
 
 static const struct v4l2_ioctl_ops solo_disp_ioctl_ops = {
-	.vidioc_querycap	= solo_querycap,
-	.vidioc_enum_input	= solo_enum_input,
-	.vidioc_s_input		= solo_set_input,
-	.vidioc_g_input		= solo_get_input,
+	.vidioc_querycap		= solo_querycap,
+	/* Input callbacks */
+	.vidioc_enum_input		= solo_enum_input,
+	.vidioc_s_input			= solo_set_input,
+	.vidioc_g_input			= solo_get_input,
+	/* Video capture format callbacks */
+	.vidioc_enum_fmt_vid_cap	= solo_enum_fmt_cap,
+	.vidioc_try_fmt_vid_cap		= solo_try_fmt_cap,
+	.vidioc_s_fmt_vid_cap		= solo_set_fmt_cap,
+	.vidioc_g_fmt_vid_cap		= solo_get_fmt_cap,
 };
 
 static struct video_device solo_disp_template = {
@@ -340,8 +418,8 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	if (video_nr >= 0)
 		video_nr++;
 
-	dev_info(&solo_dev->pdev->dev, "Registered as /dev/video%d\n",
-		  solo_dev->vfd->num);
+	dev_info(&solo_dev->pdev->dev, "Registered as /dev/video%d with "
+		 "%d inputs\n", solo_dev->vfd->num, solo_dev->nr_chans);
 
 	solo_disp_config(solo_dev);
 

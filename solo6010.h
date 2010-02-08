@@ -113,11 +113,12 @@ struct solo6010_dev {
 	struct solo_filehandle	*v4l2_reader;
 
 	/* Current video out settings */
-	unsigned int vout_type;
-	unsigned int vout_hsize;
-	unsigned int vout_vsize;
+	u32 vout_type;
+	u32 vout_hsize;
+	u32 vout_vsize;
+	u32 vout_hstart;
+	u32 vout_vstart;
 	int old_write;
-	u8 dma_buf[4096 * 1024];
 	unsigned int cur_ch;
 };
 

@@ -156,8 +156,6 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 			solo_dev->nr_chans = 4;
 	}
 
-	dev_info(&pdev->dev, "Enabled %d channels\n", solo_dev->nr_chans);
-
 	/* Disable all interrupts to start */
 	solo6010_irq_off(solo_dev, ~0);
 
