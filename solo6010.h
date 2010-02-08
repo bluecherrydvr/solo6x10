@@ -108,19 +108,17 @@ struct solo6010_dev {
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
 
 	/* V4L2 items */
-	struct v4l2_device	v4l2_dev;
 	struct video_device	*vfd;
 	struct mutex		v4l2_mutex;
 	struct solo_filehandle	*v4l2_reader;
 
-	/* Current video settings */
-	unsigned int video_type;
-	unsigned int video_hsize;
-	unsigned int video_vsize;
-	unsigned int vout_hstart;
-	unsigned int vout_vstart;
+	/* Current video out settings */
+	unsigned int vout_type;
+	unsigned int vout_hsize;
+	unsigned int vout_vsize;
 	int old_write;
-	u8 dma_buf[4096 * 1000];
+	u8 dma_buf[4096 * 1024];
+	unsigned int cur_ch;
 };
 
 

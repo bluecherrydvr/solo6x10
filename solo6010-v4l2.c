@@ -34,6 +34,41 @@ static unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
 MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
 
+static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
+{
+	if (ch >= solo_dev->nr_chans)
+		return -EINVAL;
+
+	/* Here, we just keep window/channel the same */
+	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(ch),
+		       SOLO_VI_WIN_CHANNEL(ch) |
+		       SOLO_VI_WIN_EX(on ? solo_dev->vout_hsize : 0) |
+		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
+
+	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
+		       SOLO_VI_WIN_EY(on ? solo_dev->vout_vsize : 0));
+
+	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch),
+		       on ? SOLO_VI_WIN_LIVE_ON : 0x0);
+
+	return 0;
+}
+
+static int solo_disp_set_ch(struct solo6010_dev *solo_dev, u8 ch)
+{
+	int i;
+
+	if (ch >= solo_dev->nr_chans)
+		return -EINVAL;
+
+	for (i = 0; i < solo_dev->nr_chans; i++)
+		solo_disp_ch(solo_dev, ch, i == ch ? 1 : 0);
+
+	solo_dev->cur_ch = ch;
+
+	return 0;
+}
+
 static void solo_disp_config(struct solo6010_dev *solo_dev)
 {
         int i;
@@ -46,21 +81,19 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 		       SOLO_VO_BG_YUV(16, 128, 128));
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
-		((solo_dev->video_type == 0) ? 0 : SOLO_VO_FMT_TYPE_PAL) |
+		((solo_dev->vout_type == 0) ? 0 : SOLO_VO_FMT_TYPE_PAL) |
 		SOLO_VO_USER_COLOR_SET_NAV | SOLO_VO_NA_COLOR_Y(0) |
 		SOLO_VO_NA_COLOR_CB(0) | SOLO_VO_NA_COLOR_CR(0));
 
 	solo_reg_write(solo_dev, SOLO_VO_ACT_H,
-		SOLO_VO_H_START(solo_dev->vout_hstart) |
-		SOLO_VO_H_STOP(solo_dev->vout_hstart + solo_dev->video_hsize));
+		       SOLO_VO_H_STOP(solo_dev->vout_hsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_ACT_V,
-		SOLO_VO_V_START(solo_dev->vout_vstart) |
-		SOLO_VO_V_STOP(solo_dev->vout_vstart + solo_dev->video_vsize));
+		       SOLO_VO_V_STOP(solo_dev->vout_vsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_RANGE_HV,
-		       SOLO_VO_H_LEN(solo_dev->video_hsize) |
-		       SOLO_VO_V_LEN(solo_dev->video_vsize));
+		       SOLO_VO_H_LEN(solo_dev->vout_hsize) |
+		       SOLO_VO_V_LEN(solo_dev->vout_vsize));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 5);
 
@@ -80,24 +113,9 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 
 	/* Disable the watchdog */
 	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
-}
 
-static int solo_vidioc_querycap(struct file *file, void  *priv,
-			   struct v4l2_capability *cap)
-{
-	struct solo6010_dev *solo_dev = priv;
-
-	strcpy(cap->driver, SOLO6010_NAME);
-	strcpy(cap->card, SOLO6010_NAME);
-	strlcpy(cap->bus_info, solo_dev->v4l2_dev.name, sizeof(cap->bus_info));
-	cap->version = SOLO6010_VER_NUM;
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE |
-			    V4L2_CAP_VIDEO_OUTPUT  |
-			    V4L2_CAP_TUNER         |
-			    V4L2_CAP_AUDIO         |
-			    V4L2_CAP_STREAMING     |
-			    V4L2_CAP_READWRITE;
-        return 0;
+	/* Set the display to channel 0 */
+	solo_disp_set_ch(solo_dev, 0);
 }
 
 static int solo_disp_open(struct file *file)
@@ -105,7 +123,7 @@ static int solo_disp_open(struct file *file)
 	struct solo6010_dev *solo_dev = video_drvdata(file);
 	struct solo_filehandle *fh;
 
-	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)))
+	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
 	fh->solo_dev = solo_dev;
@@ -159,7 +177,7 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	if (!solo_disp_can_read(fh))
 		return -EBUSY;
 
-	v_size = solo_dev->video_vsize * 2;
+	v_size = solo_dev->vout_vsize * 2;
 	fdma_addr_offset = H_SIZE_FDMA * v_size;
 	frame_size_fdma = H_SIZE_FDMA * v_size;
 
@@ -187,12 +205,12 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 		}
 
 		for (j = 0; j < SOLO_DISP_BUF_SIZE / H_SIZE_FDMA; j++) {
-			k = 2 * solo_dev->video_hsize *
+			k = 2 * solo_dev->vout_hsize *
 				(i * SOLO_DISP_BUF_SIZE / H_SIZE_FDMA + j);
 			if (copy_to_user(data + k, solo_dev->dma_buf
 					 + (i * SOLO_DISP_BUF_SIZE) +
 					 (j * H_SIZE_FDMA),
-					 2 * solo_dev->video_hsize))
+					 2 * solo_dev->vout_hsize))
 				return -EFAULT;
 		}
         }
@@ -210,62 +228,107 @@ static int solo_disp_release(struct file *file)
 	return 0;
 }
 
+static int solo_querycap(struct file *file, void  *priv,
+			 struct v4l2_capability *cap)
+{
+	struct solo_filehandle  *fh  = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	strcpy(cap->driver, SOLO6010_NAME);
+	strcpy(cap->card, "Softlogic 6010");
+	snprintf(cap->bus_info, sizeof(cap->bus_info), "%s %s",
+		 SOLO6010_NAME, pci_name(solo_dev->pdev));
+	cap->version = SOLO6010_VER_NUM;
+	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
+				V4L2_CAP_STREAMING     |
+				V4L2_CAP_READWRITE;
+        return 0;
+}
+
+static int solo_enum_input(struct file *file, void *priv,
+			   struct v4l2_input *input)
+{
+	struct solo_filehandle *fh  = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	if (input->index >= solo_dev->nr_chans)
+		return -EINVAL;
+
+	snprintf(input->name, sizeof(input->name), "Camera %d",
+		 input->index + 1);
+	input->type = V4L2_INPUT_TYPE_CAMERA;
+	input->std = V4L2_STD_525_60 | V4L2_STD_625_50;
+	/* XXX Should check for signal status on this camera */
+	input->status = 0;
+
+	return 0;
+}
+
+static int solo_set_input(struct file *file, void *priv, unsigned int index)
+{
+	struct solo_filehandle *fh = priv;
+
+	return solo_disp_set_ch(fh->solo_dev, index);
+}
+
+static int solo_get_input(struct file *file, void *priv, unsigned int *index)
+{
+	struct solo_filehandle *fh = priv;
+
+	*index = fh->solo_dev->cur_ch;
+
+	return 0;
+}
+
 static const struct v4l2_file_operations solo_disp_fops = {
-	.owner		= THIS_MODULE,
-	.open		= solo_disp_open,
-	.release	= solo_disp_release,
-	.read		= solo_disp_read,
-	.ioctl		= video_ioctl2,
+	.owner			= THIS_MODULE,
+	.open			= solo_disp_open,
+	.release		= solo_disp_release,
+	.read			= solo_disp_read,
+	.ioctl			= video_ioctl2,
 };
 
 static const struct v4l2_ioctl_ops solo_disp_ioctl_ops = {
-	.vidioc_querycap	= solo_vidioc_querycap,
+	.vidioc_querycap	= solo_querycap,
+	.vidioc_enum_input	= solo_enum_input,
+	.vidioc_s_input		= solo_set_input,
+	.vidioc_g_input		= solo_get_input,
 };
 
 static struct video_device solo_disp_template = {
-	.name		= SOLO6010_NAME,
-	.fops		= &solo_disp_fops,
-	.ioctl_ops	= &solo_disp_ioctl_ops,
-	.minor		= -1,
-	.release	= video_device_release,
+	.name			= SOLO6010_NAME,
+	.fops			= &solo_disp_fops,
+	.ioctl_ops		= &solo_disp_ioctl_ops,
+	.minor			= -1,
+	.release		= video_device_release,
 
-	.tvnorms	= V4L2_STD_NTSC | V4L2_STD_PAL,
-	.current_norm	= V4L2_STD_NTSC_M,
+	.tvnorms		= V4L2_STD_525_60 | V4L2_STD_625_50,
+	.current_norm		= V4L2_STD_NTSC_M,
 };
 
 static void solo_v4l2_remove(struct solo6010_dev *solo_dev)
 {
-	if (solo_dev->vfd) {
-		video_unregister_device(solo_dev->vfd);
-		solo_dev->vfd = NULL;
-	}
-	v4l2_device_unregister(&solo_dev->v4l2_dev);
+	video_unregister_device(solo_dev->vfd);
+	solo_dev->vfd = NULL;
 }
 
 int solo_v4l2_init(struct solo6010_dev *solo_dev)
 {
-	struct v4l2_device *v4l2_dev = &solo_dev->v4l2_dev;
 	int ret;
 
 	mutex_init(&solo_dev->v4l2_mutex);
 
-	snprintf(v4l2_dev->name, sizeof(v4l2_dev->name),
-		 "%s %s", SOLO6010_NAME, pci_name(solo_dev->pdev));
-	ret = v4l2_device_register(NULL, v4l2_dev);
-	if (ret)
-		return ret;
-
 	solo_dev->vfd = video_device_alloc();
-	if (!solo_dev->vfd) {
-		solo_v4l2_remove(solo_dev);
+	if (!solo_dev->vfd)
 		return -ENOMEM;
-	}
 
         *solo_dev->vfd = solo_disp_template;
+	solo_dev->vfd->parent = &solo_dev->pdev->dev;
 
 	ret = video_register_device(solo_dev->vfd, VFL_TYPE_GRABBER, video_nr);
 	if (ret < 0) {
-		solo_v4l2_remove(solo_dev);
+		video_device_release(solo_dev->vfd);
+		solo_dev->vfd = NULL;
 		return ret;
 	}
 
@@ -277,7 +340,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	if (video_nr >= 0)
 		video_nr++;
 
-	v4l2_info(&solo_dev->v4l2_dev, "Registered as /dev/video%d\n",
+	dev_info(&solo_dev->pdev->dev, "Registered as /dev/video%d\n",
 		  solo_dev->vfd->num);
 
 	solo_disp_config(solo_dev);

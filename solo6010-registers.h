@@ -140,6 +140,20 @@
 #define SOLO_VI_STATUS0			0x0128
 #define   SOLO_VI_STATUS0_PAGE(__n)	((__n) & 0x07)
 #define SOLO_VI_STATUS1			0x012C
+
+#define SOLO_VI_WIN_CTRL0(__ch)		(((__ch) * 4) + 0x0180)
+#define   SOLO_VI_WIN_CHANNEL(__n)	(((__n) & 0x000f) << 28)
+#define   SOLO_VI_WIN_PIP		0x08000000
+#define   SOLO_VI_WIN_SCALE(__n)        (((__n) & 0x0007) << 24)
+#define   SOLO_VI_WIN_SX(__n)		((((__n) >> 2) & 0x0fff) << 12)
+#define   SOLO_VI_WIN_EX(__n)		((((__n) >> 2) & 0x0fff) << 0)
+#define SOLO_VI_WIN_CTRL1(__ch)		(((__ch) * 4) + 0x01c0)
+#define   SOLO_VI_WIN_SY(__n)		(((__n) & 0x0fff) << 12)
+#define   SOLO_VI_WIN_EY(__n)		(((__n) & 0x0fff) << 0)
+
+#define SOLO_VI_WIN_ON(__ch)		(((__ch) * 4) + 0x0200)
+#define   SOLO_VI_WIN_LIVE_ON		0x00000001
+#define   SOLO_VI_WIN_PB_ON		0x00000002
 #define SOLO_VI_WIN_SW			0x0240
 
 /* Video Out Encoder */
