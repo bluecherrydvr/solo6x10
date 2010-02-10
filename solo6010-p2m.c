@@ -51,12 +51,11 @@ start_dma:
 	timeout = wait_for_completion_timeout(&p2m_dev->completion, HZ);
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
+
 	/* XXX Really looks to me like we will get stuck here if a
 	 * real PCI P2M error occurs */
-	if (p2m_dev->error) {
-		p2m_dev->error = 0;
+	if (p2m_dev->error)
 		goto start_dma;
-	}
 
 	pci_unmap_single(solo_dev->pdev, dma_addr, size,
 			 wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
@@ -68,10 +67,8 @@ start_dma:
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	struct solo_p2m_dev *p2m_dev = &solo_dev->p2m_dev[id];
-
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
-	complete(&p2m_dev->completion);
+	complete(&solo_dev->p2m_dev[id].completion);
 }
 
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status)
@@ -105,6 +102,7 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < SOLO_NR_P2M; i++) {
 		p2m_dev = &solo_dev->p2m_dev[i];
+
 		init_MUTEX(&p2m_dev->sem);
 		init_completion(&p2m_dev->completion);
 

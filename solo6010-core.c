@@ -26,6 +26,7 @@
 #include "solo6010-i2c.h"
 #include "solo6010-p2m.h"
 #include "solo6010-v4l2.h"
+#include "solo6010-tw28.h"
 
 MODULE_DESCRIPTION("Softlogic 6010 MP4 Encoder/Decoder V4L2 Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
@@ -124,6 +125,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		return -ENOMEM;
 
 	solo_dev->pdev = pdev;
+	spin_lock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
 
 	if ((ret = pci_enable_device(pdev)))
@@ -190,6 +192,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		       SOLO_DMA_CTRL_LATENCY(1));
 
 	if ((ret = solo_p2m_init(solo_dev)))
+		goto fail_probe;
+
+	if ((ret = solo_tw28_init(solo_dev)))
 		goto fail_probe;
 
 	if ((ret = solo_v4l2_init(solo_dev)))

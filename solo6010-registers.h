@@ -51,25 +51,26 @@
 #define SOLO_IRQ_ENABLE			0x0014
 #define   SOLO_IRQ_ENC			0x00000001
 #define   SOLO_IRQ_DEC			0x00000002
-#define   SOLO_IRQ_G723			0x00000004
-#define   SOLO_IRQ_UART_0		0x00000008
-#define   SOLO_IRQ_UART_1		0x00000010
-#define   SOLO_IRQ_IIC			0x00000020
-#define   SOLO_IRQ_SPI			0x00000040
-#define   SOLO_IRQ_PS2_0		0x00000080
-#define   SOLO_IRQ_PS2_1		0x00000100
-#define   SOLO_IRQ_PCI_ERR		0x00000200
-#define   SOLO_IRQ_ATA_DIR		0x00000400
-#define   SOLO_IRQ_ATA_CMD		0x00000800
-#define   SOLO_IRQ_MOTION		0x00001000
-#define   SOLO_IRQ_VID_IN		0x00002000
-#define   SOLO_IRQ_VID_LOSS		0x00004000
-#define   SOLO_IRQ_GPIO			0x00008000
-#define   SOLO_IRQ_P2M(__n)		(1 << (16 + ((__n) & 0xf)))
-#define   SOLO_IRQ_P2M_0		0x00010000
-#define   SOLO_IRQ_P2M_1		0x00020000
-#define   SOLO_IRQ_P2M_2		0x00040000
-#define   SOLO_IRQ_P2M_3		0x00080000
+// spec says rsrv			0x00000004
+#define   SOLO_IRQ_G723			0x00000008
+#define   SOLO_IRQ_UART_0		0x00000010
+#define   SOLO_IRQ_UART_1		0x00000020
+#define   SOLO_IRQ_IIC			0x00000040
+#define   SOLO_IRQ_SPI			0x00000080
+#define   SOLO_IRQ_PS2_0		0x00000100
+#define   SOLO_IRQ_PS2_1		0x00000200
+#define   SOLO_IRQ_PCI_ERR		0x00000400
+#define   SOLO_IRQ_ATA_DIR		0x00000800
+#define   SOLO_IRQ_ATA_CMD		0x00001000
+#define   SOLO_IRQ_MOTION		0x00002000
+#define   SOLO_IRQ_VID_IN		0x00004000
+// spec says rsrv, ng says vid loss	0x00008000
+#define   SOLO_IRQ_GPIO			0x00010000
+#define   SOLO_IRQ_P2M_0		0x00020000
+#define   SOLO_IRQ_P2M_1		0x00040000
+#define   SOLO_IRQ_P2M_2		0x00080000
+#define   SOLO_IRQ_P2M_3		0x00100000
+#define   SOLO_IRQ_P2M(__n)		(SOLO_IRQ_P2M_0 << ((__n) & 0x03))
 
 #define SOLO_CHIP_OPTION		0x001c
 #define   SOLO_CHIP_ID_MASK		0x00000007
@@ -99,6 +100,11 @@
 
 /* P2M descriptor address */
 #define SOLO_P2M_DES_ADR(__n)		(((__n) * 0x20) + 0x0084)
+
+/* P2M status register */
+#define SOLO_P2M_STATUS(__n)		(((__n) * 0x20) + 0x008c)
+#define   SOLO_P2M_COMMAND_DONE		0x00000100
+#define   SOLO_P2M_CURRENT_ID(__s)	((__s) & 0xff)
 
 /* P2M control register */
 #define SOLO_P2M_CONTROL(__n)		(((__n) * 0x20) + 0x0090)
@@ -137,6 +143,11 @@
 
 /* Video in registers and values */
 #define SOLO_VI_CH_ENA			0x010C
+#define SOLO_VI_FMT_CFG			0x0114
+#define   SOLO_VI_FMT_CHECK_VCOUNT	0x80000000
+#define   SOLO_VI_FMT_CHECK_HCOUNT	0x40000000
+#define   SOLO_VI_FMT_TEST_SIGNAL	0x10000000
+
 #define SOLO_VI_STATUS0			0x0128
 #define   SOLO_VI_STATUS0_PAGE(__n)	((__n) & 0x07)
 #define SOLO_VI_STATUS1			0x012C

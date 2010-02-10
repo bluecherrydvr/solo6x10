@@ -22,7 +22,7 @@
  * is in use, and have a global lock to check the status register. Also,
  * the bulk of the work should be handled out-of-interrupt. The ugly loops
  * that occur during interrupt scare me. The ISR should merely signal
- * thread context and ACK the interrupt, and move on. -- BenC */
+ * thread context, ACK the interrupt, and move on. -- BenC */
 
 #include <linux/kernel.h>
 
@@ -37,12 +37,12 @@ u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off)
 	msgs[0].addr = addr;
 	msgs[0].len = 1;
 	msgs[0].buf = &off;
-	
+
 	msgs[1].flags = I2C_M_RD;
 	msgs[1].addr = addr;
 	msgs[1].len = 1;
 	msgs[1].buf = &data;
-	
+
 	i2c_transfer(&solo_dev->i2c_adap[id], msgs, 2);
 
         return data;
@@ -255,6 +255,8 @@ static int solo_i2c_master_xfer(struct i2c_adapter *adap,
 	finish_wait(&solo_dev->i2c_wait, &wait);
 	ret = num - solo_dev->i2c_msg_num;
 	solo_dev->i2c_state = IIC_STATE_IDLE;
+	solo_dev->i2c_id = -1;
+
 	up(&solo_dev->i2c_sem);
 
 	return ret;
@@ -276,7 +278,7 @@ int solo_i2c_init(struct solo6010_dev *solo_dev)
 	int ret;
 
 	solo_reg_write(solo_dev, SOLO_IIC_CFG,
-		       SOLO_IIC_PRESCALE(7) | SOLO_IIC_ENABLE);
+		       SOLO_IIC_PRESCALE(8) | SOLO_IIC_ENABLE);
 
 	solo_dev->i2c_id = -1;
 	solo_dev->i2c_state = IIC_STATE_IDLE;

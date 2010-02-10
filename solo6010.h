@@ -42,13 +42,16 @@
     KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
 
 /* Stock runtime parameters */
-#define SOLO_CLOCK_MHZ			104
+#define SOLO_CLOCK_MHZ			108
+
 /*
  * The SOLO6010 actually has 8 i2c channels, but we only use 2.
  * 0 - Techwell chip(s)
- * 1 - SAA7128 (only if we have a tw2865)
+ * 1 - SAA7128 (only if we don't have tw2865)
  */
 #define SOLO_I2C_ADAPTERS		2
+#define SOLO_I2C_TW			0
+#define SOLO_I2C_SAA			1
 
 /* DMA Engine setup */
 #define SOLO_NR_P2M			4
@@ -65,6 +68,8 @@
 #define SOLO_P2M_DMA_ID_G723E		3
 #define SOLO_P2M_DMA_ID_VIN		3
 
+#define SOLO_DISP_BUF_SIZE		(64 * 1024) // 64k
+
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
 	IIC_STATE_START,
@@ -77,12 +82,12 @@ struct solo_p2m_dev {
 	struct semaphore	sem;
 	struct completion	completion;
 	int			error;
-	u32			desc[SOLO_P2M_DESC_SIZE];
+	u8			desc[SOLO_P2M_DESC_SIZE];
 };
 
+/* Simple file handle */
 struct solo_filehandle {
 	struct solo6010_dev	*solo_dev;
-	enum v4l2_buf_type	type;
 };
 
 /* The SOLO6010 PCI Device */
@@ -93,6 +98,10 @@ struct solo6010_dev {
 	u8			chip_id;
 	int			nr_chans;
 	u32			irq_mask;
+	spinlock_t		reg_io_lock;
+	u8			tw2864;
+	u8			tw2865;
+	u8			tw28_cnt;
 
 	/* i2c related items */
 	struct i2c_adapter	i2c_adap[SOLO_I2C_ADAPTERS];
@@ -118,17 +127,54 @@ struct solo6010_dev {
 	u32 vout_vsize;
 	u32 vout_hstart;
 	u32 vout_vstart;
+	u8 vout_buf[SOLO_DISP_BUF_SIZE];
 	int old_write;
 	unsigned int cur_ch;
 };
 
 
 /* Register read and write helper functions. */
+#if 0
 #define solo_reg_write(__solo_dev, __off, __data) \
 	writel(__data, __solo_dev->reg_base + __off)
 
 #define solo_reg_read(__solo_dev, __off) \
 	readl(__solo_dev->reg_base + __off)
+#else
+static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
+{
+	unsigned long flags;
+	u32 ret;
+	u16 val;
+
+	spin_lock_irqsave(&solo_dev->reg_io_lock, flags);
+
+	ret = readl(solo_dev->reg_base + reg);
+	rmb();
+	pci_read_config_word(solo_dev->pdev, PCI_STATUS, &val);
+	rmb();
+
+	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
+
+	return ret;
+}
+
+static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
+				      u32 data)
+{
+	unsigned long flags;
+	u16 val;
+
+	spin_lock_irqsave(&solo_dev->reg_io_lock, flags);
+
+	writel(data, solo_dev->reg_base + reg);
+	wmb();
+	pci_read_config_word(solo_dev->pdev, PCI_STATUS, &val);
+	rmb();
+
+	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
+}
+#endif
 
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask);
 void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask);
