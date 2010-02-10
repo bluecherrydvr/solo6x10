@@ -31,7 +31,7 @@
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED_TB
 
-#define COPY_WHOLE_LINE
+//#define COPY_WHOLE_LINE
 
 /* Image size is two fields */
 #ifdef COPY_WHOLE_LINE

@@ -687,7 +687,6 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	for (i = 0; i < TW_NUM_CHIP; i++) {
 		value = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 					  TW_CHIP_OFFSET_ADDR(i), 0xFF);
-		printk("%s: val=[0x%02x]\n", __FUNCTION__, value);
 		if ((value >> 3) == 0x18) {
 			solo_dev->tw2865 |= 1 << i;
 			solo_dev->tw28_cnt++;
@@ -705,11 +704,7 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	if (!solo_dev->tw2865 && solo_dev->tw28_cnt)
 		saa7128_setup(solo_dev);
 
-	printk("65[%d]  64[%d]  total[%d]\n", hweight8(solo_dev->tw2865),
-		hweight8(solo_dev->tw2864), solo_dev->tw28_cnt);
-
 	for (i = 0; i < solo_dev->tw28_cnt; i++) {
-		printk("Initializing tw28 chip %d\n", i);
 		if ((solo_dev->tw2865 & (1 << i)))
 			tw2865_setup(solo_dev, TW_CHIP_OFFSET_ADDR(i));
 		else if ((solo_dev->tw2864 & (1 << i)))
@@ -717,6 +712,9 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 		else
 			tw2815_setup(solo_dev, TW_CHIP_OFFSET_ADDR(i));
 	}
+
+	dev_info(&solo_dev->pdev->dev, "Initialized %d tw28xx chips\n",
+		 solo_dev->tw28_cnt);
 
 	return 0;
 }
