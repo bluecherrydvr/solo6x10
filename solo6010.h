@@ -101,6 +101,7 @@ struct solo6010_dev {
 	spinlock_t		reg_io_lock;
 	u8			tw2864;
 	u8			tw2865;
+	u8			tw2815;
 	u8			tw28_cnt;
 
 	/* i2c related items */
@@ -132,15 +133,6 @@ struct solo6010_dev {
 	unsigned int cur_ch;
 };
 
-
-/* Register read and write helper functions. */
-#if 0
-#define solo_reg_write(__solo_dev, __off, __data) \
-	writel(__data, __solo_dev->reg_base + __off)
-
-#define solo_reg_read(__solo_dev, __off) \
-	readl(__solo_dev->reg_base + __off)
-#else
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
 {
 	unsigned long flags;
@@ -174,7 +166,6 @@ static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
 
 	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
 }
-#endif
 
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask);
 void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask);

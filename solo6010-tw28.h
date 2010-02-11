@@ -24,13 +24,13 @@
 #define TW_NUM_CHIP				4
 #define TW_NUMCHANNEL_PERCHIP			4
 #define TW_BASE_ADDR				0x28
-#define TW_CHIP_OFFSET_ADDR(n)			(0x28+n)
+#define TW_CHIP_OFFSET_ADDR(n)			(TW_BASE_ADDR + (n))
 
 #define TW_AV_STAT_ADDR				0x5a
-#define TW_HUE_ADDR(n)				(0x07|(n<<4))
-#define TW_SATURATION_ADDR(n)			(0x08|(n<<4))
-#define TW_CONTRAST_ADDR(n)			(0x09|(n<<4))
-#define TW_BRIGHTNESS_ADDR(n)			(0x0a|(n<<4))
+#define TW_HUE_ADDR(n)				(0x07 | ((n) << 4))
+#define TW_SATURATION_ADDR(n)			(0x08 | ((n) << 4))
+#define TW_CONTRAST_ADDR(n)			(0x09 | ((n) << 4))
+#define TW_BRIGHTNESS_ADDR(n)			(0x0a | ((n) << 4))
 
 /*
  * The top 2 bits of DEVID1 make up the the most significant bits of the
