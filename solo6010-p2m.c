@@ -20,6 +20,8 @@
 
 #include "solo6010-p2m.h"
 
+// #define SOLO_TEST_P2M
+
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size)
 {
@@ -65,6 +67,59 @@ start_dma:
 	return (timeout == 0) ? -EAGAIN : 0;
 }
 
+#ifdef SOLO_TEST_P2M
+static int p2m_test(struct solo6010_dev *solo_dev, u8 id, u32 base, int size,
+		    unsigned char a)
+{
+	u8 *wr_buf;
+	u8 *rd_buf;
+	int i;
+	int err_cnt = 0;
+
+	wr_buf = kmalloc(size, GFP_KERNEL);
+	if (!wr_buf)
+		return -1;
+
+	rd_buf = kmalloc(size, GFP_KERNEL);
+	if (!rd_buf) {
+		kfree(wr_buf);
+		return -1;
+	}
+
+	memset(wr_buf, a, size);
+	memset(rd_buf, a + 1, size);
+
+	solo_p2m_dma(solo_dev, id, 1, wr_buf, base, size);
+	solo_p2m_dma(solo_dev, id, 0, rd_buf, base, size);
+
+	for (i = 0; i < size; i++)
+		if (wr_buf[i] != rd_buf[i])
+			err_cnt++;
+
+	kfree(wr_buf);
+	kfree(rd_buf);
+
+	return err_cnt;
+}
+
+static void run_p2m_test(struct solo6010_dev *solo_dev)
+{
+	int i, j, errs = 0;
+	u8 a;
+
+	for (j = 0; j < SOLO_NR_P2M; j++)
+		for (i = 0, a = 0xff; i < 256; i++, a--)
+			errs += p2m_test(solo_dev, j, 0, 32, a);
+
+	printk(KERN_WARNING "%s: Found %d errors during p2m test\n",
+	       SOLO6010_NAME, errs);
+
+	return;
+}
+#else
+#define run_p2m_test(__solo)	do{}while(0)
+#endif
+
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
@@ -107,7 +162,7 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 		init_completion(&p2m_dev->completion);
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(i),
-			       __pa(p2m_dev[i].desc));
+			       __pa(p2m_dev->desc));
 
 		solo_reg_write(solo_dev, SOLO_P2M_CONTROL(i), 0);
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(i),
@@ -116,6 +171,8 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_P2M_PCI_MASTER_MODE);
 		solo6010_irq_on(solo_dev, SOLO_IRQ_P2M(i));
 	}
+
+	run_p2m_test(solo_dev);
 
 	return 0;
 }

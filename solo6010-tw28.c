@@ -181,12 +181,12 @@ static u8 tw_readbyte(struct solo6010_dev *solo_dev, int chip_id, u8 tw68x_off,
 {
 	if (is_tw286x(solo_dev, chip_id))
 		return solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
-					     TW_CHIP_OFFSET_ADDR(chip_id),
-					     tw68x_off);
+					 TW_CHIP_OFFSET_ADDR(chip_id),
+					 tw68x_off);
 	else
 		return solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
-					     TW_CHIP_OFFSET_ADDR(chip_id),
-					     tw_off);
+					 TW_CHIP_OFFSET_ADDR(chip_id),
+					 tw_off);
 }
 
 static void tw_writebyte(struct solo6010_dev *solo_dev, int chip_id,
@@ -194,12 +194,12 @@ static void tw_writebyte(struct solo6010_dev *solo_dev, int chip_id,
 {
 	if (is_tw286x(solo_dev, chip_id))
 		solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
-				       TW_CHIP_OFFSET_ADDR(chip_id),
-				       tw68x_off, val);
+				   TW_CHIP_OFFSET_ADDR(chip_id),
+				   tw68x_off, val);
 	else
 		solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
-				      TW_CHIP_OFFSET_ADDR(chip_id),
-				      tw_off, val);
+				   TW_CHIP_OFFSET_ADDR(chip_id),
+				   tw_off, val);
 }
 #endif
 
@@ -230,7 +230,7 @@ static int tw2865_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 	u8 tbl_tw2865_common[256];
 	int i;
 
-	if (solo_dev->vout_type == SOLO_VO_FMT_TYPE_NTSC)
+	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
 		memcpy(tbl_tw2865_common, tbl_ntsc_tw2865_common,
 		       sizeof(tbl_tw2865_common));
 	else
@@ -280,7 +280,7 @@ static int tw2864_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 	int i;
 	int reg;
 
-	if (solo_dev->vout_type == SOLO_VO_FMT_TYPE_NTSC)
+	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
 		memcpy(tbl_tw2864_common, tbl_ntsc_tw2864_common,
 		       sizeof(tbl_tw2864_common));
 	else
@@ -420,7 +420,7 @@ static int tw2815_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 		((0x01 & (DEFAULT_VACTIVE_PAL >> 8)) << 5);
 
 	tbl_tw2815_common =
-	    (solo_dev->vout_type == SOLO_VO_FMT_TYPE_NTSC) ?
+	    (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC) ?
 	     tbl_ntsc_tw2815_common : tbl_pal_tw2815_common;
 
 	/* Dual ITU-R BT.656 format */
@@ -473,14 +473,20 @@ static int tw2815_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 
 	for (ch = 0; ch < 4; ch++) {
 		tbl_tw2815_common[0x0d] &= ~3;
-		if (ch == 0)
+		switch (ch) {
+		case 0:
 			tbl_tw2815_common[0x0d] |= 0x21;
-		if (ch == 1)
+			break;
+		case 1:
 			tbl_tw2815_common[0x0d] |= 0x20;
-		if (ch == 2)
+			break;
+		case 2:
 			tbl_tw2815_common[0x0d] |= 0x23;
-		if (ch == 3)
+			break;
+		case 3:
 			tbl_tw2815_common[0x0d] |= 0x22;
+			break;
+		}
 
 		for (i = 0; i < 0x0f; i++) {
 			if (i == 0x00)
@@ -536,7 +542,7 @@ static void saa7128_setup(struct solo6010_dev *solo_dev)
 			(((FIRST_ACTIVE_LINE >> 8) & 1) << 4));
 
 	/* PAL: XXX: We could do a second set of regs to avoid this */
-	if (solo_dev->vout_type != SOLO_VO_FMT_TYPE_NTSC) {
+	if (solo_dev->video_type != SOLO_VO_FMT_TYPE_NTSC) {
 		regs[0x28] = 0xE1;
 
 		regs[0x5A] = 0x0F;
@@ -574,13 +580,17 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	for (i = 0; i < TW_NUM_CHIP; i++) {
 		value = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 					  TW_CHIP_OFFSET_ADDR(i), 0xFF);
-		if ((value >> 3) == 0x18) {
+
+		switch (value >> 3) {
+		case 0x18:
 			solo_dev->tw2865 |= 1 << i;
 			solo_dev->tw28_cnt++;
-		} else if ((value >> 3) == 0x0C) {
+			break;
+		case 0x0c:
 			solo_dev->tw2864 |= 1 << i;
 			solo_dev->tw28_cnt++;
-		} else {
+			break;
+		default:
 			value = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 						  TW_CHIP_OFFSET_ADDR(i), 0x59);
 			if ((value >> 3) == 0x04) {
@@ -602,15 +612,16 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 			tw2815_setup(solo_dev, TW_CHIP_OFFSET_ADDR(i));
 	}
 
+	dev_info(&solo_dev->pdev->dev, "Initialized %d tw28xx chips:",
+		 solo_dev->tw28_cnt);
+
 	if (solo_dev->tw2865)
-		dev_info(&solo_dev->pdev->dev, "Initialized %d tw2865 chips\n",
-			 hweight32(solo_dev->tw2865));
+		printk(" tw2865[%d]", hweight32(solo_dev->tw2865));
 	if (solo_dev->tw2864)
-		dev_info(&solo_dev->pdev->dev, "Initialized %d tw2864 chips\n",
-			 hweight32(solo_dev->tw2864));
+		printk(" tw2864[%d]", hweight32(solo_dev->tw2864));
 	if (solo_dev->tw2815)
-		dev_info(&solo_dev->pdev->dev, "Initialized %d tw2815 chips\n",
-			 hweight32(solo_dev->tw2815));
+		printk(" tw2815[%d]", hweight32(solo_dev->tw2815));
+	printk("\n");
 
 	return 0;
 }

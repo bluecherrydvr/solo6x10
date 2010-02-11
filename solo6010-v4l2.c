@@ -30,14 +30,18 @@
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED_TB
+#define SOLO_DEFAULT_CHAN	0
+#define CAPTURE_MAX_BANDWIDTH	32
+#define VI_PROG_HSIZE		(1280-16)
+#define VI_PROG_VSIZE		(1024-16)
 
 //#define COPY_WHOLE_LINE
 
-/* Image size is two fields */
+/* Image size is two fields, SOLO_H_SIZE_FDMA is one horizontal line */
 #ifdef COPY_WHOLE_LINE
-#define solo_image_size(__solo) (SOLO_H_SIZE_FDMA * __solo->vout_vsize * 4)
+#define solo_image_size(__solo) (SOLO_H_SIZE_FDMA * __solo->video_vsize * 2)
 #else
-#define solo_image_size(__solo)	(__solo->vout_hsize * __solo->vout_vsize * 4)
+#define solo_image_size(__solo)	(__solo->video_hsize * __solo->video_vsize * 4)
 #endif
 
 static unsigned video_nr = -1;
@@ -52,16 +56,25 @@ static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 	/* Here, we just keep window/channel the same */
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(ch),
 		       SOLO_VI_WIN_CHANNEL(ch) |
-		       SOLO_VI_WIN_SX(on ? solo_dev->vout_hstart : 0) |
-		       SOLO_VI_WIN_EX(on ? solo_dev->vout_hsize : 0) |
+		       SOLO_VI_WIN_SX(on ? 0: solo_dev->video_hsize) |
+		       SOLO_VI_WIN_EX(solo_dev->video_hsize) |
 		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
-		       SOLO_VI_WIN_SY(on ? solo_dev->vout_vstart : 0) |
-		       SOLO_VI_WIN_EY(on ? solo_dev->vout_vsize : 0));
+		       SOLO_VI_WIN_SY(on ? 0 : solo_dev->video_vsize) |
+		       SOLO_VI_WIN_EY(solo_dev->video_vsize));
 
-	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch),
-		       on ? SOLO_VI_WIN_LIVE_ON : 0x0);
+	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch), 0x00000001);
+
+	/* Expansion modes */
+	solo_reg_write(solo_dev, SOLO_VO_EXP(0), SOLO_VO_EXP_ON |
+		       SOLO_VO_EXP_SIZE(0));
+	solo_reg_write(solo_dev, SOLO_VO_EXP(1), SOLO_VO_EXP_ON |
+		       SOLO_VO_EXP_SIZE(2));
+	solo_reg_write(solo_dev, SOLO_VO_EXP(2), SOLO_VO_EXP_ON |
+		       SOLO_VO_EXP_SIZE(698));
+	solo_reg_write(solo_dev, SOLO_VO_EXP(2), SOLO_VO_EXP_ON |
+		       SOLO_VO_EXP_SIZE(700));
 
 	return 0;
 }
@@ -73,23 +86,148 @@ static int solo_disp_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 	if (ch >= solo_dev->nr_chans)
 		return -EINVAL;
 
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
-
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_disp_ch(solo_dev, ch, i == ch ? 1 : 0);
 
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 1 << ch);
 	solo_dev->cur_ch = ch;
 
 	return 0;
 }
 
+static void solo_cap_config(struct solo6010_dev *solo_dev)
+{
+	unsigned long height;
+	unsigned long width;
+
+	solo_reg_write(solo_dev, SOLO_CAP_BASE,
+		       SOLO_CAP_MAX_PAGE(SOLO_CAP_EXT_MAX_PAGE *
+					 solo_dev->nr_chans) |
+		       SOLO_CAP_BASE_ADDR((SOLO_CAP_EXT_ADDR(solo_dev) >> 16) &
+					  0xffff));
+	solo_reg_write(solo_dev, SOLO_CAP_BTW,
+		       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
+		       SOLO_CAP_MAX_BANDWIDTH(CAPTURE_MAX_BANDWIDTH));
+
+	/* Set scale 1, 9 dimension */
+	width = solo_dev->video_hsize;
+	height = solo_dev->video_vsize;
+	solo_reg_write(solo_dev, SOLO_DIM_SCALE1,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 8) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+
+	/* Set scale 2, 10 dimension */
+	width = solo_dev->video_hsize / 2;
+	height = solo_dev->video_vsize / 1;
+	solo_reg_write(solo_dev, SOLO_DIM_SCALE2,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 8) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+
+	/* Set scale 3, 11 dimension */
+	width = solo_dev->video_hsize / 2;
+	height = solo_dev->video_vsize / 2;
+	solo_reg_write(solo_dev, SOLO_DIM_SCALE3,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 8) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+
+	/* Set scale 4, 12 dimension */
+	width = solo_dev->video_hsize / 3;
+	height = solo_dev->video_vsize / 3;
+	solo_reg_write(solo_dev, SOLO_DIM_SCALE4,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 8) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+
+	/* Set scale 5, 13 dimension */
+	width = solo_dev->video_hsize / 4;
+	height = solo_dev->video_vsize / 2;
+	solo_reg_write(solo_dev, SOLO_DIM_SCALE5,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 8) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+
+	/* Progressive */
+	width = VI_PROG_HSIZE;
+	height = VI_PROG_VSIZE;
+	solo_reg_write(solo_dev, SOLO_DIM_PROG,
+		       SOLO_DIM_H_MB_NUM(width / 16) |
+		       SOLO_DIM_V_MB_NUM_FRAME(height / 16) |
+		       SOLO_DIM_V_MB_NUM_FIELD(height / 16));
+}
+
+static void solo_vin_config(struct solo6010_dev *solo_dev)
+{
+	solo_dev->vin_hstart = 8;
+	solo_dev->vin_vstart = 2;
+
+	solo_reg_write(solo_dev, SOLO_SYS_VCLK,
+		       SOLO_VCLK_SELECT(2) |
+		       SOLO_VCLK_VIN1415_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN1213_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN1011_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN0809_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN0607_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN0405_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN0203_DELAY(SOLO_VCLK_DELAY) |
+		       SOLO_VCLK_VIN0001_DELAY(SOLO_VCLK_DELAY));
+
+	solo_reg_write(solo_dev, SOLO_VI_ACT_I_P,
+		       SOLO_VI_H_START(solo_dev->vin_hstart) |
+		       SOLO_VI_V_START(solo_dev->vin_vstart) |
+		       SOLO_VI_V_STOP(solo_dev->vin_vstart +
+				      solo_dev->video_vsize));
+
+	solo_reg_write(solo_dev, SOLO_VI_ACT_I_S,
+		       SOLO_VI_H_START(solo_dev->vout_hstart) |
+		       SOLO_VI_V_START(solo_dev->vout_vstart) |
+		       SOLO_VI_V_STOP(solo_dev->vout_vstart +
+				      solo_dev->video_vsize));
+
+	solo_reg_write(solo_dev, SOLO_VI_ACT_P,
+		       SOLO_VI_H_START(0) |
+		       SOLO_VI_V_START(1) |
+		       SOLO_VI_V_STOP(SOLO_PROGRESSIVE_VSIZE));
+
+	solo_reg_write(solo_dev, SOLO_VI_CH_FORMAT,
+		       SOLO_VI_FD_SEL_MASK(0) | SOLO_VI_PROG_MASK(0));
+
+	/* XXX: Use this for stable check? */
+	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
+	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
+
+	if (solo_dev->video_type == 0) {
+		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
+			       SOLO_VI_PB_USER_MODE);
+		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
+			       SOLO_VI_PB_HSIZE(858) | SOLO_VI_PB_VSIZE(246));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_H,
+			       SOLO_VI_PB_HSTART(16) |
+			       SOLO_VI_PB_HSTOP(16 + 720));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
+			       SOLO_VI_PB_VSTART(4) |
+			       SOLO_VI_PB_VSTOP(4 + 240));
+	} else {
+		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
+			       SOLO_VI_PB_USER_MODE | SOLO_VI_PB_PAL);
+		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
+			       SOLO_VI_PB_HSIZE(864) | SOLO_VI_PB_VSIZE(294));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_H,
+			       SOLO_VI_PB_HSTART(16) |
+			       SOLO_VI_PB_HSTOP(16 + 720));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
+			       SOLO_VI_PB_VSTART(4) |
+			       SOLO_VI_PB_VSTOP(4 + 288));
+	}
+
+}
+
 static void solo_disp_config(struct solo6010_dev *solo_dev)
 {
-	/* Start out with NTSC */
-	solo_dev->vout_type = SOLO_VO_FMT_TYPE_NTSC;
-	solo_dev->vout_hsize = 704;
-	solo_dev->vout_vsize = 240;
+	int i;
+
 	solo_dev->vout_hstart = 6;
 	solo_dev->vout_vstart = 8;
 
@@ -101,7 +239,7 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 		       SOLO_VO_BG_YUV(16, 128, 128));
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
-		       solo_dev->vout_type |
+		       solo_dev->video_type |
 		       SOLO_VO_USER_COLOR_SET_NAV |
 		       SOLO_VO_NA_COLOR_Y(0) |
 		       SOLO_VO_NA_COLOR_CB(0) |
@@ -110,33 +248,37 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VO_ACT_H,
 		       SOLO_VO_H_START(solo_dev->vout_hstart) |
 		       SOLO_VO_H_STOP(solo_dev->vout_hstart +
-				      solo_dev->vout_hsize));
+				      solo_dev->video_hsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_ACT_V,
 		       SOLO_VO_V_START(solo_dev->vout_vstart) |
 		       SOLO_VO_V_STOP(solo_dev->vout_vstart +
-				      solo_dev->vout_vsize));
+				      solo_dev->video_vsize));
 
 	solo_reg_write(solo_dev, SOLO_VO_RANGE_HV,
-		       SOLO_VO_H_LEN(solo_dev->vout_hsize) |
-		       SOLO_VO_V_LEN(solo_dev->vout_vsize));
+		       SOLO_VO_H_LEN(solo_dev->video_hsize) |
+		       SOLO_VO_V_LEN(solo_dev->video_vsize));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 5);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, SOLO_VO_DISP_ON |
-		       SOLO_VO_DISP_ERASE_COUNT(8) |
+		       SOLO_VO_DISP_ERASE_COUNT(4) |
 		       SOLO_VO_DISP_BASE(SOLO_DISP_EXT_ADDR(solo_dev)));
 
-	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
+	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, 0); //SOLO_VO_DISP_ERASE_ON);
+
+	/* Mute channels we aren't supporting */
+	for (i = solo_dev->nr_chans; i < 16; i++) {
+		int val = ((~(1 << i) & 0xffff) &
+			solo_reg_read(solo_dev, SOLO_VI_CH_ENA));
+		solo_reg_write(solo_dev, SOLO_VI_CH_ENA, val);
+	}
 
 	/* Disable the watchdog */
 	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
 
 	/* Test signal - BENC */
 	//solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, SOLO_VI_FMT_TEST_SIGNAL);
-
-	/* Set the display to channel 0 */
-	solo_disp_set_ch(solo_dev, 0);
 }
 
 static int solo_disp_open(struct file *file)
@@ -210,7 +352,7 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 
 	solo_dev->old_write = cur_write;
 
-	frame_size = SOLO_H_SIZE_FDMA * solo_dev->vout_vsize * 2;
+	frame_size = SOLO_H_SIZE_FDMA * solo_dev->video_vsize * 2;
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (cur_write * frame_size);
 
 	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
@@ -225,11 +367,11 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 			return -EFAULT;
 #else
 		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_H_SIZE_FDMA); j++) {
-			int off = 2 * solo_dev->vout_hsize *
+			int off = 2 * solo_dev->video_hsize *
 			      ((i * SOLO_DISP_BUF_SIZE / SOLO_H_SIZE_FDMA) + j);
 			if (copy_to_user(data + off, solo_dev->vout_buf +
 					 (j * SOLO_H_SIZE_FDMA),
-					 2 * solo_dev->vout_hsize))
+					 2 * solo_dev->video_hsize))
 				return -EFAULT;
 		}
 #endif
@@ -261,7 +403,7 @@ static int solo_querycap(struct file *file, void  *priv,
 	cap->version = SOLO6010_VER_NUM;
 	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
 				V4L2_CAP_READWRITE;
-        return 0;
+	return 0;
 }
 
 static int solo_enum_input(struct file *file, void *priv,
@@ -321,15 +463,15 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 	int image_size = solo_image_size(solo_dev);
 
 	/* Check supported sizes */
-	if (pix->width > solo_dev->vout_hsize)
-		pix->width = solo_dev->vout_hsize;
-	if (pix->height > solo_dev->vout_vsize * 2)
-		pix->width = solo_dev->vout_vsize * 2;
+	if (pix->width > solo_dev->video_hsize)
+		pix->width = solo_dev->video_hsize;
+	if (pix->height > solo_dev->video_vsize * 2)
+		pix->width = solo_dev->video_vsize * 2;
 	if (pix->sizeimage > image_size)
 		pix->sizeimage = image_size;
 
-	if (pix->width     != solo_dev->vout_hsize ||
-	    pix->height    != solo_dev->vout_vsize * 2 ||
+	if (pix->width     != solo_dev->video_hsize ||
+	    pix->height    != solo_dev->video_vsize * 2 ||
 	    pix->sizeimage != image_size)
 		return -EINVAL;
 
@@ -367,15 +509,15 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
-	pix->width = solo_dev->vout_hsize;
-	pix->height = solo_dev->vout_vsize * 2;
+	pix->width = solo_dev->video_hsize;
+	pix->height = solo_dev->video_vsize * 2;
 	pix->pixelformat = SOLO_DISP_PIX_FORMAT;
 	pix->field = SOLO_DISP_PIX_FIELD;
 	pix->sizeimage = solo_image_size(solo_dev);
 #ifdef COPY_WHOLE_LINE
 	pix->bytesperline = SOLO_H_SIZE_FDMA;
 #else
-//	pix->bytesperline = solo_dev->vout_hsize * 2;
+	pix->bytesperline = solo_dev->video_hsize * 2;
 #endif
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 
@@ -430,7 +572,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	if (!solo_dev->vfd)
 		return -ENOMEM;
 
-        *solo_dev->vfd = solo_disp_template;
+	*solo_dev->vfd = solo_disp_template;
 	solo_dev->vfd->parent = &solo_dev->pdev->dev;
 
 	ret = video_register_device(solo_dev->vfd, VFL_TYPE_GRABBER, video_nr);
@@ -451,7 +593,17 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	dev_info(&solo_dev->pdev->dev, "Registered as /dev/video%d with "
 		 "%d inputs\n", solo_dev->vfd->num, solo_dev->nr_chans);
 
+	/* Start out with NTSC */
+	solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
+	solo_dev->video_hsize = 704;
+	solo_dev->video_vsize = 240;
+
+	solo_vin_config(solo_dev);
 	solo_disp_config(solo_dev);
+	solo_cap_config(solo_dev);
+
+	/* Set the default display channel */
+	solo_disp_set_ch(solo_dev, SOLO_DEFAULT_CHAN);
 
 	return 0;
 }

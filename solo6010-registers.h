@@ -46,6 +46,19 @@
 #define   SOLO_DMA_CTRL_SDRAM_SIZE(__n)		(((__n) & 0x0003) << 6)
 #define   SOLO_DMA_CTRL_REFRESH_CYCLE(__n)	(((__n) & 0xffff) << 8)
 
+#define SOLO_SYS_VCLK			0x000C
+#define   SOLO_VCLK_INVERT		0x00400000
+/* 0=sys_clk/4, 1=sys_clk/2, 2=clk_in/2 of system input */
+#define   SOLO_VCLK_SELECT(n)		(((n) & 0x03) << 20)
+#define   SOLO_VCLK_VIN1415_DELAY(n)	(((n) & 0x03) << 14)
+#define   SOLO_VCLK_VIN1213_DELAY(n)	(((n) & 0x03) << 12)
+#define   SOLO_VCLK_VIN1011_DELAY(n)	(((n) & 0x03) << 10)
+#define   SOLO_VCLK_VIN0809_DELAY(n)	(((n) & 0x03) << 8)
+#define   SOLO_VCLK_VIN0607_DELAY(n)	(((n) & 0x03) << 6)
+#define   SOLO_VCLK_VIN0405_DELAY(n)	(((n) & 0x03) << 4)
+#define   SOLO_VCLK_VIN0203_DELAY(n)	(((n) & 0x03) << 2)
+#define   SOLO_VCLK_VIN0001_DELAY(n)	(((n) & 0x03) << 0)
+
 /* Interrupt related registers and values */
 #define SOLO_IRQ_STAT			0x0010
 #define SOLO_IRQ_ENABLE			0x0014
@@ -143,15 +156,42 @@
 
 /* Video in registers and values */
 #define SOLO_VI_CH_ENA			0x010C
+#define SOLO_VI_CH_FORMAT		0x0110
+#define   SOLO_VI_FD_SEL_MASK(__n)	(((__n) & 0xfff) << 16)
+#define   SOLO_VI_PROG_MASK(__n)	(((__n) & 0xfff) << 0)
 #define SOLO_VI_FMT_CFG			0x0114
 #define   SOLO_VI_FMT_CHECK_VCOUNT	0x80000000
 #define   SOLO_VI_FMT_CHECK_HCOUNT	0x40000000
 #define   SOLO_VI_FMT_TEST_SIGNAL	0x10000000
-
+#define SOLO_VI_PAGE_SW			0x0118
+#define   SOLO_FI_INV_DISP_LIVE		0x00000100
+#define   SOLO_FI_INV_DISP_OUT		0x00000080
+#define   SOLO_DISP_SYNC_FI		0x00000040
+#define   SOLO_PIP_PAGE_ADD(__n)	(((__n) & 0x1f) << 3)
+#define   SOLO_NORMAL_PAGE_ADD(__n)	(((__n) & 0x03) << 0)
+/* These next three registers have the same bit layout and use */
+#define SOLO_VI_ACT_I_P			0x011C
+#define SOLO_VI_ACT_I_S			0x0120
+#define SOLO_VI_ACT_P			0x0124
+#define   SOLO_VI_FI_INVERT		0x80000000
+#define   SOLO_VI_H_START(__n)		(((__n) & 0x1ff) << 21)
+#define   SOLO_VI_V_START(__n)		(((__n) & 0x3ff) << 11)
+#define   SOLO_VI_V_STOP(__n)		(((__n) & 0x7ff) << 0)
 #define SOLO_VI_STATUS0			0x0128
 #define   SOLO_VI_STATUS0_PAGE(__n)	((__n) & 0x07)
 #define SOLO_VI_STATUS1			0x012C
-
+#define SOLO_VI_PB_CONFIG		0x0130
+#define   SOLO_VI_PB_USER_MODE		0x00000002
+#define   SOLO_VI_PB_PAL		0x00000001
+#define SOLO_VI_PB_RANGE_HV		0x0134
+#define   SOLO_VI_PB_HSIZE(__n)		(((__n) & 0x3ff) << 12)
+#define   SOLO_VI_PB_VSIZE(__n)		(((__n) & 0xfff) << 0)
+#define SOLO_VI_PB_ACT_H		0x0138
+#define   SOLO_VI_PB_HSTART(__n)	(((__n) & 0x3ff) << 12)
+#define   SOLO_VI_PB_HSTOP(__n)		(((__n) & 0xfff) << 0)
+#define SOLO_VI_PB_ACT_V		0x013C
+#define   SOLO_VI_PB_VSTART(__n)	(((__n) & 0x3ff) << 12)
+#define   SOLO_VI_PB_VSTOP(__n)		(((__n) & 0xfff) << 0)
 #define SOLO_VI_WIN_CTRL0(__ch)		(((__ch) * 4) + 0x0180)
 #define   SOLO_VI_WIN_CHANNEL(__n)	(((__n) & 0x000f) << 28)
 #define   SOLO_VI_WIN_PIP		0x08000000
@@ -166,6 +206,11 @@
 #define   SOLO_VI_WIN_LIVE_ON		0x00000001
 #define   SOLO_VI_WIN_PB_ON		0x00000002
 #define SOLO_VI_WIN_SW			0x0240
+
+/* Horizontal expansion */
+#define SOLO_VO_EXP(__n)		(0x0250 + (((__n) & 0x03) * 4))
+#define   SOLO_VO_EXP_ON		0x00001000
+#define   SOLO_VO_EXP_SIZE(__n)		(((__n) & 0x0fff) << 0)
 
 /* Video Out Encoder */
 #define SOLO_VO_FMT_ENC			0x0300
@@ -215,6 +260,36 @@
 
 #define SOLO_VO_BORDER_LINE_COLOR	0x0330
 #define SOLO_VO_BORDER_FILL_COLOR	0x0334
+
+/* Video capture */
+#define SOLO_CAP_BASE			0x0400
+#define   SOLO_CAP_MAX_PAGE(__n)	(((__n) & 0xffff) << 16)
+#define   SOLO_CAP_BASE_ADDR(__n)	(((__n) & 0xffff) << 0)
+#define SOLO_CAP_BTW			0x0404
+#define   SOLO_CAP_PROG_BANDWIDTH(__n)	(((__n) & 0x3f) << 8)
+#define   SOLO_CAP_MAX_BANDWIDTH(__n)	(((__n) & 0xff) << 0)
+/* The dim scale registers have the same bit layout */
+#define SOLO_DIM_SCALE1			0x0408
+#define SOLO_DIM_SCALE2			0x040C
+#define SOLO_DIM_SCALE3			0x0410
+#define SOLO_DIM_SCALE4			0x0414
+#define SOLO_DIM_SCALE5			0x0418
+#define   SOLO_DIM_V_MB_NUM_FRAME(__n)	(((__n) & 0xff) << 16)
+#define   SOLO_DIM_V_MB_NUM_FIELD(__n)	(((__n) & 0xff) << 8)
+#define   SOLO_DIM_H_MB_NUM(__n)	(((__n) & 0xff) << 0)
+#define SOLO_DIM_PROG			0x041C
+#define SOLO_CAP_STATUS			0x0420
+
+
+/* GPIO registers */
+#define SOLO_GPIO_CONFIG_0		0x0B00
+#define SOLO_GPIO_CONFIG_1		0x0B04
+#define SOLO_GPIO_DATA_OUT		0x0B08
+#define SOLO_GPIO_DATA_IN		0x0B0C
+#define SOLO_GPIO_INT_ACK_STA		0x0B10
+#define SOLO_GPIO_INT_ENA		0x0B14
+#define SOLO_GPIO_INT_CFG_0		0x0B18
+#define SOLO_GPIO_INT_CFG_1		0x0B1C
 
 /* I2C config and control */
 #define SOLO_IIC_CFG			0x0b20

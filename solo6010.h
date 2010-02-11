@@ -69,6 +69,8 @@
 #define SOLO_P2M_DMA_ID_VIN		3
 
 #define SOLO_DISP_BUF_SIZE		(64 * 1024) // 64k
+#define SOLO_VCLK_DELAY			3
+#define SOLO_PROGRESSIVE_VSIZE		1024
 
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
@@ -123,11 +125,13 @@ struct solo6010_dev {
 	struct solo_filehandle	*v4l2_reader;
 
 	/* Current video out settings */
-	u32 vout_type;
-	u32 vout_hsize;
-	u32 vout_vsize;
-	u32 vout_hstart;
-	u32 vout_vstart;
+	u32 video_type;
+	u16 video_hsize;
+	u16 video_vsize;
+	u16 vout_hstart;
+	u16 vout_vstart;
+	u16 vin_hstart;
+	u16 vin_vstart;
 	u8 vout_buf[SOLO_DISP_BUF_SIZE];
 	int old_write;
 	unsigned int cur_ch;

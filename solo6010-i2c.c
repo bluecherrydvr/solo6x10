@@ -297,8 +297,18 @@ int solo_i2c_init(struct solo6010_dev *solo_dev)
 
 		if ((ret = i2c_add_adapter(adap))) {
 			adap->algo_data = NULL;
-			return ret;
+			break;
 		}
+	}
+
+	if (ret) {
+		for (i = 0; i < SOLO_I2C_ADAPTERS; i++) {
+			if (!solo_dev->i2c_adap[i].algo_data)
+				break;
+			i2c_del_adapter(&solo_dev->i2c_adap[i]);
+			solo_dev->i2c_adap[i].algo_data = NULL;
+		}
+		return ret;
 	}
 
 	dev_info(&solo_dev->pdev->dev, "Enabled %d i2c adapters\n",
