@@ -48,6 +48,23 @@ static unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
 MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
 
+static void erase_on(struct solo6010_dev *solo_dev)
+{
+	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
+	solo_dev->erasing = 1;
+}
+
+static int erase_off(struct solo6010_dev *solo_dev)
+{
+	if (solo_dev->erasing)
+		return 0;
+
+	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, 0);
+	solo_dev->erasing = 0;
+
+	return 1;
+}
+
 static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 {
 	if (ch >= solo_dev->nr_chans)
@@ -85,6 +102,8 @@ static int solo_disp_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 
 	if (ch >= solo_dev->nr_chans)
 		return -EINVAL;
+
+	erase_on(solo_dev);
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_disp_ch(solo_dev, ch, i == ch ? 1 : 0);
@@ -236,7 +255,8 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VO_BORDER_FILL_COLOR,
 		       (0x10 << 24) | (0x8f << 16) | (0x10 << 8) | 0x8f);
 	solo_reg_write(solo_dev, SOLO_VO_BKG_COLOR,
-		       SOLO_VO_BG_YUV(16, 128, 128));
+		       (16 << 24) | (128 << 16) | (16 << 8) | 128);
+		       //SOLO_VO_BG_YUV(16, 128, 128));
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
 		       solo_dev->video_type |
@@ -262,10 +282,10 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 5);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, SOLO_VO_DISP_ON |
-		       SOLO_VO_DISP_ERASE_COUNT(4) |
+		       SOLO_VO_DISP_ERASE_COUNT(8) |
 		       SOLO_VO_DISP_BASE(SOLO_DISP_EXT_ADDR(solo_dev)));
 
-	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, 0); //SOLO_VO_DISP_ERASE_ON);
+	erase_on(solo_dev);
 
 	/* Mute channels we aren't supporting */
 	for (i = solo_dev->nr_chans; i < 16; i++) {
@@ -334,6 +354,8 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	int frame_size;
 	int image_size = solo_image_size(solo_dev);
 	int i, j;
+	static int frames = 0;
+	static int ch = 0;
 
 	if (!solo_disp_can_read(fh))
 		return -EBUSY;
@@ -351,6 +373,20 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	} while(1);
 
 	solo_dev->old_write = cur_write;
+
+	if (erase_off(solo_dev)) {
+		for (i = 0; i < image_size; i += 2) {
+			u8 buf[2] = { 0x80, 0x80 };
+			copy_to_user(data + i, buf, 2);
+		}
+		return image_size;
+	}
+
+	if (frames++ >= 150) {
+		solo_disp_set_ch(solo_dev, ch);
+		ch = ch ? 0 : 1;
+		frames = 0;
+	}
 
 	frame_size = SOLO_H_SIZE_FDMA * solo_dev->video_vsize * 2;
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (cur_write * frame_size);

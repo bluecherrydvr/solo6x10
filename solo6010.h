@@ -123,6 +123,7 @@ struct solo6010_dev {
 	struct video_device	*vfd;
 	struct mutex		v4l2_mutex;
 	struct solo_filehandle	*v4l2_reader;
+	unsigned int		erasing;
 
 	/* Current video out settings */
 	u32 video_type;
