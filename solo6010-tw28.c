@@ -18,8 +18,8 @@
 
 #include <linux/kernel.h>
 
+#include "solo6010.h"
 #include "solo6010-tw28.h"
-#include "solo6010-i2c.h"
 
 /* XXX: Some of these values are masked into an 8-bit regs, and shifted
  * around for other 8-bit regs. What are the magic bits in these values? */

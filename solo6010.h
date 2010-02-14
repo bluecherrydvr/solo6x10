@@ -124,8 +124,9 @@ struct solo6010_dev {
 	struct mutex		v4l2_mutex;
 	struct solo_filehandle	*v4l2_reader;
 	unsigned int		erasing;
+	unsigned int		frame_blank;
 
-	/* Current video out settings */
+	/* Current video settings */
 	u32 video_type;
 	u16 video_hsize;
 	u16 video_vsize;
@@ -175,5 +176,33 @@ static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask);
 void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask);
 
+/* Init/exit routeines for subsystems */
+int solo_disp_init(struct solo6010_dev *solo_dev);
+void solo_disp_exit(struct solo6010_dev *solo_dev);
+
+int solo_gpio_init(struct solo6010_dev *solo_dev);
+void solo_gpio_exit(struct solo6010_dev *solo_dev);
+
+int solo_i2c_init(struct solo6010_dev *solo_dev);
+void solo_i2c_exit(struct solo6010_dev *solo_dev);
+
+int solo_p2m_init(struct solo6010_dev *solo_dev);
+void solo_p2m_exit(struct solo6010_dev *solo_dev);
+
+int solo_v4l2_init(struct solo6010_dev *solo_dev);
+void solo_v4l2_exit(struct solo6010_dev *solo_dev);
+
+/* i2c and p2m(dma) routines */
+int solo_i2c_isr(struct solo6010_dev *solo_dev);
+
+u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);
+void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
+			u8 data);
+
+void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
+void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
+
+int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr, void *sys_addr,
+		 u32 ext_addr, u32 size);
 
 #endif /* __SOLO6010_H */

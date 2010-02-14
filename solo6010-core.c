@@ -23,11 +23,7 @@
 #include <linux/videodev2.h>
 
 #include "solo6010.h"
-#include "solo6010-i2c.h"
-#include "solo6010-p2m.h"
-#include "solo6010-v4l2.h"
 #include "solo6010-tw28.h"
-#include "solo6010-gpio.h"
 
 MODULE_DESCRIPTION("Softlogic 6010 MP4 Encoder/Decoder V4L2 Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
@@ -98,6 +94,7 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 
 	/* Bring down the sub-devices first */
 	solo_v4l2_exit(solo_dev);
+	solo_disp_exit(solo_dev);
 	solo_gpio_exit(solo_dev);
 	solo_p2m_exit(solo_dev);
 	solo_i2c_exit(solo_dev);
@@ -200,6 +197,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	if ((ret = solo_tw28_init(solo_dev)))
+		goto fail_probe;
+
+	if ((ret = solo_disp_init(solo_dev)))
 		goto fail_probe;
 
 	if ((ret = solo_v4l2_init(solo_dev)))

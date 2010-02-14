@@ -20,7 +20,7 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 
-#include "solo6010-gpio.h"
+#include "solo6010.h"
 
 static void solo_gpio_mode(struct solo6010_dev *solo_dev,
 			   unsigned int port_mask, unsigned int mode)

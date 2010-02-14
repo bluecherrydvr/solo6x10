@@ -26,7 +26,7 @@
 
 #include <linux/kernel.h>
 
-#include "solo6010-i2c.h"
+#include "solo6010.h"
 
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off)
 {

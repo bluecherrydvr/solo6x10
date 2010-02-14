@@ -18,7 +18,7 @@
 
 #include <linux/kernel.h>
 
-#include "solo6010-p2m.h"
+#include "solo6010.h"
 
 // #define SOLO_TEST_P2M
 
