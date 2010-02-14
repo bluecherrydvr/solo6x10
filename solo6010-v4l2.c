@@ -27,7 +27,7 @@
 #define SOLO_H_SIZE_FDMA	2048
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
-#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED_TB
+#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
 #define SOLO_DEFAULT_CHAN	0
 
 //#define COPY_WHOLE_LINE
@@ -65,7 +65,7 @@ static int erase_off(struct solo6010_dev *solo_dev)
 	return 1;
 }
 
-static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
+static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 {
 	if (ch >= solo_dev->nr_chans)
 		return -EINVAL;
@@ -73,7 +73,7 @@ static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 	/* Here, we just keep window/channel the same */
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(ch),
 		       SOLO_VI_WIN_CHANNEL(ch) |
-		       SOLO_VI_WIN_SX(on ? 0: solo_dev->video_hsize) |
+		       SOLO_VI_WIN_SX(on ? 0 : solo_dev->video_hsize) |
 		       SOLO_VI_WIN_EX(solo_dev->video_hsize) |
 		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
 
@@ -86,7 +86,7 @@ static int solo_disp_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 	return 0;
 }
 
-static int solo_disp_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
+static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 {
 	if (ch >= solo_dev->nr_chans)
 		return -EINVAL;
@@ -95,15 +95,15 @@ static int solo_disp_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 
 	erase_on(solo_dev);
 
-	solo_disp_ch(solo_dev, solo_dev->cur_ch, 0);
-	solo_disp_ch(solo_dev, ch, 1);
+	solo_v4l2_ch(solo_dev, solo_dev->cur_ch, 0);
+	solo_v4l2_ch(solo_dev, ch, 1);
 
 	solo_dev->cur_ch = ch;
 
 	return 0;
 }
 
-static int solo_disp_open(struct file *file)
+static int solo_v4l2_open(struct file *file)
 {
 	struct solo6010_dev *solo_dev = video_drvdata(file);
 	struct solo_filehandle *fh;
@@ -120,7 +120,7 @@ static int solo_disp_open(struct file *file)
 /* Try to obtain and/or verify that a fh can read the display device. Only
  * one file descriptor can do this at a time and it retains exclusivity
  * until the file descriptor is closed. */
-static int solo_disp_can_read(struct solo_filehandle *fh)
+static int solo_v4l2_can_read(struct solo_filehandle *fh)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 
@@ -136,7 +136,7 @@ static int solo_disp_can_read(struct solo_filehandle *fh)
 }
 
 /* If this file handle has exclusivity on read rights, release them */
-static void solo_disp_free_read(struct solo_filehandle *fh)
+static void solo_v4l2_free_read(struct solo_filehandle *fh)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 
@@ -146,7 +146,7 @@ static void solo_disp_free_read(struct solo_filehandle *fh)
 	mutex_unlock(&solo_dev->v4l2_mutex);
 }
 
-static ssize_t solo_disp_read(struct file *file, char __user *data,
+static ssize_t solo_v4l2_read(struct file *file, char __user *data,
 			      size_t count, loff_t *ppos)
 {
 	struct solo_filehandle *fh = file->private_data;
@@ -156,10 +156,8 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	int frame_size;
 	int image_size = solo_image_size(solo_dev);
 	int i, j;
-	static int next_ch = 1;
-	static int frames = -30;
 
-	if (!solo_disp_can_read(fh))
+	if (!solo_v4l2_can_read(fh))
 		return -EBUSY;
 	
 	if (count < image_size)
@@ -175,15 +173,6 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	} while(1);
 
 	solo_dev->old_write = cur_write;
-
-	if (next_ch >= 0 && frames++ >= 30) {
-		frames = 0;
-		solo_disp_set_ch(solo_dev, next_ch++);
-		if (next_ch >= solo_dev->nr_chans)
-			next_ch = 0;
-		else if (next_ch == 1)
-			next_ch = -1;
-	}
 
 	if (erase_off(solo_dev)) {
 		for (i = 0; i < image_size; i += 2) {
@@ -221,11 +210,11 @@ static ssize_t solo_disp_read(struct file *file, char __user *data,
 	return image_size;
 }
 
-static int solo_disp_release(struct file *file)
+static int solo_v4l2_release(struct file *file)
 {
 	struct solo_filehandle *fh = file->private_data;
 
-	solo_disp_free_read(fh);
+	solo_v4l2_free_read(fh);
 	kfree(fh);
 
 	return 0;
@@ -270,7 +259,7 @@ static int solo_set_input(struct file *file, void *priv, unsigned int index)
 {
 	struct solo_filehandle *fh = priv;
 
-	return solo_disp_set_ch(fh->solo_dev, index);
+	return solo_v4l2_set_ch(fh->solo_dev, index);
 }
 
 static int solo_get_input(struct file *file, void *priv, unsigned int *index)
@@ -306,21 +295,15 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 	/* Check supported sizes */
 	if (pix->width > solo_dev->video_hsize)
 		pix->width = solo_dev->video_hsize;
-	if (pix->height > solo_dev->video_vsize * 2)
-		pix->width = solo_dev->video_vsize * 2;
+	if (pix->height > solo_dev->video_vsize)
+		pix->height = solo_dev->video_vsize;
 	if (pix->sizeimage > image_size)
 		pix->sizeimage = image_size;
 
 	if (pix->width     != solo_dev->video_hsize ||
-	    pix->height    != solo_dev->video_vsize * 2 ||
-	    pix->sizeimage != image_size) {
-		printk("Size is all wrong: %d, %d, %d\n", pix->width,
-		       pix->height, pix->sizeimage);
-		pix->width = solo_dev->video_hsize;
-		pix->height = solo_dev->video_vsize;
-		pix->sizeimage = image_size;
-		//return -EINVAL;
-	}
+	    pix->height    != solo_dev->video_vsize ||
+	    pix->sizeimage != image_size)
+		return -EINVAL;
 
 	/* Check formats */
 	if (pix->field == V4L2_FIELD_ANY)
@@ -328,13 +311,8 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 
 	if (pix->pixelformat != SOLO_DISP_PIX_FORMAT ||
 	    pix->field       != SOLO_DISP_PIX_FIELD ||
-	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M) {
-		printk("Pix format is all wrong\n");
-		pix->pixelformat = SOLO_DISP_PIX_FORMAT;
-		pix->field = SOLO_DISP_PIX_FIELD;
-		pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
-		//return -EINVAL;
-	}
+	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
+		return -EINVAL;
 
 	return 0;
 }
@@ -362,7 +340,7 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	pix->width = solo_dev->video_hsize;
-	pix->height = solo_dev->video_vsize * 2;
+	pix->height = solo_dev->video_vsize;
 	pix->pixelformat = SOLO_DISP_PIX_FORMAT;
 	pix->field = SOLO_DISP_PIX_FIELD;
 	pix->sizeimage = solo_image_size(solo_dev);
@@ -376,15 +354,15 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	return 0;
 }
 
-static const struct v4l2_file_operations solo_disp_fops = {
+static const struct v4l2_file_operations solo_v4l2_fops = {
 	.owner			= THIS_MODULE,
-	.open			= solo_disp_open,
-	.release		= solo_disp_release,
-	.read			= solo_disp_read,
+	.open			= solo_v4l2_open,
+	.release		= solo_v4l2_release,
+	.read			= solo_v4l2_read,
 	.ioctl			= video_ioctl2,
 };
 
-static const struct v4l2_ioctl_ops solo_disp_ioctl_ops = {
+static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 	.vidioc_querycap		= solo_querycap,
 	/* Input callbacks */
 	.vidioc_enum_input		= solo_enum_input,
@@ -397,10 +375,10 @@ static const struct v4l2_ioctl_ops solo_disp_ioctl_ops = {
 	.vidioc_g_fmt_vid_cap		= solo_get_fmt_cap,
 };
 
-static struct video_device solo_disp_template = {
+static struct video_device solo_v4l2_template = {
 	.name			= SOLO6010_NAME,
-	.fops			= &solo_disp_fops,
-	.ioctl_ops		= &solo_disp_ioctl_ops,
+	.fops			= &solo_v4l2_fops,
+	.ioctl_ops		= &solo_v4l2_ioctl_ops,
 	.minor			= -1,
 	.release		= video_device_release,
 
@@ -411,6 +389,7 @@ static struct video_device solo_disp_template = {
 int solo_v4l2_init(struct solo6010_dev *solo_dev)
 {
 	int ret;
+	int i;
 
 	mutex_init(&solo_dev->v4l2_mutex);
 
@@ -418,7 +397,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	if (!solo_dev->vfd)
 		return -ENOMEM;
 
-	*solo_dev->vfd = solo_disp_template;
+	*solo_dev->vfd = solo_v4l2_template;
 	solo_dev->vfd->parent = &solo_dev->pdev->dev;
 
 	ret = video_register_device(solo_dev->vfd, VFL_TYPE_GRABBER, video_nr);
@@ -440,7 +419,14 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 		 "%d inputs\n", solo_dev->vfd->num, solo_dev->nr_chans);
 
 	/* Set the default display channel */
-	solo_disp_set_ch(solo_dev, SOLO_DEFAULT_CHAN);
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		solo_v4l2_set_ch(solo_dev, i);
+		while (erase_off(solo_dev))
+			;// Do nothing
+	}
+	solo_v4l2_set_ch(solo_dev, SOLO_DEFAULT_CHAN);
+	while(erase_off(solo_dev))
+		;// Do nothing
 
 	return 0;
 }

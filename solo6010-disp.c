@@ -65,6 +65,8 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
+	solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG, 0);
+#if 0
 	if (solo_dev->video_type == 0) {
 		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
 			       SOLO_VI_PB_USER_MODE);
@@ -88,7 +90,7 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 			       SOLO_VI_PB_VSTART(4) |
 			       SOLO_VI_PB_VSTOP(4 + 288));
 	}
-
+#endif
 }
 
 static void solo_disp_config(struct solo6010_dev *solo_dev)
@@ -104,7 +106,6 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 		       (0x10 << 24) | (0x8f << 16) | (0x10 << 8) | 0x8f);
 	solo_reg_write(solo_dev, SOLO_VO_BKG_COLOR,
 		       (16 << 24) | (128 << 16) | (16 << 8) | 128);
-		       //SOLO_VO_BG_YUV(16, 128, 128));
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
 		       solo_dev->video_type |
@@ -154,7 +155,7 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 	/* Start out with NTSC */
 	solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
 	solo_dev->video_hsize = 704;
-	solo_dev->video_vsize = 240;
+	solo_dev->video_vsize = 480; //240;
 
 	solo_vin_config(solo_dev);
 	solo_disp_config(solo_dev);

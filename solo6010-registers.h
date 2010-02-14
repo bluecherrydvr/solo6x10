@@ -174,7 +174,7 @@
 #define SOLO_VI_ACT_I_S			0x0120
 #define SOLO_VI_ACT_P			0x0124
 #define   SOLO_VI_FI_INVERT		0x80000000
-#define   SOLO_VI_H_START(__n)		(((__n) & 0x1ff) << 21)
+#define   SOLO_VI_H_START(__n)		(((__n) & 0x0ff) << 21)
 #define   SOLO_VI_V_START(__n)		(((__n) & 0x3ff) << 11)
 #define   SOLO_VI_V_STOP(__n)		(((__n) & 0x7ff) << 0)
 #define SOLO_VI_STATUS0			0x0128
