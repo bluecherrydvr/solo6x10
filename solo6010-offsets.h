@@ -19,33 +19,55 @@
 #ifndef __SOLO6010_OFFSETS_H
 #define __SOLO6010_OFFSETS_H
 
-/* These values are offsets and sizes of the accessible DMA memory */
+/* Offsets and sizes of the external address */
 #define SOLO_DISP_EXT_ADDR(__solo)		0x00000000
 #define SOLO_DISP_EXT_SIZE			0x00480000
 
 #define SOLO_DEC2LIVE_EXT_ADDR(__solo) \
-	(SOLO_DISP_EXT_ADDR(__solo) + SOLO_DISP_EXT_SIZE)
+		(SOLO_DISP_EXT_ADDR(__solo) + SOLO_DISP_EXT_SIZE)
 #define SOLO_DEC2LIVE_EXT_SIZE			0x00240000
 
 #define SOLO_OSG_EXT_ADDR(__solo) \
-	(SOLO_DEC2LIVE_EXT_ADDR(__solo) + SOLO_DEC2LIVE_EXT_SIZE)
+		(SOLO_DEC2LIVE_EXT_ADDR(__solo) + SOLO_DEC2LIVE_EXT_SIZE)
 #define SOLO_OSG_EXT_SIZE			0x00120000
 
 #define SOLO_EOSD_EXT_ADDR(__solo) \
-	(SOLO_OSG_EXT_ADDR(__solo) + SOLO_OSG_EXT_SIZE)
+		(SOLO_OSG_EXT_ADDR(__solo) + SOLO_OSG_EXT_SIZE)
 #define SOLO_EOSD_EXT_SIZE			0x00010000
 
 #define SOLO_MOTION_EXT_ADDR(__solo) \
-	(SOLO_EOSD_EXT_ADDR(__solo) + (SOLO_EOSD_EXT_SIZE * __solo->nr_chans))
+		(SOLO_EOSD_EXT_ADDR(__solo) + \
+		 (SOLO_EOSD_EXT_SIZE * __solo->nr_chans))
 #define SOLO_MOTION_EXT_SIZE			0x00080000
 
 #define SOLO_G723_EXT_ADDR(__solo) \
-	(SOLO_MOTION_EXT_ADDR(__solo) + SOLO_MOTION_EXT_SIZE)
+		(SOLO_MOTION_EXT_ADDR(__solo) + SOLO_MOTION_EXT_SIZE)
 #define SOLO_G723_EXT_SIZE			0x00010000
 
 #define SOLO_CAP_EXT_ADDR(__solo) \
-	(SOLO_G723_EXT_ADDR(__solo) + SOLO_G723_EXT_SIZE)
+		(SOLO_G723_EXT_ADDR(__solo) + SOLO_G723_EXT_SIZE)
 #define SOLO_CAP_EXT_MAX_PAGE			(18 + 15)
 #define SOLO_CAP_EXT_SIZE			(SOLO_CAP_EXT_MAX_PAGE * 65536)
+
+/* This +1 is very important -- Why?! -- BenC */
+#define SOLO_EREF_EXT_ADDR(__solo) \
+		(SOLO_CAP_EXT_ADDR(__solo) + \
+		 (SOLO_CAP_EXT_SIZE * (__solo->nr_chans + 1)))
+#define SOLO_EREF_EXT_SIZE			0x00140000
+
+#define SOLO_MP4E_EXT_ADDR(__solo) \
+		(SOLO_EREF_EXT_ADDR(__solo) + \
+		 (SOLO_EREF_EXT_SIZE * __solo->nr_chans))
+#define SOLO_MP4E_EXT_SIZE			0x00080000
+
+#define SOLO_DREF_EXT_ADDR(__solo) \
+		(SOLO_MP4E_EXT_ADDR(__solo) + \
+		 (SOLO_MP4E_EXT_SIZE * __solo->nr_chans))
+#define SOLO_DREF_EXT_SIZE			0x00140000
+
+#define SOLO_MP4D_EXT_ADDR(__solo) \
+		(SOLO_DREF_EXT_ADDR(__solo) + \
+		 (SOLO_DREF_EXT_SIZE * __solo->nr_chans))
+#define SOLO_MP4D_EXT_SIZE			0x00080000
 
 #endif /* __SOLO6010_OFFSETS_H */

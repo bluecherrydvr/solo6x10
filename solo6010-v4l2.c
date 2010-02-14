@@ -91,8 +91,6 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 	if (ch >= solo_dev->nr_chans)
 		return -EINVAL;
 
-	printk("Switching to channel %d\n", ch);
-
 	erase_on(solo_dev);
 
 	solo_v4l2_ch(solo_dev, solo_dev->cur_ch, 0);
