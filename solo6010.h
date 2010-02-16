@@ -119,12 +119,6 @@ struct solo6010_dev {
 	struct video_device	*vfd;
 	unsigned int		erasing;
 	unsigned int		frame_blank;
-	struct task_struct	*kthread;
-	spinlock_t		slock;
-	u8			vout_buf[SOLO_DISP_BUF_SIZE];
-	int			old_write;
-	struct list_head	vidq_active;
-	wait_queue_head_t	thread_wait;
 
 	/* Current video settings */
 	u8 			video_type;
