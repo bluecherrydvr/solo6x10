@@ -119,6 +119,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	struct solo6010_dev *solo_dev;
 	int ret;
 	int sdram;
+	u8 chip_id;
 
 	if ((solo_dev = kzalloc(sizeof(*solo_dev), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
@@ -140,9 +141,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 	}
 
-	solo_dev->chip_id = solo_reg_read(solo_dev, SOLO_CHIP_OPTION) &
-				SOLO_CHIP_ID_MASK;
-	switch (solo_dev->chip_id) {
+	chip_id = solo_reg_read(solo_dev, SOLO_CHIP_OPTION) &
+					SOLO_CHIP_ID_MASK;
+	switch (chip_id) {
 		case 7:
 			solo_dev->nr_chans = 16;
 			break;
@@ -152,7 +153,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		default:
 			dev_warn(&pdev->dev, "Invalid chip_id 0x%02x, "
 				 "defaulting to 4 channels\n",
-				 solo_dev->chip_id);
+				 chip_id);
 		case 5:
 			solo_dev->nr_chans = 4;
 	}

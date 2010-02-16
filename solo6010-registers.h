@@ -161,6 +161,7 @@
 #define SOLO_VI_FMT_CFG				0x0114
 #define	  SOLO_VI_FMT_CHECK_VCOUNT		(1<<31)
 #define	  SOLO_VI_FMT_CHECK_HCOUNT		(1<<30)
+#define   SOLO_VI_FMT_TEST_SIGNAL		(1<<28)
 
 #define	SOLO_VI_PAGE_SW				0x0118
 #define	  SOLO_FI_INV_DISP_LIVE(n)		((n)<<8)

@@ -25,9 +25,28 @@
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size)
 {
+	dma_addr_t dma_addr;
+	int ret;
+
+	if (id >= SOLO_NR_P2M)
+		return -EINVAL;
+
+	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
+				  wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+
+	ret = solo_p2m_dma_t(solo_dev, id, wr, dma_addr, ext_addr, size);
+
+	pci_unmap_single(solo_dev->pdev, dma_addr, size,
+			 wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
+
+	return ret;
+}
+
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int id, int wr,
+		   dma_addr_t dma_addr, u32 ext_addr, u32 size)
+{
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
-	dma_addr_t dma_addr;
 
 	if (id >= SOLO_NR_P2M)
                 return -EINVAL;
@@ -35,9 +54,6 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
 	p2m_dev = &solo_dev->p2m_dev[id];
 
 	down(&p2m_dev->sem);
-
-	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
-				  wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
 start_dma:
 	INIT_COMPLETION(p2m_dev->completion);
@@ -58,9 +74,6 @@ start_dma:
 	 * real PCI P2M error occurs */
 	if (p2m_dev->error)
 		goto start_dma;
-
-	pci_unmap_single(solo_dev->pdev, dma_addr, size,
-			 wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
 	up(&p2m_dev->sem);
 

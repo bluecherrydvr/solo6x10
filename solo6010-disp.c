@@ -66,31 +66,6 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
 	solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG, 0);
-#if 0
-	if (solo_dev->video_type == 0) {
-		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
-			       SOLO_VI_PB_USER_MODE);
-		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
-			       SOLO_VI_PB_HSIZE(858) | SOLO_VI_PB_VSIZE(246));
-		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_H,
-			       SOLO_VI_PB_HSTART(16) |
-			       SOLO_VI_PB_HSTOP(16 + 720));
-		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
-			       SOLO_VI_PB_VSTART(4) |
-			       SOLO_VI_PB_VSTOP(4 + 240));
-	} else {
-		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
-			       SOLO_VI_PB_USER_MODE | SOLO_VI_PB_PAL);
-		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
-			       SOLO_VI_PB_HSIZE(864) | SOLO_VI_PB_VSIZE(294));
-		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_H,
-			       SOLO_VI_PB_HSTART(16) |
-			       SOLO_VI_PB_HSTOP(16 + 720));
-		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
-			       SOLO_VI_PB_VSTART(4) |
-			       SOLO_VI_PB_VSTOP(4 + 288));
-	}
-#endif
 }
 
 static void solo_disp_config(struct solo6010_dev *solo_dev)
@@ -165,14 +140,13 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 
 void solo_disp_exit(struct solo6010_dev *solo_dev)
 {
-#if 0
 	int i;
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_ZOOM_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_FREEZE_CTRL, 0);
 
-	for (i = 0; i < solo6010->max_channel; i++) {
+	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(i), 0);
 		solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(i), 0);
 		solo_reg_write(solo_dev, SOLO_VI_WIN_ON(i), 0);
@@ -186,7 +160,7 @@ void solo_disp_exit(struct solo6010_dev *solo_dev)
 		solo_reg_write(solo_dev, SOLO_VO_BORDER_Y(i), 0);
 
 	solo_reg_write(solo_dev, SOLO_VO_BORDER_LINE_MASK, 0);
-	solo_reg_write(solo6010, SOLO_VO_BORDER_FILL_MASK, 0);
+	solo_reg_write(solo_dev, SOLO_VO_BORDER_FILL_MASK, 0);
 
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_CTRL(0), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_START(0), 0);
@@ -195,5 +169,4 @@ void solo_disp_exit(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_CTRL(1), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_START(1), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_STOP(1), 0);
-#endif
 }

@@ -19,7 +19,10 @@
 #include <linux/kernel.h>
 #include <linux/version.h>
 #include <linux/module.h>
-#include <linux/videodev2.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
+#include <media/v4l2-device.h>
+#include <media/videobuf-vmalloc.h>
 #include <media/v4l2-ioctl.h>
 
 #include "solo6010.h"
@@ -27,7 +30,7 @@
 #define SOLO_H_SIZE_FDMA	2048
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
-#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
+#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_NONE
 #define SOLO_DEFAULT_CHAN	0
 
 //#define COPY_WHOLE_LINE
@@ -38,6 +41,17 @@
 #else
 #define solo_image_size(__solo)	(__solo->video_hsize * __solo->video_vsize * 4)
 #endif
+
+#define MAX_WIDTH		704
+#define MAX_HEIGHT		480
+#define MAX_IMAGE_SIZE		(MAX_WIDTH * MAX_HEIGHT * 2)
+#define MIN_VID_BUFFERS		8
+
+/* Simple file handle */
+struct solo_filehandle {
+	struct solo6010_dev	*solo_dev;
+	struct videobuf_queue	vidq;
+};
 
 static unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
@@ -101,65 +115,20 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 	return 0;
 }
 
-static int solo_v4l2_open(struct file *file)
+static void solo_fillbuf(struct solo6010_dev *solo_dev,
+			 struct videobuf_buffer *vb)
 {
-	struct solo6010_dev *solo_dev = video_drvdata(file);
-	struct solo_filehandle *fh;
-
-	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
-		return -ENOMEM;
-
-	fh->solo_dev = solo_dev;
-	file->private_data = fh;
-
-	return 0;
-}
-
-/* Try to obtain and/or verify that a fh can read the display device. Only
- * one file descriptor can do this at a time and it retains exclusivity
- * until the file descriptor is closed. */
-static int solo_v4l2_can_read(struct solo_filehandle *fh)
-{
-	struct solo6010_dev *solo_dev = fh->solo_dev;
-
-	mutex_lock(&solo_dev->v4l2_mutex);
-	if (solo_dev->v4l2_reader == NULL)
-		solo_dev->v4l2_reader = fh;
-	mutex_unlock(&solo_dev->v4l2_mutex);
-
-	if (solo_dev->v4l2_reader != fh)
-		return 0;
-
-	return 1;
-}
-
-/* If this file handle has exclusivity on read rights, release them */
-static void solo_v4l2_free_read(struct solo_filehandle *fh)
-{
-	struct solo6010_dev *solo_dev = fh->solo_dev;
-
-	mutex_lock(&solo_dev->v4l2_mutex);
-	if (solo_dev->v4l2_reader == fh)
-		solo_dev->v4l2_reader = NULL;
-	mutex_unlock(&solo_dev->v4l2_mutex);
-}
-
-static ssize_t solo_v4l2_read(struct file *file, char __user *data,
-			      size_t count, loff_t *ppos)
-{
-	struct solo_filehandle *fh = file->private_data;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	void *vbuf;
 	unsigned int fdma_addr;
 	int cur_write;
 	int frame_size;
 	int image_size = solo_image_size(solo_dev);
 	int i, j;
 
-	if (!solo_v4l2_can_read(fh))
-		return -EBUSY;
-	
-	if (count < image_size)
-		return -EINVAL;
+	list_del(&vb->queue);
+
+	if (!(vbuf = videobuf_to_vmalloc(vb)))
+		return;
 
 	/* XXX: Is this really a good idea? */
 	do {
@@ -174,45 +143,233 @@ static ssize_t solo_v4l2_read(struct file *file, char __user *data,
 
 	if (erase_off(solo_dev)) {
 		for (i = 0; i < image_size; i += 2) {
-			u8 buf[2] = { 0x80, 0x00 };
-			copy_to_user(data + i, buf, 2);
+			((u8 *)vbuf)[i] = 0x80;
+			((u8 *)vbuf)[i + 1] = 0x00;
 		}
-		return image_size;
+		goto finish_buf;
 	}
 
 	frame_size = SOLO_H_SIZE_FDMA * solo_dev->video_vsize * 2;
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (cur_write * frame_size);
 
 	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
+#ifdef COPY_WHOLE_LINE
+		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
+				 vbuf + (i * SOLO_DISP_BUF_SIZE),
+				 fdma_addr + (i * SOLO_DISP_BUF_SIZE),
+				 SOLO_DISP_BUF_SIZE) < 0)
+			goto finish_buf;
+#else
 		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
 				 solo_dev->vout_buf,
 				 fdma_addr + (i * SOLO_DISP_BUF_SIZE),
 				 SOLO_DISP_BUF_SIZE) < 0)
-			return -EFAULT;
-#ifdef COPY_WHOLE_LINE
-		if (copy_to_user(data + (i * SOLO_DISP_BUF_SIZE),
-				 solo_dev->vout_buf, SOLO_DISP_BUF_SIZE))
-			return -EFAULT;
-#else
+			goto finish_buf;
 		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_H_SIZE_FDMA); j++) {
 			int off = 2 * solo_dev->video_hsize *
 			      ((i * SOLO_DISP_BUF_SIZE / SOLO_H_SIZE_FDMA) + j);
-			if (copy_to_user(data + off, solo_dev->vout_buf +
-					 (j * SOLO_H_SIZE_FDMA),
-					 2 * solo_dev->video_hsize))
-				return -EFAULT;
+			memcpy(vbuf + off,
+			       solo_dev->vout_buf + (j * SOLO_H_SIZE_FDMA),
+			       2 * solo_dev->video_hsize);
 		}
 #endif
 	}
 
-	return image_size;
+finish_buf:
+	vb->field_count++;
+	do_gettimeofday(&vb->ts);
+	vb->state = VIDEOBUF_DONE;
+	wake_up(&vb->done);
+
+	return;
+}
+
+static void solo_thread_sleep(struct solo6010_dev *solo_dev)
+{
+	struct videobuf_buffer *vb;
+	unsigned long flags;
+
+	for (;;) {
+		long timeout = msecs_to_jiffies(100);
+
+		//timeout =
+		//	wait_event_interruptible_timeout(&solo_dev->thread_wait,
+		//		   !list_empty(&solo_dev->vidq_active),
+		//		   timeout);
+		spin_lock_irqsave(&solo_dev->slock, flags);
+		if (!list_empty(&solo_dev->vidq_active))
+			break;
+		spin_unlock_irqrestore(&solo_dev->slock, flags);
+		schedule_timeout(timeout);
+		if (timeout == -ERESTARTSYS || kthread_should_stop())
+			return;
+	}
+
+	vb = list_first_entry(&solo_dev->vidq_active, struct videobuf_buffer,
+			      queue);
+
+	if (waitqueue_active(&vb->done))
+		solo_fillbuf(solo_dev, vb);
+
+	spin_unlock_irqrestore(&solo_dev->slock, flags);
+
+	try_to_freeze();
+}
+
+static int solo_thread(void *data)
+{
+	struct solo6010_dev *solo_dev = data;
+
+	set_freezable();
+
+	for (;;) {
+		solo_thread_sleep(solo_dev);
+
+		if (kthread_should_stop())
+			break;
+	}
+        return 0;
+}
+
+static int solo_start_thread(struct solo6010_dev *solo_dev)
+{
+	solo_dev->kthread = kthread_run(solo_thread, solo_dev, "%s-%d",
+					SOLO6010_NAME, solo_dev->vfd->num);
+
+	if (IS_ERR(solo_dev->kthread))
+		return PTR_ERR(solo_dev->kthread);
+
+	return 0;
+}
+
+static void solo_stop_thread(struct solo6010_dev *solo_dev)
+{
+	if (solo_dev->kthread) {
+		kthread_stop(solo_dev->kthread);
+		solo_dev->kthread = NULL;
+	}
+}
+
+static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,
+			  unsigned int *size)
+{
+	struct solo_filehandle *fh = vq->priv_data;
+	struct solo6010_dev *solo_dev  = fh->solo_dev;
+
+        *size = solo_image_size(solo_dev);
+
+        if (*count < MIN_VID_BUFFERS)
+		*count = MIN_VID_BUFFERS;
+
+        return 0;
+}
+
+static int solo_buf_prepare(struct videobuf_queue *vq,
+			    struct videobuf_buffer *vb, enum v4l2_field field)
+{
+	struct solo_filehandle *fh  = vq->priv_data;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	vb->size = solo_image_size(solo_dev);
+	if (vb->baddr != 0 && vb->bsize < vb->size)
+		return -EINVAL;
+
+	/* XXX: These properties only change when queue is idle */
+	vb->width  = solo_dev->video_hsize;
+	vb->height = solo_dev->video_vsize;
+#ifdef COPY_WHOLE_LINE
+	vb->bytesperline = SOLO_H_SIZE_FDMA;
+#endif
+	vb->field  = field;
+
+	if (vb->state == VIDEOBUF_NEEDS_INIT) {
+		int rc = videobuf_iolock(vq, vb, NULL);
+		if (rc < 0) {
+			videobuf_vmalloc_free(vb);
+			vb->state = VIDEOBUF_NEEDS_INIT;
+			return rc;
+		}
+	}
+	vb->state = VIDEOBUF_PREPARED;
+
+	return 0;
+}
+
+static void solo_buf_queue(struct videobuf_queue *vq,
+			   struct videobuf_buffer *vb)
+{
+	struct solo_filehandle *fh = vq->priv_data;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	vb->state = VIDEOBUF_QUEUED;
+	list_add_tail(&vb->queue, &solo_dev->vidq_active);
+	wake_up(&solo_dev->thread_wait);
+}
+
+static void solo_buf_release(struct videobuf_queue *vq,
+			     struct videobuf_buffer *vb)
+{
+	videobuf_vmalloc_free(vb);
+	vb->state = VIDEOBUF_NEEDS_INIT;
+}
+
+static struct videobuf_queue_ops solo_video_qops = {
+	.buf_setup	= solo_buf_setup,
+	.buf_prepare	= solo_buf_prepare,
+	.buf_queue	= solo_buf_queue,
+	.buf_release	= solo_buf_release,
+};
+
+static unsigned int solo_v4l2_poll(struct file *file,
+				   struct poll_table_struct *wait)
+{
+	struct solo_filehandle *fh = file->private_data;
+
+        return videobuf_poll_stream(file, &fh->vidq, wait);
+}
+
+static int solo_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct solo_filehandle *fh = file->private_data;
+
+	return videobuf_mmap_mapper(&fh->vidq, vma);
+}
+
+static int solo_v4l2_open(struct file *file)
+{
+	struct solo6010_dev *solo_dev = video_drvdata(file);
+	struct solo_filehandle *fh;
+
+	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
+		return -ENOMEM;
+
+	videobuf_queue_vmalloc_init(&fh->vidq, &solo_video_qops,
+				    NULL, &solo_dev->slock,
+				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
+				    SOLO_DISP_PIX_FIELD,
+				    sizeof(struct videobuf_buffer), fh);
+
+	fh->solo_dev = solo_dev;
+	file->private_data = fh;
+
+	return 0;
+}
+
+static ssize_t solo_v4l2_read(struct file *file, char __user *data,
+			      size_t count, loff_t *ppos)
+{
+	struct solo_filehandle *fh = file->private_data;
+
+	return videobuf_read_stream(&fh->vidq, data, count, ppos, 0,
+				    file->f_flags & O_NONBLOCK);
 }
 
 static int solo_v4l2_release(struct file *file)
 {
 	struct solo_filehandle *fh = file->private_data;
 
-	solo_v4l2_free_read(fh);
+	videobuf_stop(&fh->vidq);
+	videobuf_mmap_free(&fh->vidq);
 	kfree(fh);
 
 	return 0;
@@ -231,6 +388,7 @@ static int solo_querycap(struct file *file, void  *priv,
 	cap->version = SOLO6010_VER_NUM;
 	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
 				V4L2_CAP_READWRITE;
+				//| V4L2_CAP_STREAMING;
 	return 0;
 }
 
@@ -319,10 +477,8 @@ static int solo_set_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
 	struct solo_filehandle *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
 
-	/* If there is currently a reader, we do not change the format */
-	if (solo_dev->v4l2_reader != NULL)
+	if (videobuf_queue_is_busy(&fh->vidq))
 		return -EBUSY;
 
 	/* For right now, if it doesn't match our running config,
@@ -342,13 +498,65 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	pix->pixelformat = SOLO_DISP_PIX_FORMAT;
 	pix->field = SOLO_DISP_PIX_FIELD;
 	pix->sizeimage = solo_image_size(solo_dev);
+	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 #ifdef COPY_WHOLE_LINE
 	pix->bytesperline = SOLO_H_SIZE_FDMA;
-#else
-	pix->bytesperline = solo_dev->video_hsize * 2;
 #endif
-	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 
+	return 0;
+}
+
+static int solo_reqbufs(struct file *file, void *priv, 
+			struct v4l2_requestbuffers *req)
+{
+	struct solo_filehandle *fh = priv;
+
+	return videobuf_reqbufs(&fh->vidq, req);
+}
+
+static int solo_querybuf(struct file *file, void *priv, struct v4l2_buffer *buf)
+{
+	struct solo_filehandle *fh = priv;
+
+	return videobuf_querybuf(&fh->vidq, buf);
+}
+
+static int solo_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
+{
+	struct solo_filehandle *fh = priv;
+
+	return videobuf_qbuf(&fh->vidq, buf);
+}
+
+static int solo_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
+{
+	struct solo_filehandle *fh = priv;
+
+	return videobuf_dqbuf(&fh->vidq, buf, file->f_flags & O_NONBLOCK);
+}
+
+static int solo_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
+{
+	struct solo_filehandle *fh = priv;
+
+	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	return videobuf_streamon(&fh->vidq);
+}
+
+static int solo_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
+{
+	struct solo_filehandle *fh = priv;
+
+	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	return videobuf_streamoff(&fh->vidq);
+}
+
+static int solo_s_std(struct file *file, void *priv, v4l2_std_id *i)
+{
 	return 0;
 }
 
@@ -357,11 +565,14 @@ static const struct v4l2_file_operations solo_v4l2_fops = {
 	.open			= solo_v4l2_open,
 	.release		= solo_v4l2_release,
 	.read			= solo_v4l2_read,
+	.poll			= solo_v4l2_poll,
+	.mmap			= solo_v4l2_mmap,
 	.ioctl			= video_ioctl2,
 };
 
 static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 	.vidioc_querycap		= solo_querycap,
+	.vidioc_s_std			= solo_s_std,
 	/* Input callbacks */
 	.vidioc_enum_input		= solo_enum_input,
 	.vidioc_s_input			= solo_set_input,
@@ -371,6 +582,13 @@ static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 	.vidioc_try_fmt_vid_cap		= solo_try_fmt_cap,
 	.vidioc_s_fmt_vid_cap		= solo_set_fmt_cap,
 	.vidioc_g_fmt_vid_cap		= solo_get_fmt_cap,
+	/* Streaming I/O */
+	.vidioc_reqbufs			= solo_reqbufs,
+	.vidioc_querybuf		= solo_querybuf,
+	.vidioc_qbuf			= solo_qbuf,
+	.vidioc_dqbuf			= solo_dqbuf,
+	.vidioc_streamon		= solo_streamon,
+        .vidioc_streamoff		= solo_streamoff,
 };
 
 static struct video_device solo_v4l2_template = {
@@ -389,7 +607,9 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	int ret;
 	int i;
 
-	mutex_init(&solo_dev->v4l2_mutex);
+	spin_lock_init(&solo_dev->slock);
+	INIT_LIST_HEAD(&solo_dev->vidq_active);
+	init_waitqueue_head(&solo_dev->thread_wait);
 
 	solo_dev->vfd = video_device_alloc();
 	if (!solo_dev->vfd)
@@ -426,11 +646,17 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	while(erase_off(solo_dev))
 		;// Do nothing
 
+	if ((ret = solo_start_thread(solo_dev))) {
+		video_unregister_device(solo_dev->vfd);
+		return ret;
+	}
+
 	return 0;
 }
 
 void solo_v4l2_exit(struct solo6010_dev *solo_dev)
 {
+	solo_stop_thread(solo_dev);
 	video_unregister_device(solo_dev->vfd);
 	solo_dev->vfd = NULL;
 }

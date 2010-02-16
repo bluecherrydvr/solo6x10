@@ -23,8 +23,10 @@
 #include <linux/i2c.h>
 #include <linux/semaphore.h>
 #include <linux/mutex.h>
-#include <media/v4l2-device.h>
+#include <linux/list.h>
+#include <linux/wait.h>
 #include <asm/io.h>
+#include <linux/videodev2.h>
 
 #include "solo6010-registers.h"
 
@@ -87,23 +89,17 @@ struct solo_p2m_dev {
 	u8			desc[SOLO_P2M_DESC_SIZE];
 };
 
-/* Simple file handle */
-struct solo_filehandle {
-	struct solo6010_dev	*solo_dev;
-};
-
 /* The SOLO6010 PCI Device */
 struct solo6010_dev {
 	/* General stuff */
 	struct pci_dev		*pdev;
 	u8 __iomem		*reg_base;
-	u8			chip_id;
 	int			nr_chans;
 	u32			irq_mask;
 	spinlock_t		reg_io_lock;
-	u8			tw2864;
-	u8			tw2865;
-	u8			tw2815;
+
+	/* tw28xx accounting */
+	u8			tw2864, tw2865, tw2815;
 	u8			tw28_cnt;
 
 	/* i2c related items */
@@ -121,22 +117,21 @@ struct solo6010_dev {
 
 	/* V4L2 items */
 	struct video_device	*vfd;
-	struct mutex		v4l2_mutex;
-	struct solo_filehandle	*v4l2_reader;
 	unsigned int		erasing;
 	unsigned int		frame_blank;
+	struct task_struct	*kthread;
+	spinlock_t		slock;
+	u8			vout_buf[SOLO_DISP_BUF_SIZE];
+	int			old_write;
+	struct list_head	vidq_active;
+	wait_queue_head_t	thread_wait;
 
 	/* Current video settings */
-	u32 video_type;
-	u16 video_hsize;
-	u16 video_vsize;
-	u16 vout_hstart;
-	u16 vout_vstart;
-	u16 vin_hstart;
-	u16 vin_vstart;
-	u8 vout_buf[SOLO_DISP_BUF_SIZE];
-	int old_write;
-	unsigned int cur_ch;
+	u8 			video_type;
+	u16			video_hsize, video_vsize;
+	u16			vout_hstart, vout_vstart;
+	u16			vin_hstart, vin_vstart;
+	u8			cur_ch;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
@@ -202,7 +197,9 @@ void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
 
-int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr, void *sys_addr,
-		 u32 ext_addr, u32 size);
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int id, int wr,
+		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
+int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
+		 void *sys_addr, u32 ext_addr, u32 size);
 
 #endif /* __SOLO6010_H */
