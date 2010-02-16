@@ -130,7 +130,7 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 	/* Start out with NTSC */
 	solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
 	solo_dev->video_hsize = 704;
-	solo_dev->video_vsize = 480; //240;
+	solo_dev->video_vsize = 240;
 
 	solo_vin_config(solo_dev);
 	solo_disp_config(solo_dev);

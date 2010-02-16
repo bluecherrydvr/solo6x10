@@ -27,19 +27,23 @@
 
 #include "solo6010.h"
 
-#define SOLO_H_SIZE_FDMA	2048
+#define SOLO_HW_BPL	2048
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
-#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_NONE
+#define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
 #define SOLO_DEFAULT_CHAN	0
 
 //#define COPY_WHOLE_LINE
 
-/* Image size is two fields, SOLO_H_SIZE_FDMA is one horizontal line */
+/* Image size is two fields, SOLO_HW_BPL is one horizontal line */
+#define solo_vlines(__solo)	(__solo->video_vsize * 2)
+#define solo_image_size(__solo) (solo_bytesperline(__solo) * \
+				 solo_vlines(__solo))
+
 #ifdef COPY_WHOLE_LINE
-#define solo_image_size(__solo) (SOLO_H_SIZE_FDMA * __solo->video_vsize * 2)
+#define solo_bytesperline(__solo) SOLO_HW_BPL
 #else
-#define solo_image_size(__solo)	(__solo->video_hsize * __solo->video_vsize * 4)
+#define solo_bytesperline(__solo) (__solo->video_hsize * 2)
 #endif
 
 #define MIN_VID_BUFFERS		8
@@ -95,8 +99,8 @@ static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
-		       SOLO_VI_WIN_SY(on ? 0 : solo_dev->video_vsize) |
-		       SOLO_VI_WIN_EY(solo_dev->video_vsize));
+		       SOLO_VI_WIN_SY(on ? 0 : solo_vlines(solo_dev)) |
+		       SOLO_VI_WIN_EY(solo_vlines(solo_dev)));
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch), on ? 1 : 0);
 
@@ -126,7 +130,6 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	unsigned int fdma_addr;
 	int cur_write;
 	int frame_size;
-	int image_size = solo_image_size(solo_dev);
 	int i;
 
 	list_del(&vb->queue);
@@ -146,6 +149,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	fh->old_write = cur_write;
 
 	if (erase_off(solo_dev)) {
+		int image_size = solo_image_size(solo_dev);
 		for (i = 0; i < image_size; i += 2) {
 			((u8 *)vbuf)[i] = 0x80;
 			((u8 *)vbuf)[i + 1] = 0x00;
@@ -153,7 +157,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 		goto finish_buf;
 	}
 
-	frame_size = SOLO_H_SIZE_FDMA * solo_dev->video_vsize * 2;
+	frame_size = SOLO_HW_BPL * solo_vlines(solo_dev);
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (cur_write * frame_size);
 
 	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
@@ -168,10 +172,10 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 				 fh->vout_buf, fdma_addr,
 				 SOLO_DISP_BUF_SIZE) < 0)
 			goto finish_buf;
-		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_H_SIZE_FDMA); j++) {
-			memcpy(vbuf, fh->vout_buf + (j * SOLO_H_SIZE_FDMA),
-			       2 * solo_dev->video_hsize);
-			vbuf += 2 * solo_dev->video_hsize;
+		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_HW_BPL); j++) {
+			memcpy(vbuf, fh->vout_buf + (j * SOLO_HW_BPL),
+			       solo_bytesperline(solo_dev));
+			vbuf += solo_bytesperline(solo_dev);
 		}
 #endif
 		fdma_addr += SOLO_DISP_BUF_SIZE;
@@ -276,10 +280,8 @@ static int solo_buf_prepare(struct videobuf_queue *vq,
 
 	/* XXX: These properties only change when queue is idle */
 	vb->width  = solo_dev->video_hsize;
-	vb->height = solo_dev->video_vsize;
-#ifdef COPY_WHOLE_LINE
-	vb->bytesperline = SOLO_H_SIZE_FDMA;
-#endif
+	vb->height = solo_vlines(solo_dev);
+	vb->bytesperline = solo_bytesperline(solo_dev);
 	vb->field  = field;
 
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
@@ -413,7 +415,7 @@ static int solo_enum_input(struct file *file, void *priv,
 	snprintf(input->name, sizeof(input->name), "Camera %d",
 		 input->index + 1);
 	input->type = V4L2_INPUT_TYPE_CAMERA;
-	input->std = V4L2_STD_525_60 | V4L2_STD_625_50;
+	input->std = V4L2_STD_NTSC_M;
 	/* XXX Should check for signal status on this camera */
 	input->status = 0;
 
@@ -444,7 +446,7 @@ static int solo_enum_fmt_cap(struct file *file, void *priv,
 
 	f->pixelformat = SOLO_DISP_PIX_FORMAT;
 	snprintf(f->description, sizeof(f->description),
-		 "%s", "YUV 4:2:2 Packed");
+		 "%s", "UYUV 4:2:2 Packed");
 
 	return 0;
 }
@@ -460,8 +462,8 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 	/* Check supported sizes */
 	if (pix->width != solo_dev->video_hsize)
 		pix->width = solo_dev->video_hsize;
-	if (pix->height != solo_dev->video_vsize)
-		pix->height = solo_dev->video_vsize;
+	if (pix->height != solo_vlines(solo_dev))
+		pix->height = solo_vlines(solo_dev);
 	if (pix->sizeimage != image_size)
 		pix->sizeimage = image_size;
 
@@ -498,14 +500,12 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	pix->width = solo_dev->video_hsize;
-	pix->height = solo_dev->video_vsize;
+	pix->height = solo_vlines(solo_dev);
 	pix->pixelformat = SOLO_DISP_PIX_FORMAT;
 	pix->field = SOLO_DISP_PIX_FIELD;
 	pix->sizeimage = solo_image_size(solo_dev);
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
-#ifdef COPY_WHOLE_LINE
-	pix->bytesperline = SOLO_H_SIZE_FDMA;
-#endif
+	pix->bytesperline = solo_bytesperline(solo_dev);
 
 	return 0;
 }
@@ -602,7 +602,7 @@ static struct video_device solo_v4l2_template = {
 	.minor			= -1,
 	.release		= video_device_release,
 
-	.tvnorms		= V4L2_STD_525_60 | V4L2_STD_625_50,
+	.tvnorms		= V4L2_STD_NTSC_M,
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
@@ -633,7 +633,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	if (video_nr >= 0)
 		video_nr++;
 
-	dev_info(&solo_dev->pdev->dev, "Registered as /dev/video%d with "
+	dev_info(&solo_dev->pdev->dev, "Display as /dev/video%d with "
 		 "%d inputs\n", solo_dev->vfd->num, solo_dev->nr_chans);
 
 	/* Set the default display channel */
