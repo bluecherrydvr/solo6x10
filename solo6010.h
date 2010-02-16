@@ -181,6 +181,9 @@ void solo_p2m_exit(struct solo6010_dev *solo_dev);
 int solo_v4l2_init(struct solo6010_dev *solo_dev);
 void solo_v4l2_exit(struct solo6010_dev *solo_dev);
 
+int solo_enc_init(struct solo6010_dev *solo_dev);
+void solo_enc_exit(struct solo6010_dev *solo_dev);
+
 /* i2c and p2m(dma) routines */
 int solo_i2c_isr(struct solo6010_dev *solo_dev);
 
