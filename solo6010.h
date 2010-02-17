@@ -35,6 +35,8 @@
 
 #define SOLO6010_NAME			"solo6010"
 
+#define SOLO_MAX_CHANNELS		16
+
 /* Make sure these two match */
 #define SOLO6010_VERSION		"0.1.0"
 #define SOLO6010_VER_MAJOR		0
@@ -42,9 +44,6 @@
 #define SOLO6010_VER_SUB		0
 #define SOLO6010_VER_NUM \
     KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
-
-/* Stock runtime parameters */
-#define SOLO_CLOCK_MHZ			108
 
 /*
  * The SOLO6010 actually has 8 i2c channels, but we only use 2.
@@ -70,9 +69,10 @@
 #define SOLO_P2M_DMA_ID_G723E		3
 #define SOLO_P2M_DMA_ID_VIN		3
 
-#define SOLO_DISP_BUF_SIZE		(64 * 1024) // 64k
-#define SOLO_VCLK_DELAY			3
-#define SOLO_PROGRESSIVE_VSIZE		1024
+/* Encoder standard modes */
+#define SOLO_ENC_MODE_CIF		2
+#define SOLO_ENC_MODE_HALFD1H		1
+#define SOLO_ENC_MODE_D1		9
 
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
@@ -115,17 +115,24 @@ struct solo6010_dev {
 	/* P2M DMA Engine */
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
 
-	/* V4L2 items */
+	/* V4L2 Display items */
 	struct video_device	*vfd;
 	unsigned int		erasing;
 	unsigned int		frame_blank;
+	u8			cur_disp_ch;
+
+	/* V4L2 Encoder items */
+	struct video_device	*enc_vfd;
+	atomic_t		enc_used[SOLO_MAX_CHANNELS];
+	u8			enc_mode[SOLO_MAX_CHANNELS];
+	u16			enc_width[SOLO_MAX_CHANNELS];
+	u16			enc_height[SOLO_MAX_CHANNELS];
 
 	/* Current video settings */
 	u8 			video_type;
 	u16			video_hsize, video_vsize;
 	u16			vout_hstart, vout_vstart;
 	u16			vin_hstart, vin_vstart;
-	u8			cur_ch;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
@@ -184,16 +191,20 @@ void solo_v4l2_exit(struct solo6010_dev *solo_dev);
 int solo_enc_init(struct solo6010_dev *solo_dev);
 void solo_enc_exit(struct solo6010_dev *solo_dev);
 
-/* i2c and p2m(dma) routines */
-int solo_i2c_isr(struct solo6010_dev *solo_dev);
+int solo_enc_v4l2_init(struct solo6010_dev *solo_dev);
+void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev);
 
+/* ISR's */
+int solo_i2c_isr(struct solo6010_dev *solo_dev);
+void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
+void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
+
+/* i2c read/write */
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);
 void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
 			u8 data);
 
-void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
-void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
-
+/* P2M DMA */
 int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int id, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,

@@ -27,11 +27,12 @@
 
 #include "solo6010.h"
 
-#define SOLO_HW_BPL	2048
+#define SOLO_HW_BPL		2048
 #define SOLO_PAGE_SIZE		4
 #define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
 #define SOLO_DEFAULT_CHAN	0
+#define SOLO_DISP_BUF_SIZE	(64 * 1024) // 64k
 
 //#define COPY_WHOLE_LINE
 
@@ -60,7 +61,7 @@ struct solo_filehandle {
 	wait_queue_head_t	thread_wait;
 };
 
-static unsigned video_nr = -1;
+unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
 MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
 
@@ -114,10 +115,10 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
 
 	erase_on(solo_dev);
 
-	solo_v4l2_ch(solo_dev, solo_dev->cur_ch, 0);
+	solo_v4l2_ch(solo_dev, solo_dev->cur_disp_ch, 0);
 	solo_v4l2_ch(solo_dev, ch, 1);
 
-	solo_dev->cur_ch = ch;
+	solo_dev->cur_disp_ch = ch;
 
 	return 0;
 }
@@ -433,7 +434,7 @@ static int solo_get_input(struct file *file, void *priv, unsigned int *index)
 {
 	struct solo_filehandle *fh = priv;
 
-	*index = fh->solo_dev->cur_ch;
+	*index = fh->solo_dev->cur_disp_ch;
 
 	return 0;
 }

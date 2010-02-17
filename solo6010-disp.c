@@ -24,6 +24,9 @@
 
 #include "solo6010.h"
 
+#define SOLO_VCLK_DELAY			3
+#define SOLO_PROGRESSIVE_VSIZE		1024
+
 static void solo_vin_config(struct solo6010_dev *solo_dev)
 {
 	solo_dev->vin_hstart = 8;
