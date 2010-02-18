@@ -157,13 +157,13 @@ int solo_enc_init(struct solo6010_dev *solo_dev)
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		/* Standard encoder attributes */
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(i), 0);
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(i), 1);
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(i), SOLO_DEFAULT_GOP);
 		solo_reg_write(solo_dev, SOLO_VE_CH_QP(i), 4);
 		solo_reg_write(solo_dev, SOLO_CAP_CH_INTV(i), 1);
 
 		/* Extended encoder attributes */
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(i), 0);
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(i), 1);
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(i), SOLO_DEFAULT_GOP);
 		solo_reg_write(solo_dev, SOLO_VE_CH_QP_E(i), 4);
 		solo_reg_write(solo_dev, SOLO_CAP_CH_INTV_E(i), 1);
 	}

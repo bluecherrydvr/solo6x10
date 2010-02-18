@@ -29,7 +29,7 @@
 
 #define MIN_VID_BUFFERS		8
 #define FRAME_BUF_SIZE		(256 * 1024)
-#define MP4_QUEUES		16
+#define MP4_QS			16
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
@@ -38,105 +38,89 @@
 /* Simple file handle */
 struct solo_enc_fh {
 	struct solo6010_dev	*solo_dev;
-	int			cur_ch;
+	struct solo_enc_dev	*solo_enc;
 	struct videobuf_queue	vidq;
 	struct task_struct      *kthread;
 	spinlock_t		slock;
-	u8			vout_buf[FRAME_BUF_SIZE];
 	struct list_head	vidq_active;
 	wait_queue_head_t	thread_wait;
 };
 
+struct solo_enc_buf {
+	struct videobuf_buffer	vb;
+	struct solo_enc_fh	*fh;
+};
+
 extern unsigned video_nr;
 
-/* You must hold the slock around this yourself, otherwise
- * use the locking version below. */
-static void __solo_enc_put_ch(struct solo_enc_fh *fh)
-{
-	struct solo6010_dev *solo_dev = fh->solo_dev;
-	int ch = fh->cur_ch;
-
-	/* This file handle has no encoder associated with it */
-	if (ch < 0)
-		return;
-
-	fh->cur_ch = -1;
-
-	BUG_ON(ch >= solo_dev->nr_chans);
-
-	if (atomic_dec_return(&solo_dev->enc_used[ch]))
-		return;
-
-	/* No references left, disable it */
-	solo_dev->enc_mode[ch] = 0;
-	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
-}
-
-static void solo_enc_put_ch(struct solo_enc_fh *fh)
+/* Returns 0 on success, -errno on failure */
+static int solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&fh->slock, flags);
+	if (atomic_read(&solo_enc->ref) > 1)
+		return -EBUSY;
 
-	__solo_enc_put_ch(fh);
+	spin_lock_irqsave(&solo_enc->lock, flags);
 
-	spin_unlock_irqrestore(&fh->slock, flags);
-}
-
-/* Returns >= 0 if channel was activated (success), 0 if the mode
- * was also set, and negative errno on errors. No error checking is
- * done to verify that the mode was set (it cannot be changed when
- * encoding is a reference is already taken). If return is 0, you
- * can be sure your mode was set, if it is > 0, you should check
- * solo_dev->enc_mode[ch] to see if you match. */
-static int solo_enc_get_ch(struct solo_enc_fh *fh, u8 ch, u8 mode)
-{
-	struct solo6010_dev *solo_dev = fh->solo_dev;
-	unsigned long flags;
-	int ret = 1;
-
-	if (ch >= solo_dev->nr_chans)
-		return -EINVAL;
-
-	spin_lock_irqsave(&fh->slock, flags);
-
-	/* Already have the ref? */
-	if (fh->cur_ch == ch) {
-		spin_unlock_irqrestore(&fh->slock, flags);
-		return 0;
+	solo_enc->mode = mode;
+	switch (mode) {
+	case SOLO_ENC_MODE_CIF:
+		solo_enc->width = 352;
+		solo_enc->height = 240;
+		break;
+	case SOLO_ENC_MODE_HALFD1H:
+		solo_enc->width = 704;
+		solo_enc->height = 240;
+		break;
+	case SOLO_ENC_MODE_D1:
+		solo_enc->width = 704;
+		solo_enc->height = 480;
+		break;
+	default:
+		WARN(1, "mode is unknown");
 	}
 
-	/* Release the old ref */
-	__solo_enc_put_ch(fh);
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
-	fh->cur_ch = ch;
+	return 0;
+}
 
-	/* A return of 1 means we are the first ref, and so set the mode */
-	if (atomic_inc_return(&solo_dev->enc_used[ch]) == 1) {
-		solo_dev->enc_mode[ch] = mode;
-		switch (mode) {
-		case SOLO_ENC_MODE_CIF:
-			solo_dev->enc_width[ch] = 352;
-			solo_dev->enc_height[ch] = 240;
-			break;
-		case SOLO_ENC_MODE_HALFD1H:
-			solo_dev->enc_width[ch] = 704;
-			solo_dev->enc_height[ch] = 240;
-			break;
-		case SOLO_ENC_MODE_D1:
-			solo_dev->enc_width[ch] = 704;
-			solo_dev->enc_height[ch] = 480;
-			break;
-		}
+static void solo_enc_put(struct solo_enc_dev *solo_enc)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	unsigned long flags;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
+	if (atomic_dec_return(&solo_enc->ref)) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return;
+	}
+
+	/* No references left, disable it */
+	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
+
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
+}
+
+static void solo_enc_get(struct solo_enc_dev *solo_enc)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	u8 ch = solo_enc->ch;
+	unsigned long flags;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
+	/* If we're the first, enable it. This kicks off IRQ's */
+	if (atomic_inc_return(&solo_enc->ref) == 1) {
+		u8 mode = solo_enc->mode;
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
 		solo_reg_write(solo_dev, SOLO_VE_CH_INTL(ch), (mode >> 3) & 1);
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), mode);
-		ret = 0;
 	}
 
-	spin_unlock_irqrestore(&fh->slock, flags);
-
-	return ret;
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
 
 static void solo_enc_fillbuf(struct solo_enc_fh *fh,
@@ -223,6 +207,68 @@ static void solo_enc_stop_thread(struct solo_enc_fh *fh)
 	}
 }
 
+static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
+{
+	BUG_ON(ch >= solo_dev->nr_chans);
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), 1);
+	solo_dev->v4l2_enc[ch]->reset_gop = 1;
+}
+
+static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
+{
+	if (vop)
+		return 1;
+	BUG_ON(ch >= solo_dev->nr_chans);
+	solo_dev->v4l2_enc[ch]->reset_gop = 0;
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), SOLO_DEFAULT_GOP);
+	return 0;
+}
+
+void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
+{
+	struct videnc_status vstatus;
+	u32 mpeg_current, mpeg_next;
+	u32 reg_mpeg_size, mpeg_size;
+	u8 cur_q, vop_type;
+	u8 ch;
+
+	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_ENCODER);
+
+	vstatus.status11 = solo_reg_read(solo_dev, SOLO_VE_STATE(11));
+	cur_q = (vstatus.status11_st.last_queue + 1) % MP4_QS;
+	
+	vstatus.status0 = solo_reg_read(solo_dev, SOLO_VE_STATE(0));
+	reg_mpeg_size = (vstatus.status0_st.mp4_enc_code_size + 64 + 32) &
+			(~31);
+
+	do {
+		mpeg_current = solo_reg_read(solo_dev,
+					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
+		solo_dev->enc_idx = (solo_dev->enc_idx + 1) % MP4_QS;
+		mpeg_next = solo_reg_read(solo_dev,
+					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
+
+		ch = (mpeg_current >> 24) & 0x1f;
+		vop_type = (mpeg_current >> 29) & 3;
+		mpeg_current &= 0x00ffffff;
+
+		mpeg_size = (SOLO_MP4E_EXT_SIZE + mpeg_next - mpeg_current) %
+			    SOLO_MP4E_EXT_SIZE;
+
+		/* XXX Shouldn't we tell userspace? */
+		if (mpeg_current > mpeg_next && mpeg_size != reg_mpeg_size) {
+			enc_reset_gop(solo_dev, ch);
+			continue;
+		}
+
+		/* When resetting the GOP, skip frames until I-frame */
+		if (enc_gop_reset(solo_dev, ch, vop_type))
+			continue;
+	} while(solo_dev->enc_idx != cur_q);
+
+	return;
+}
+
 static int solo_enc_buf_setup(struct videobuf_queue *vq, unsigned int *count,
 			      unsigned int *size)
 {
@@ -239,19 +285,15 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 				enum v4l2_field field)
 {
 	struct solo_enc_fh *fh  = vq->priv_data;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
-	int ch = fh->cur_ch;
+	struct solo_enc_dev *solo_enc = fh->solo_enc;
 
 	vb->size = FRAME_BUF_SIZE;
 	if (vb->baddr != 0 && vb->bsize < vb->size)
 		return -EINVAL;
 
-	if (fh->cur_ch < 0)
-		return -EINVAL;
-
-	/* XXX: These properties only change when queue is idle */
-	vb->width = solo_dev->enc_width[ch];
-	vb->height = solo_dev->enc_height[ch];
+	/* These properties only change when queue is idle */
+	vb->width = solo_enc->width;
+	vb->height = solo_enc->height;
 	vb->field  = field;
 
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
@@ -308,7 +350,8 @@ static int solo_enc_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int solo_enc_open(struct file *file)
 {
-	struct solo6010_dev *solo_dev = video_drvdata(file);
+	struct solo_enc_dev *solo_enc = video_drvdata(file);
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_fh *fh;
 	int ret;
 
@@ -319,7 +362,7 @@ static int solo_enc_open(struct file *file)
 	INIT_LIST_HEAD(&fh->vidq_active);
 	init_waitqueue_head(&fh->thread_wait);
 	fh->solo_dev = solo_dev;
-	fh->cur_ch = -1;
+	fh->solo_enc = solo_enc;
 	file->private_data = fh;
 
 	if ((ret = solo_enc_start_thread(fh))) {
@@ -332,6 +375,8 @@ static int solo_enc_open(struct file *file)
 				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), fh);
+
+	solo_enc_get(solo_enc);
 
 	return 0;
 }
@@ -348,11 +393,12 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 static int solo_enc_release(struct file *file)
 {
 	struct solo_enc_fh *fh = file->private_data;
+	struct solo_enc_dev *solo_enc = fh->solo_enc;
 
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
 	solo_enc_stop_thread(fh);
-	solo_enc_put_ch(fh);
+	solo_enc_put(solo_enc);
 	kfree(fh);
 
 	return 0;
@@ -379,13 +425,13 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 			       struct v4l2_input *input)
 {
 	struct solo_enc_fh *fh  = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_enc_dev *solo_enc = fh->solo_enc;
 
-	if (input->index >= solo_dev->nr_chans)
+	if (input->index)
 		return -EINVAL;
 
-	snprintf(input->name, sizeof(input->name), "Camera %d",
-		 input->index + 1);
+	snprintf(input->name, sizeof(input->name), "Encoder %d",
+		 solo_enc->ch + 1);
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = V4L2_STD_NTSC_M;
 	/* XXX Should check for signal status on this camera */
@@ -396,17 +442,16 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 
 static int solo_enc_set_input(struct file *file, void *priv, unsigned int index)
 {
-	struct solo_enc_fh *fh = priv;
+	if (index)
+		return -EINVAL;
 
-	return solo_enc_get_ch(fh, index, SOLO_ENC_MODE_CIF);
+	return 0;
 }
 
 static int solo_enc_get_input(struct file *file, void *priv,
 			      unsigned int *index)
 {
-	struct solo_enc_fh *fh = priv;
-
-	*index = fh->cur_ch;
+	*index = 0;
 
 	return 0;
 }
@@ -428,16 +473,12 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
 	struct solo_enc_fh *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_enc_dev *solo_enc = fh->solo_enc;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
-	int ch = fh->cur_ch;
 	u16 width, height;
 
-	if (ch < 0)
-		return -EINVAL;
-
-	width = solo_dev->enc_width[ch];
-	height = solo_dev->enc_height[ch];
+	width = solo_enc->width;
+	height = solo_enc->height;
 
 	/* XXX Should use this to detect mode */
 	if (pix->width != width)
@@ -476,15 +517,11 @@ static int solo_enc_get_fmt_cap(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct solo_enc_fh *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_enc_dev *solo_enc = fh->solo_enc;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
-	int ch = fh->cur_ch;
 
-	if (ch < 0)
-		return -EINVAL;
-
-	pix->width = solo_dev->enc_width[ch];
-	pix->height = solo_dev->enc_height[ch];
+	pix->width = solo_enc->width;
+	pix->height = solo_enc->height;
 	pix->pixelformat = V4L2_PIX_FMT_MPEG;
 	pix->field = V4L2_FIELD_INTERLACED;
 	pix->sizeimage = FRAME_BUF_SIZE;
@@ -593,41 +630,84 @@ static struct video_device solo_enc_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
+static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 {
+	struct solo_enc_dev *solo_enc;
 	int ret;
 
-	solo_dev->enc_vfd = video_device_alloc();
-	if (!solo_dev->enc_vfd)
-		return -ENOMEM;
+	solo_enc = kzalloc(sizeof(*solo_enc), GFP_KERNEL);
+	if (!solo_enc)
+		return ERR_PTR(-ENOMEM);
 
-	*solo_dev->enc_vfd = solo_enc_template;
-	solo_dev->enc_vfd->parent = &solo_dev->pdev->dev;
-
-	ret = video_register_device(solo_dev->enc_vfd, VFL_TYPE_GRABBER,
-				    video_nr);
-	if (ret < 0) {
-		video_device_release(solo_dev->enc_vfd);
-		solo_dev->enc_vfd = NULL;
-		return ret;
+	solo_enc->vfd = video_device_alloc();
+	if (!solo_enc->vfd) {
+		kfree(solo_enc);
+		return ERR_PTR(-ENOMEM);
 	}
 
-	video_set_drvdata(solo_dev->enc_vfd, solo_dev);
+	solo_enc->solo_dev = solo_dev;
+	solo_enc->ch = ch;
 
-	snprintf(solo_dev->enc_vfd->name, sizeof(solo_dev->enc_vfd->name),
-		 "%s-enc (%i)", SOLO6010_NAME, solo_dev->enc_vfd->num);
+	*solo_enc->vfd = solo_enc_template;
+	solo_enc->vfd->parent = &solo_dev->pdev->dev;
+	ret = video_register_device(solo_enc->vfd, VFL_TYPE_GRABBER,
+				    video_nr);
+	if (ret < 0) {
+		video_device_release(solo_enc->vfd);
+		kfree(solo_enc);
+		return ERR_PTR(ret);
+	}
+
+	video_set_drvdata(solo_enc->vfd, solo_enc);
+
+	snprintf(solo_enc->vfd->name, sizeof(solo_enc->vfd->name),
+		 "%s-enc (%i/%i)", SOLO6010_NAME, solo_dev->vfd->num,
+		 solo_enc->vfd->num);
 
 	if (video_nr >= 0)
 		video_nr++;
 
-	dev_info(&solo_dev->pdev->dev, "Encoder as /dev/video%d with "
-		 "%d inputs\n", solo_dev->enc_vfd->num, solo_dev->nr_chans);
+	spin_lock_init(&solo_enc->lock);
+
+	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
+
+	return solo_enc;
+}
+
+static void solo_enc_free(struct solo_enc_dev *solo_enc)
+{
+	video_unregister_device(solo_enc->vfd);
+	kfree(solo_enc);
+}
+
+int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
+{
+	int i;
+
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i);
+		if (IS_ERR(solo_dev->v4l2_enc[i]))
+			break;
+	}
+
+	if (i != solo_dev->nr_chans) {
+		int ret = PTR_ERR(solo_dev->v4l2_enc[i]);
+		while (i--)
+			solo_enc_free(solo_dev->v4l2_enc[i]);
+		return ret;
+	}
+
+	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
+		 solo_dev->v4l2_enc[0]->vfd->num,
+		 solo_dev->v4l2_enc[solo_dev->nr_chans - 1]->vfd->num);
 
 	return 0;
 }
 
 void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 {
-	video_unregister_device(solo_dev->enc_vfd);
-	solo_dev->enc_vfd = NULL;
+	int i;
+
+	for (i = 0; i < solo_dev->nr_chans; i++)
+		solo_enc_free(solo_dev->v4l2_enc[i]);
 }

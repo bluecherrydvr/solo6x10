@@ -74,6 +74,8 @@
 #define SOLO_ENC_MODE_HALFD1H		1
 #define SOLO_ENC_MODE_D1		9
 
+#define SOLO_DEFAULT_GOP		30
+
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
 	IIC_STATE_START,
@@ -87,6 +89,18 @@ struct solo_p2m_dev {
 	struct completion	completion;
 	int			error;
 	u8			desc[SOLO_P2M_DESC_SIZE];
+};
+
+struct solo_enc_dev {
+	struct solo6010_dev	*solo_dev;
+	struct video_device	*vfd;
+	spinlock_t		lock;
+	atomic_t		ref;
+	u8			ch;
+	u8			mode;
+	u8			reset_gop;
+	u16			width;
+	u16			height;
 };
 
 /* The SOLO6010 PCI Device */
@@ -120,13 +134,10 @@ struct solo6010_dev {
 	unsigned int		erasing;
 	unsigned int		frame_blank;
 	u8			cur_disp_ch;
+	u8			enc_idx;
 
 	/* V4L2 Encoder items */
-	struct video_device	*enc_vfd;
-	atomic_t		enc_used[SOLO_MAX_CHANNELS];
-	u8			enc_mode[SOLO_MAX_CHANNELS];
-	u16			enc_width[SOLO_MAX_CHANNELS];
-	u16			enc_height[SOLO_MAX_CHANNELS];
+	struct solo_enc_dev	*v4l2_enc[SOLO_MAX_CHANNELS];
 
 	/* Current video settings */
 	u8 			video_type;
@@ -198,6 +209,7 @@ void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev);
 int solo_i2c_isr(struct solo6010_dev *solo_dev);
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
+void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
 
 /* i2c read/write */
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);
