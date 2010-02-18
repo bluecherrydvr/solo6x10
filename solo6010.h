@@ -27,6 +27,7 @@
 #include <linux/wait.h>
 #include <asm/io.h>
 #include <linux/videodev2.h>
+#include <media/videobuf-vmalloc.h>
 
 #include "solo6010-registers.h"
 
@@ -76,6 +77,10 @@
 
 #define SOLO_DEFAULT_GOP		30
 
+/* There is 8MB memory available for solo to buffer MPEG4 frames.
+ * This gives us 512 * 16kbyte queues. */
+#define SOLO_NR_MP4_QS			512
+
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
 	IIC_STATE_START,
@@ -93,14 +98,30 @@ struct solo_p2m_dev {
 
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
+	/* V4L2 Items */
 	struct video_device	*vfd;
+	struct videobuf_queue	vidq;
+	struct list_head	vidq_active;
+	/* Kernel thread */
+	struct task_struct	*kthread;
+	wait_queue_head_t	thread_wait;
+	/* General accounting */
 	spinlock_t		lock;
-	atomic_t		ref;
 	u8			ch;
 	u8			mode;
 	u8			reset_gop;
+	u8			wait_i_frame;
 	u16			width;
 	u16			height;
+	u16			rd_idx;
+};
+
+struct solo_enc_buf {
+	u8			vop;
+	u8			ch;
+	u32			off;
+	u32			size;
+	struct timeval		ts;
 };
 
 /* The SOLO6010 PCI Device */
@@ -134,10 +155,15 @@ struct solo6010_dev {
 	unsigned int		erasing;
 	unsigned int		frame_blank;
 	u8			cur_disp_ch;
-	u8			enc_idx;
 
 	/* V4L2 Encoder items */
 	struct solo_enc_dev	*v4l2_enc[SOLO_MAX_CHANNELS];
+	/* IDX into hw mp4 encoder */
+	u8			enc_idx;
+	struct solo_enc_buf	enc_buf[SOLO_NR_MP4_QS];
+	/* IDX into our sw enc_buf ring buffer */
+	u16			enc_wr_idx;
+	spinlock_t		enc_lock;
 
 	/* Current video settings */
 	u8 			video_type;

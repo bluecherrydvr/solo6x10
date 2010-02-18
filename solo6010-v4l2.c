@@ -22,7 +22,6 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 #include <media/v4l2-device.h>
-#include <media/videobuf-vmalloc.h>
 #include <media/v4l2-ioctl.h>
 
 #include "solo6010.h"
