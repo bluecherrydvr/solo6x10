@@ -27,7 +27,7 @@
 #include "solo6010.h"
 
 #define MIN_VID_BUFFERS		8
-#define FRAME_BUF_SIZE		(1024 * 1024)
+#define FRAME_BUF_SIZE		(512 * 1024)
 #define MP4_QS			16
 
 extern unsigned video_nr;
@@ -81,6 +81,14 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 }
 
+union vop_header {
+	struct {
+		u32 size:20, sync_start:1, page_stop:1, vop_type:2, channel:4,
+			source_fl:1, interlace:1, progressive:1;
+	} h;
+	u32 st;
+};
+
 static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 			     struct videobuf_buffer *vb)
 {
@@ -89,8 +97,11 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	u8 ch = solo_enc->ch;
 	unsigned long flags;
 	u8 *vbuf;
+	union vop_header vh;
 
 	/* Find an enc_buf we care about */
+	spin_lock_irqsave(&solo_dev->enc_lock, flags);
+
 	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
 		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
 		if (enc_buf->ch == ch &&
@@ -99,15 +110,23 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 	}
 
-	if (!enc_buf || enc_buf->ch != ch)
+	if (!enc_buf || enc_buf->ch != ch) {
+		spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
 		return;
+	}
 
 	/* Now that we know we have a valid buffer we care about... */
 	list_del(&vb->queue);
 	solo_enc->wait_i_frame = 0;
 
 	if (!(vbuf = videobuf_to_vmalloc(vb)))
-		return;
+		goto buf_done;
+
+	if (vb->size < enc_buf->size) {
+		printk("Truncating mpeg frame\n");
+		enc_buf->size = vb->size;
+	}
+printk("mpeg buffer size = %d\n", enc_buf->size);
 
 	/* If the buffer rolls over back to the start, do double copy */
 	if ((enc_buf->off + enc_buf->size) > SOLO_MP4E_EXT_SIZE) {
@@ -126,17 +145,20 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 			     enc_buf->off, enc_buf->size);
 	}
 
-	spin_lock_irqsave(&solo_dev->enc_lock, flags);
-        solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
-        spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
+	vh.st = ((u32 *)vbuf)[0];
+	vh.h.size = enc_buf->size - 64;
+	((u32 *)vbuf)[0] = vh.st;
+
+buf_done:
+	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 
 	vb->field_count++;
 	vb->ts = enc_buf->ts;
-	do_gettimeofday(&vb->ts);
+	vb->size = enc_buf->size;
 	vb->state = VIDEOBUF_DONE;
 	wake_up(&vb->done);
 
-	return;
+	spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
 }
 
 static void solo_enc_thread_sleep(struct solo_enc_dev *solo_enc)
@@ -245,6 +267,8 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	reg_mpeg_size = (vstatus.status0_st.mp4_enc_code_size + 64 + 32) &
 			(~31);
 
+	spin_lock_irqsave(&solo_dev->enc_lock, flags);
+
 	do {
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
@@ -278,13 +302,13 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		enc_buf->size = mpeg_size;
 		do_gettimeofday(&enc_buf->ts);
 
-		spin_lock_irqsave(&solo_dev->enc_lock, flags);
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
 					SOLO_NR_MP4_QS;
-		spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
 
 		wake_up(&solo_dev->v4l2_enc[ch]->thread_wait);
 	} while(solo_dev->enc_idx != cur_q);
+
+	spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
 
 	return;
 }
@@ -481,6 +505,7 @@ static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 		return -EINVAL;
 
 	f->pixelformat = V4L2_PIX_FMT_MPEG;
+	f->flags = V4L2_FMT_FLAG_COMPRESSED;
 	snprintf(f->description, sizeof(f->description),
 		 "%s", "MPEG-4 AVC");
 

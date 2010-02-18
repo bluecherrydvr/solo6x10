@@ -32,17 +32,6 @@
 #define TW_CONTRAST_ADDR(n)			(0x09 | ((n) << 4))
 #define TW_BRIGHTNESS_ADDR(n)			(0x0a | ((n) << 4))
 
-/*
- * The top 2 bits of DEVID1 make up the the most significant bits of the
- * TW2815 device ID, followed by the top 5 bits of DEVID2.  The bottom
- * 3 bits of DEVID2 indicate the device revision.
- */
-#define TW_REG_DEVID1				0x58
-#define TW_REG_DEVID2				0x59
-
-#define TW_REGVALUE_DEVID(id1,id2)		(((id1) >> 1) | ((id2) >> 3))
-#define TW_REGVALUE_REVID(id2)			((id2) & 0x07)
-
 #define TW_AUDIO_OUTPUT_VOL_ADDR		0x70
 #define TW_AUDIO_INPUT_GAIN_ADDR(n)		(0x60+((n==4)|(n==1)))
 
