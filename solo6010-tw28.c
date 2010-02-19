@@ -221,7 +221,7 @@ static void tw_write_and_verify(struct solo6010_dev *solo_dev, u8 addr, u8 off,
 	}
 
 	if (rval != val)
-		printk_once("solo6010/tw28: Error writing registers\n");
+		printk("solo6010/tw28: Error writing registers\n");
 }
 
 

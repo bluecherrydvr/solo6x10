@@ -21,7 +21,7 @@
 #include <linux/module.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
-#include <media/v4l2-device.h>
+#include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
 
 #include "solo6010.h"
@@ -391,7 +391,11 @@ static int solo_enc_mmap(struct file *file, struct vm_area_struct *vma)
 	return videobuf_mmap_mapper(&solo_enc->vidq, vma);
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static int solo_enc_open(struct file *file)
+#else
+static int solo_enc_open(struct inode *ino, struct file *file)
+#endif
 {
 	struct solo_enc_dev *solo_enc = video_drvdata(file);
 	int ret;
@@ -435,7 +439,11 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 				    file->f_flags & O_NONBLOCK);
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static int solo_enc_release(struct file *file)
+#else
+static int solo_enc_release(struct inode *ino, struct file *file)
+#endif
 {
 	struct solo_enc_dev *solo_enc = file->private_data;
 
@@ -637,7 +645,11 @@ static int solo_enc_s_std(struct file *file, void *priv, v4l2_std_id *i)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
+#else
+static const struct file_operations solo_enc_fops = {
+#endif
 	.owner			= THIS_MODULE,
 	.open			= solo_enc_open,
 	.release		= solo_enc_release,
