@@ -46,7 +46,7 @@
 #define solo_bytesperline(__solo) (__solo->video_hsize * 2)
 #endif
 
-#define MIN_VID_BUFFERS		8
+#define MIN_VID_BUFFERS		4
 
 /* Simple file handle */
 struct solo_filehandle {

@@ -76,6 +76,9 @@
 #define SOLO_ENC_MODE_D1		9
 
 #define SOLO_DEFAULT_GOP		30
+#define SOLO_DEFAULT_QP			3
+#define SOLO_DEFAULT_INTERVAL		1
+#define SOLO_DEFAULT_INTERLACED		0
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
@@ -108,7 +111,7 @@ struct solo_enc_dev {
 	/* General accounting */
 	spinlock_t		lock;
 	u8			ch;
-	u8			mode;
+	u8			mode, gop, qp, interlaced, interval;
 	u8			reset_gop;
 	u8			wait_i_frame;
 	u16			width;

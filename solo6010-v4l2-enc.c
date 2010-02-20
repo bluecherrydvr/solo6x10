@@ -26,11 +26,35 @@
 
 #include "solo6010.h"
 
-#define MIN_VID_BUFFERS		8
-#define FRAME_BUF_SIZE		(512 * 1024)
+#define MIN_VID_BUFFERS		4
+#define FRAME_BUF_SIZE		(128 * 1024)
 #define MP4_QS			16
 
 extern unsigned video_nr;
+
+struct vop_header {
+	/* VD_IDX0 */
+	u32 size:20, sync_start:1, page_stop:1, vop_type:2, channel:4,
+		nop0:1, source_fl:1, interlace:1, progressive:1;
+
+	/* VD_IDX1 */
+	u32 vsize:8, hsize:8, frame_interop:1, nop1:7, win_id:4, scale:4;
+
+	/* VD_IDX2 */
+	u32 base_addr:16, nop2:15, hoff:1;
+
+	/* VD_IDX3 - User set macros */
+	u32 sy:12, sx:12, nop3:1, hzoom:1, read_interop:1, write_interlace:1,
+		scale_mode:4;
+
+	/* VD_IDX4 - User set macros continued */
+	u32 write_page:8, nop4:24;
+
+	/* VD_IDX5 */
+	u32 next_code_addr;
+
+	u32 end_nops[10];
+} __attribute__((packed));
 
 static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 {
@@ -62,16 +86,31 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 static void solo_enc_on(struct solo_enc_dev *solo_enc)
 {
 	unsigned long flags;
-	u8 mode;
 	u8 ch = solo_enc->ch;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	spin_lock_irqsave(&solo_enc->lock, flags);
 
-	mode = solo_enc->mode;
+	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
-	solo_reg_write(solo_dev, SOLO_VE_CH_INTL(ch), (mode >> 3) & 1);
-	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), mode);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 0);
+
+	/* Common for both std and ext encoding */
+	solo_reg_write(solo_dev, SOLO_VE_CH_INTL(ch),
+		       solo_enc->interlaced ? 1 : 0);
+
+	/* Standard encoding only */
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), solo_enc->gop);
+	solo_reg_write(solo_dev, SOLO_VE_CH_QP(ch), solo_enc->qp);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV(ch), solo_enc->interval);
+
+	/* Extended encoding only */
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(ch), solo_enc->gop);
+	solo_reg_write(solo_dev, SOLO_VE_CH_QP_E(ch), solo_enc->qp);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV_E(ch), solo_enc->interval);
+
+	/* Enables the standard encoder */
+	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
@@ -81,23 +120,15 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 }
 
-union vop_header {
-	struct {
-		u32 size:20, sync_start:1, page_stop:1, vop_type:2, channel:4,
-			source_fl:1, interlace:1, progressive:1;
-	} h;
-	u32 st;
-};
-
 static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 			     struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_buf *enc_buf = NULL;
 	u8 ch = solo_enc->ch;
+	struct vop_header *vh;
 	unsigned long flags;
-	u8 *vbuf;
-	union vop_header vh;
+	void *vbuf;
 
 	/* Find an enc_buf we care about */
 	spin_lock_irqsave(&solo_dev->enc_lock, flags);
@@ -122,12 +153,15 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	if (!(vbuf = videobuf_to_vmalloc(vb)))
 		goto buf_done;
 
-	if (vb->size < enc_buf->size) {
-		printk("Truncating mpeg frame\n");
-		enc_buf->size = vb->size;
-	}
-printk("mpeg buffer size = %d\n", enc_buf->size);
-
+	/* XXX Check vb->size < enc_buf->size */
+#if 0
+	/* Get the hardware header first */
+	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, &vh,
+		     SOLO_MP4E_EXT_ADDR(solo_dev) + enc_buf->off,
+		     sizeof(vh));
+	enc_buf->off += sizeof(vh);
+	enc_buf->size -= sizeof(vh);
+#endif
 	/* If the buffer rolls over back to the start, do double copy */
 	if ((enc_buf->off + enc_buf->size) > SOLO_MP4E_EXT_SIZE) {
 		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, vbuf,
@@ -145,16 +179,23 @@ printk("mpeg buffer size = %d\n", enc_buf->size);
 			     enc_buf->off, enc_buf->size);
 	}
 
-	vh.st = ((u32 *)vbuf)[0];
-	vh.h.size = enc_buf->size - 64;
-	((u32 *)vbuf)[0] = vh.st;
+	vh = vbuf;
+	vb->size = vh->size + 64;
+	vb->width = vh->hsize << 4;
+	vb->height = vh->vsize << 4;
+	// XXX Set keyframe or pframe flag?
+	//if (vh->source_fl)
+	//	vb->field = V4L2_FIELD_TOP;
+	//else
+	//	vb->field = V4L2_FIELD_BOTTOM;
+
+//printk("Got frame of %d, actual %lu\n", enc_buf->size, vb->size);
 
 buf_done:
 	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 
 	vb->field_count++;
 	vb->ts = enc_buf->ts;
-	vb->size = enc_buf->size;
 	vb->state = VIDEOBUF_DONE;
 	wake_up(&vb->done);
 
@@ -547,8 +588,6 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
 		return -EINVAL;
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
-
 	return 0;
 }
 
@@ -733,6 +772,10 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	init_waitqueue_head(&solo_enc->thread_wait);
 
 	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
+	solo_enc->qp = SOLO_DEFAULT_QP;
+	solo_enc->interlaced = SOLO_DEFAULT_INTERLACED;
+	solo_enc->interval = SOLO_DEFAULT_INTERVAL;
+	solo_enc->gop = SOLO_DEFAULT_GOP;
 
 	return solo_enc;
 }
