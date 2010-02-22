@@ -83,13 +83,10 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
 
-static void solo_enc_on(struct solo_enc_dev *solo_enc)
+static void __solo_enc_on(struct solo_enc_dev *solo_enc)
 {
-	unsigned long flags;
 	u8 ch = solo_enc->ch;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-
-	spin_lock_irqsave(&solo_enc->lock, flags);
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
@@ -112,8 +109,20 @@ static void solo_enc_on(struct solo_enc_dev *solo_enc)
 	/* Enables the standard encoder */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
 
+	/* Settle down Beavis... */
+	mdelay(10);
+}
+
+#if 0
+static void solo_enc_on(struct solo_enc_dev *solo_enc)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+	__solo_enc_on(solo_enc);
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
+#endif
 
 static void solo_enc_off(struct solo_enc_dev *solo_enc)
 {
@@ -128,10 +137,8 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	u8 ch = solo_enc->ch;
 	struct vop_header *vh;
 	unsigned long flags;
+	int error = 0;
 	void *vbuf;
-
-	/* Find an enc_buf we care about */
-	spin_lock_irqsave(&solo_dev->enc_lock, flags);
 
 	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
 		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
@@ -141,8 +148,12 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 	}
 
-	if (!enc_buf || enc_buf->ch != ch) {
-		spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
+	if (!enc_buf || enc_buf->ch != ch)
+		return;
+
+	if (enc_buf->size == 0) {
+		if (printk_ratelimit())
+			printk(KERN_CRIT "enc_buf has zero size!?\n");
 		return;
 	}
 
@@ -150,18 +161,11 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	list_del(&vb->queue);
 	solo_enc->wait_i_frame = 0;
 
-	if (!(vbuf = videobuf_to_vmalloc(vb)))
+	if (vb->bsize < enc_buf->size || !(vbuf = videobuf_to_vmalloc(vb))) {
+		error = 1;
 		goto buf_done;
+	}
 
-	/* XXX Check vb->size < enc_buf->size */
-#if 0
-	/* Get the hardware header first */
-	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, &vh,
-		     SOLO_MP4E_EXT_ADDR(solo_dev) + enc_buf->off,
-		     sizeof(vh));
-	enc_buf->off += sizeof(vh);
-	enc_buf->size -= sizeof(vh);
-#endif
 	/* If the buffer rolls over back to the start, do double copy */
 	if ((enc_buf->off + enc_buf->size) > SOLO_MP4E_EXT_SIZE) {
 		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, vbuf,
@@ -183,23 +187,20 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	vb->size = vh->size + 64;
 	vb->width = vh->hsize << 4;
 	vb->height = vh->vsize << 4;
-	// XXX Set keyframe or pframe flag?
-	//if (vh->source_fl)
-	//	vb->field = V4L2_FIELD_TOP;
-	//else
-	//	vb->field = V4L2_FIELD_BOTTOM;
+	vb->field_count++;
+	vb->ts = enc_buf->ts;
 
-//printk("Got frame of %d, actual %lu\n", enc_buf->size, vb->size);
+	// XXX Set keyframe or pframe flag?
 
 buf_done:
 	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 
-	vb->field_count++;
-	vb->ts = enc_buf->ts;
-	vb->state = VIDEOBUF_DONE;
-	wake_up(&vb->done);
+	if (!error)
+		vb->state = VIDEOBUF_DONE;
+	else
+		vb->state = VIDEOBUF_ERROR;
 
-	spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
+	wake_up(&vb->done);
 }
 
 static void solo_enc_thread_sleep(struct solo_enc_dev *solo_enc)
@@ -214,16 +215,14 @@ static void solo_enc_thread_sleep(struct solo_enc_dev *solo_enc)
 			wait_event_interruptible_timeout(solo_enc->thread_wait,
 				!list_empty(&solo_enc->vidq_active) &&
 				solo_dev->enc_wr_idx != solo_enc->rd_idx,
-				   timeout);
+				timeout);
 		if (timeout == -ERESTARTSYS || kthread_should_stop())
 			return;
-
-		spin_lock_irqsave(&solo_enc->lock, flags);
-		if (!list_empty(&solo_enc->vidq_active) &&
-		    solo_dev->enc_wr_idx != solo_enc->rd_idx)
+		if (timeout)
 			break;
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
 	}
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
 
 	vb = list_first_entry(&solo_enc->vidq_active, struct videobuf_buffer,
 			      queue);
@@ -308,8 +307,6 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	reg_mpeg_size = (vstatus.status0_st.mp4_enc_code_size + 64 + 32) &
 			(~31);
 
-	spin_lock_irqsave(&solo_dev->enc_lock, flags);
-
 	do {
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
@@ -325,7 +322,7 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		mpeg_size = (SOLO_MP4E_EXT_SIZE + mpeg_next - mpeg_current) %
 			    SOLO_MP4E_EXT_SIZE;
 
-		/* XXX Shouldn't we tell userspace? */
+		/* XXX WTF does this mean? */
 		if (mpeg_current > mpeg_next && mpeg_size != reg_mpeg_size) {
 			enc_reset_gop(solo_dev, ch);
 			continue;
@@ -348,8 +345,6 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 
 		wake_up(&solo_dev->v4l2_enc[ch]->thread_wait);
 	} while(solo_dev->enc_idx != cur_q);
-
-	spin_unlock_irqrestore(&solo_dev->enc_lock, flags);
 
 	return;
 }
@@ -452,10 +447,11 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	file->private_data = solo_enc;
 
 	ret = solo_enc_start_thread(solo_enc);
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
-	if (ret)
+	if (ret) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
 		return ret;
+	}
 
 	videobuf_queue_vmalloc_init(&solo_enc->vidq, &solo_enc_video_qops,
 				    NULL, &solo_enc->lock,
@@ -463,10 +459,12 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), solo_enc);
 
+	__solo_enc_on(solo_enc);
+
 	solo_enc->rd_idx = solo_enc->solo_dev->enc_wr_idx;
 	solo_enc->wait_i_frame = 1;
 
-	solo_enc_on(solo_enc);
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return 0;
 }
@@ -503,9 +501,10 @@ static int solo_enc_querycap(struct file *file, void  *priv,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	strcpy(cap->driver, SOLO6010_NAME);
-	strcpy(cap->card, "Softlogic 6010 Enc");
-	snprintf(cap->bus_info, sizeof(cap->bus_info), "%s %s",
-		 SOLO6010_NAME, pci_name(solo_dev->pdev));
+	snprintf(cap->card, sizeof(cap->card), "Softlogic 6010 Enc %d",
+		 solo_enc->ch);
+	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI %s",
+		 pci_name(solo_dev->pdev));
 	cap->version = SOLO6010_VER_NUM;
 	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
 				V4L2_CAP_READWRITE |
