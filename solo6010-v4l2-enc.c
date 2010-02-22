@@ -136,7 +136,6 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	struct solo_enc_buf *enc_buf = NULL;
 	u8 ch = solo_enc->ch;
 	struct vop_header *vh;
-	unsigned long flags;
 	int error = 0;
 	void *vbuf;
 
@@ -294,7 +293,6 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	struct videnc_status vstatus;
 	u32 mpeg_current, mpeg_next;
 	u32 reg_mpeg_size, mpeg_size;
-	unsigned long flags;
 	u8 cur_q, vop_type;
 	u8 ch;
 
@@ -801,8 +799,6 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 			solo_enc_free(solo_dev->v4l2_enc[i]);
 		return ret;
 	}
-
-	spin_lock_init(&solo_dev->enc_lock);
 
 	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
 		 solo_dev->v4l2_enc[0]->vfd->num,

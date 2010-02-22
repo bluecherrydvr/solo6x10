@@ -166,7 +166,6 @@ struct solo6010_dev {
 	struct solo_enc_buf	enc_buf[SOLO_NR_MP4_QS];
 	/* IDX into our sw enc_buf ring buffer */
 	u16			enc_wr_idx;
-	spinlock_t		enc_lock;
 
 	/* Current video settings */
 	u8 			video_type;
