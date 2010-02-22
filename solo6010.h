@@ -246,9 +246,9 @@ void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
 			u8 data);
 
 /* P2M DMA */
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int id, int wr,
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
-int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
+int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size);
 
 #endif /* __SOLO6010_H */
