@@ -22,13 +22,15 @@
 
 // #define SOLO_TEST_P2M
 
-int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
+int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size)
 {
 	dma_addr_t dma_addr;
 	int ret;
 
-	if (id >= SOLO_NR_P2M)
+	WARN_ON(!size);
+	WARN_ON(id >= SOLO_NR_P2M);
+	if (!size || id >= SOLO_NR_P2M)
 		return -EINVAL;
 
 	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
@@ -42,14 +44,16 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int id, int wr,
 	return ret;
 }
 
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int id, int wr,
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size)
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
 
-	if (id >= SOLO_NR_P2M)
-                return -EINVAL;
+	WARN_ON(!size);
+	WARN_ON(id >= SOLO_NR_P2M);
+	if (!size || id >= SOLO_NR_P2M)
+		return -EINVAL;
 
 	p2m_dev = &solo_dev->p2m_dev[id];
 
