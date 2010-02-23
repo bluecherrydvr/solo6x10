@@ -129,8 +129,10 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 }
 
-static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
-			     struct videobuf_buffer *vb)
+/* On successful return (0), leaves solo_enc->lock unlocked */
+static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
+			     struct videobuf_buffer *vb,
+			     unsigned long flags)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_buf *enc_buf = NULL;
@@ -147,17 +149,20 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 	}
 
-	if (!enc_buf || enc_buf->ch != ch)
-		return;
+	if (!enc_buf) 
+		return -1;
 
-	if (enc_buf->size == 0) {
-		if (printk_ratelimit())
-			printk(KERN_CRIT "enc_buf has zero size!?\n");
-		return;
-	}
+	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
+
+	if (enc_buf->ch != ch || enc_buf->size == 0)
+		return -1;
 
 	/* Now that we know we have a valid buffer we care about... */
 	list_del(&vb->queue);
+
+	/* Is it ok that we mess with this buffer out of lock? */
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
+
 	solo_enc->wait_i_frame = 0;
 
 	if (vb->bsize < enc_buf->size || !(vbuf = videobuf_to_vmalloc(vb))) {
@@ -189,63 +194,64 @@ static void solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	vb->field_count++;
 	vb->ts = enc_buf->ts;
 
-	// XXX Set keyframe or pframe flag?
+	// TODO Set keyframe or pframe flag?
 
 buf_done:
-	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
-
 	if (!error)
 		vb->state = VIDEOBUF_DONE;
 	else
 		vb->state = VIDEOBUF_ERROR;
 
 	wake_up(&vb->done);
+
+	return 0;
 }
 
-static void solo_enc_thread_sleep(struct solo_enc_dev *solo_enc)
+static void solo_enc_thread_try(struct solo_enc_dev *solo_enc)
 {
 	struct videobuf_buffer *vb;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	unsigned long flags;
 
 	for (;;) {
-		long timeout = msecs_to_jiffies(100);
-		timeout =
-			wait_event_interruptible_timeout(solo_enc->thread_wait,
-				!list_empty(&solo_enc->vidq_active) &&
-				solo_dev->enc_wr_idx != solo_enc->rd_idx,
-				timeout);
-		if (timeout == -ERESTARTSYS || kthread_should_stop())
-			return;
-		if (timeout)
+		spin_lock_irqsave(&solo_enc->lock, flags);
+
+		if (list_empty(&solo_enc->vidq_active))
+			break;
+
+		vb = list_first_entry(&solo_enc->vidq_active,
+				      struct videobuf_buffer, queue);
+
+		if (!waitqueue_active(&vb->done))
+			break;
+
+		/* On success, returns with solo_enc->lock unlocked */
+		if (solo_enc_fillbuf(solo_enc, vb, flags))
 			break;
 	}
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
-
-	vb = list_first_entry(&solo_enc->vidq_active, struct videobuf_buffer,
-			      queue);
-
-	if (waitqueue_active(&vb->done))
-		solo_enc_fillbuf(solo_enc, vb);
-
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
-
-	try_to_freeze();
 }
 
 static int solo_enc_thread(void *data)
 {
 	struct solo_enc_dev *solo_enc = data;
+	DECLARE_WAITQUEUE(wait, current);
+	long timeout;
 
 	set_freezable();
 
-	for (;;) {
-		solo_enc_thread_sleep(solo_enc);
+	add_wait_queue(&solo_enc->thread_wait, &wait);
 
-		if (kthread_should_stop())
+	for (;;) {
+		timeout = schedule_timeout_interruptible(HZ);
+		if (timeout == -ERESTARTSYS || kthread_should_stop())
 			break;
+		solo_enc_thread_try(solo_enc);
+		try_to_freeze();
 	}
+
+	remove_wait_queue(&solo_enc->thread_wait, &wait);
+
         return 0;
 }
 
@@ -341,7 +347,8 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
 					SOLO_NR_MP4_QS;
 
-		wake_up(&solo_dev->v4l2_enc[ch]->thread_wait);
+		if (!list_empty(&solo_dev->v4l2_enc[ch]->vidq_active))
+			wake_up_interruptible(&solo_dev->v4l2_enc[ch]->thread_wait);
 	} while(solo_dev->enc_idx != cur_q);
 
 	return;
@@ -393,7 +400,7 @@ static void solo_enc_buf_queue(struct videobuf_queue *vq,
 
 	vb->state = VIDEOBUF_QUEUED;
 	list_add_tail(&vb->queue, &solo_enc->vidq_active);
-	wake_up(&solo_enc->thread_wait);
+	wake_up_interruptible(&solo_enc->thread_wait);
 }
 
 static void solo_enc_buf_release(struct videobuf_queue *vq,
@@ -522,7 +529,7 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 		 solo_enc->ch + 1);
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = V4L2_STD_NTSC_M;
-	/* XXX Should check for signal status on this camera */
+	/* TODO Should check for signal status on this camera */
 	input->status = 0;
 
 	return 0;
@@ -568,7 +575,7 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	width = solo_enc->width;
 	height = solo_enc->height;
 
-	/* XXX Should use this to detect mode */
+	/* TODO Should use this to detect mode */
 	if (pix->width != width)
 		pix->width = width;
 	if (pix->height != height)
