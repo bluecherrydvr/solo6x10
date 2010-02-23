@@ -130,12 +130,11 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	unsigned int fdma_addr;
 	int cur_write;
 	int frame_size;
+	int error = 1;
 	int i;
 
-	list_del(&vb->queue);
-
 	if (!(vbuf = videobuf_to_vmalloc(vb)))
-		return;
+		goto finish_buf;
 
 	/* XXX: Is this really a good idea? */
 	do {
@@ -154,6 +153,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 			((u8 *)vbuf)[i] = 0x80;
 			((u8 *)vbuf)[i + 1] = 0x00;
 		}
+		error = 0;
 		goto finish_buf;
 	}
 
@@ -180,59 +180,69 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 #endif
 		fdma_addr += SOLO_DISP_BUF_SIZE;
 	}
+	error = 0;
 
 finish_buf:
-	vb->field_count++;
-	do_gettimeofday(&vb->ts);
-	vb->state = VIDEOBUF_DONE;
+	if (error) {
+		vb->state = VIDEOBUF_ERROR;
+	} else {
+		vb->state = VIDEOBUF_DONE;
+		vb->field_count++;
+		do_gettimeofday(&vb->ts);
+	}
+
 	wake_up(&vb->done);
 
 	return;
 }
 
-static void solo_thread_sleep(struct solo_filehandle *fh)
+static void solo_thread_try(struct solo_filehandle *fh)
 {
 	struct videobuf_buffer *vb;
 	unsigned long flags;
 
 	for (;;) {
-		long timeout = msecs_to_jiffies(100);
 		spin_lock_irqsave(&fh->slock, flags);
-		timeout =
-			wait_event_interruptible_timeout(fh->thread_wait,
-				   !list_empty(&fh->vidq_active),
-				   timeout);
-		if (timeout == -ERESTARTSYS || kthread_should_stop()) {
-			spin_unlock_irqrestore(&fh->slock, flags);
-			return;
-		} else if (timeout)
+
+		if (list_empty(&fh->vidq_active))
 			break;
+
+		vb = list_first_entry(&fh->vidq_active, struct videobuf_buffer,
+				      queue);
+
+		if (!waitqueue_active(&vb->done))
+			break;
+
+		list_del(&vb->queue);
 		spin_unlock_irqrestore(&fh->slock, flags);
+
+		solo_fillbuf(fh, vb);
 	}
 
-	vb = list_first_entry(&fh->vidq_active, struct videobuf_buffer,
-			      queue);
-
-	if (waitqueue_active(&vb->done))
-		solo_fillbuf(fh, vb);
-
 	spin_unlock_irqrestore(&fh->slock, flags);
-
-	try_to_freeze();
 }
 
 static int solo_thread(void *data)
 {
 	struct solo_filehandle *fh = data;
+	DECLARE_WAITQUEUE(wait, current);
+	long timeout;
 
 	set_freezable();
+	add_wait_queue(&fh->thread_wait, &wait);
 
 	for (;;) {
-		solo_thread_sleep(fh);
-
-		if (kthread_should_stop())
+		timeout = HZ;
+		if (list_empty(&fh->vidq_active))
+			timeout = schedule_timeout_interruptible(timeout);
+		if (timeout == -ERESTARTSYS || kthread_should_stop())
 			break;
+		solo_thread_try(fh);
+		try_to_freeze();
 	}
+
+	remove_wait_queue(&fh->thread_wait, &wait);
+
         return 0;
 }
 
@@ -304,7 +314,7 @@ static void solo_buf_queue(struct videobuf_queue *vq,
 
 	vb->state = VIDEOBUF_QUEUED;
 	list_add_tail(&vb->queue, &fh->vidq_active);
-	wake_up(&fh->thread_wait);
+	wake_up_interruptible(&fh->thread_wait);
 }
 
 static void solo_buf_release(struct videobuf_queue *vq,
