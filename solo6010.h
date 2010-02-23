@@ -72,7 +72,7 @@
 
 /* Encoder standard modes */
 #define SOLO_ENC_MODE_CIF		2
-#define SOLO_ENC_MODE_HALFD1H		1
+#define SOLO_ENC_MODE_HD1		1
 #define SOLO_ENC_MODE_D1		9
 
 #define SOLO_DEFAULT_GOP		30

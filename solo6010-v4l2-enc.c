@@ -68,7 +68,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 		solo_enc->width = 352;
 		solo_enc->height = 240;
 		break;
-	case SOLO_ENC_MODE_HALFD1H:
+	case SOLO_ENC_MODE_HD1:
 		solo_enc->width = 704;
 		solo_enc->height = 240;
 		break;
@@ -239,7 +239,6 @@ static int solo_enc_thread(void *data)
 	long timeout;
 
 	set_freezable();
-
 	add_wait_queue(&solo_enc->thread_wait, &wait);
 
 	for (;;) {
