@@ -20,8 +20,8 @@
 
 #include "solo6010.h"
 
-#define CAPTURE_MAX_BANDWIDTH	32	// D1 4channel (D1 == 4)
-#define OSG_BUFFER_SIZE		1024
+#define CAPTURE_MAX_BANDWIDTH		32	// D1 4channel (D1 == 4)
+#define OSG_BUFFER_SIZE			1024
 
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
@@ -120,7 +120,7 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 
 	/* We can only use VE_INTR_CTRL(0) if we want to support mjpeg */
 	solo_reg_write(solo_dev, SOLO_VE_CFG0,
-		       SOLO_VE_INTR_CTRL(3) |
+		       SOLO_VE_INTR_CTRL(0) |
 		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE >> 16) |
 		       SOLO_VE_BLOCK_BASE(SOLO_MP4E_EXT_ADDR(solo_dev) >> 16));
 
@@ -155,19 +155,8 @@ int solo_enc_init(struct solo6010_dev *solo_dev)
 	solo_mp4e_config(solo_dev);
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
-		/* Standard encoder attributes */
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(i), 0);
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(i), SOLO_DEFAULT_GOP);
-		solo_reg_write(solo_dev, SOLO_VE_CH_QP(i), SOLO_DEFAULT_QP);
-		solo_reg_write(solo_dev, SOLO_CAP_CH_INTV(i),
-			       SOLO_DEFAULT_INTERVAL);
-
-		/* Extended encoder attributes */
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(i), 0);
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(i), SOLO_DEFAULT_GOP);
-		solo_reg_write(solo_dev, SOLO_VE_CH_QP_E(i), SOLO_DEFAULT_QP);
-		solo_reg_write(solo_dev, SOLO_CAP_CH_INTV_E(i),
-			       SOLO_DEFAULT_INTERVAL);
 	}
 
 	solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
