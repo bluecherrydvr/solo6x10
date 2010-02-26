@@ -27,10 +27,28 @@
 #include "solo6010.h"
 
 #define MIN_VID_BUFFERS		4
-#define FRAME_BUF_SIZE		(128 * 1024)
+#define FRAME_BUF_SIZE		(256 * 1024)
 #define MP4_QS			16
 
 extern unsigned video_nr;
+
+static unsigned char vid_vop_header[] = {
+	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x20,
+	0x02, 0x48, 0x0d, 0xc0, 0x00, 0x40, 0x00, 0x40,
+	0x00, 0x40, 0x00, 0x80, 0x00, 0x97, 0x53, 0x04,
+	0x1f, 0x4c, 0x58, 0x10, 0x78, 0x51, 0x18, 0x3e,
+};
+
+/*
+ * Things we can change around:
+ *
+ * byte  10,        4-bits 01111000                   aspect
+ * bytes 21,22,23  16-bits 000x1111 11111111 1111x000 fps/res
+ * bytes 23,24,25  15-bits 00000n11 11111111 11111x00 interval
+ * bytes 25,26,27  13-bits 00000x11 11111111 111x0000 width
+ * bytes 27,28,29  13-bits 000x1111 11111111 1x000000 height
+ * byte  29         1-bit  0x100000                   interlace
+ */
 
 struct vop_header {
 	/* VD_IDX0 */
@@ -67,14 +85,20 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 	case SOLO_ENC_MODE_CIF:
 		solo_enc->width = 352;
 		solo_enc->height = 240;
+		solo_enc->interlaced = 0;
+		solo_enc->interval = 1;
 		break;
 	case SOLO_ENC_MODE_HD1:
 		solo_enc->width = 704;
 		solo_enc->height = 240;
+		solo_enc->interlaced = 0;
+		solo_enc->interval = 1;
 		break;
 	case SOLO_ENC_MODE_D1:
 		solo_enc->width = 704;
 		solo_enc->height = 480;
+		solo_enc->interlaced = 1;
+		solo_enc->interval = 0;
 		break;
 	default:
 		WARN(1, "mode is unknown");
@@ -129,6 +153,47 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 }
 
+static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
+{
+	BUG_ON(ch >= solo_dev->nr_chans);
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), 1);
+	solo_dev->v4l2_enc[ch]->reset_gop = 1;
+}
+
+static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
+{
+	BUG_ON(ch >= solo_dev->nr_chans);
+	if (!solo_dev->v4l2_enc[ch]->reset_gop)
+		return 0;
+	if (vop)
+		return 1;
+	solo_dev->v4l2_enc[ch]->reset_gop = 0;
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), SOLO_DEFAULT_GOP);
+	return 0;
+}
+
+static int enc_get_dma(struct solo6010_dev *solo_dev, void *buf,
+		       unsigned int off, unsigned int size)
+{
+	int ret;
+
+	if (off + size <= SOLO_MP4E_EXT_SIZE)
+		return solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
+				    SOLO_MP4E_EXT_ADDR(solo_dev) + off, size);
+
+	/* Buffer wrap */
+	ret = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
+			   SOLO_MP4E_EXT_ADDR(solo_dev) + off,
+			   SOLO_MP4E_EXT_SIZE - off);
+
+	ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0,
+			    buf + SOLO_MP4E_EXT_SIZE - off,
+			    SOLO_MP4E_EXT_ADDR(solo_dev),
+			    size + off - SOLO_MP4E_EXT_SIZE);
+
+	return ret;
+}
+
 /* On successful return (0), leaves solo_enc->lock unlocked */
 static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 			     struct videobuf_buffer *vb,
@@ -137,71 +202,116 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_buf *enc_buf = NULL;
 	u8 ch = solo_enc->ch;
-	struct vop_header *vh;
-	int error = 0;
+	struct vop_header vh;
+	int error = 1;
 	void *vbuf;
+	u8 *p;
+	int ret;
 
 	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
 		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
-		if (enc_buf->ch == ch &&
-		    (!solo_enc->wait_i_frame || !enc_buf->vop))
+		if (enc_buf->ch == ch && enc_buf->in_use && enc_buf->size)
 			break;
 		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 	}
 
-	if (!enc_buf) 
+	if (!enc_buf || enc_buf->ch != ch) 
 		return -1;
 
 	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 
-	if (enc_buf->ch != ch || enc_buf->size == 0)
+	if (vb->bsize < enc_buf->size) {
+		printk("Buffer too big for vb\n");
 		return -1;
+	}
 
-	/* Now that we know we have a valid buffer we care about... */
+	if (!(vbuf = videobuf_to_vmalloc(vb))) {
+		printk("Faled to vmalloc\n");
+		return -1;
+	}
+
+	/* Now that we know we have a valid buffer we care about. At this
+	 * point, if we fail, we have to show the buffer in an ERROR state */
 	list_del(&vb->queue);
 
 	/* Is it ok that we mess with this buffer out of lock? */
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
-	solo_enc->wait_i_frame = 0;
+	/* First get the hardware vop header (not real mpeg) */
+	ret = enc_get_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
+	if (ret)
+		goto buf_error;
 
-	if (vb->bsize < enc_buf->size || !(vbuf = videobuf_to_vmalloc(vb))) {
-		error = 1;
-		goto buf_done;
+	if (vh.size > enc_buf->size) {
+		printk("vh.size shows too large\n");
+		goto buf_error;
 	}
 
-	/* If the buffer rolls over back to the start, do double copy */
-	if ((enc_buf->off + enc_buf->size) > SOLO_MP4E_EXT_SIZE) {
-		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, vbuf,
-			     SOLO_MP4E_EXT_ADDR(solo_dev) +
-			     enc_buf->off,
-			     SOLO_MP4E_EXT_SIZE - enc_buf->off);
+	vb->width = vh.hsize << 4;
+        vb->height = vh.vsize << 4;
+	vb->size = vh.size;
 
-		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, vbuf +
-			     SOLO_MP4E_EXT_SIZE - enc_buf->off,
-			     SOLO_MP4E_EXT_ADDR(solo_dev),
-			     enc_buf->size + enc_buf->off - SOLO_MP4E_EXT_SIZE);
-	} else {
-		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, vbuf,
-			     SOLO_MP4E_EXT_ADDR(solo_dev) +
-			     enc_buf->off, enc_buf->size);
+	p = vbuf;
+	if (!enc_buf->vop) {
+		vb->size += sizeof(vid_vop_header);
+		p += sizeof(vid_vop_header);
 	}
 
-	vh = vbuf;
-	vb->size = vh->size + 64;
-	vb->width = vh->hsize << 4;
-	vb->height = vh->vsize << 4;
+	/* Now get the actual mpeg payload */
+	enc_buf->off = (enc_buf->off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE;
+	enc_buf->size -= sizeof(vh);
+
+	ret = enc_get_dma(solo_dev, p, enc_buf->off, enc_buf->size);
+	if (ret)
+		goto buf_error;
+
+	if (p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01 || p[3] != 0xb6) {
+		printk("Invalid mpeg data?\n");
+		goto buf_error;
+	}
+
+	/* If this is a key frame, add extra m4v header */
+	if (!enc_buf->vop) {
+		u16 fps = 30000;
+		u16 interval = 1000;
+
+		p = vbuf;
+		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
+
+		/* Aspect ratio: 3 == 4:3 NTSC */
+		p[10] = (p[10] & 0x87) | ((3 << 3) & 0x78);
+
+		/* Frame rate and interval */
+		p[22] = fps >> 4;
+		p[23] = ((fps << 4) & 0xf0) | 0x04 | (interval >> 13);
+		p[24] = (interval >> 5) & 0xff;
+		p[25] = ((interval << 3) & 0xf8) | 0x04;
+
+		/* Width and height */
+		p[26] = (vb->width >> 3) & 0xff;
+		p[27] = ((vb->height >> 9) & 0x0f) | 0x10;
+		p[28] = (vb->height >> 1) & 0xff;
+
+		/* Interlace */
+		if (vh.interlace)
+			p[29] |= 0x20;
+	}
+
 	vb->field_count++;
 	vb->ts = enc_buf->ts;
 
 	// TODO Set keyframe or pframe flag?
+	error = 0;
 
-buf_done:
-	if (!error)
+buf_error:
+	if (!error) {
 		vb->state = VIDEOBUF_DONE;
-	else
+	} else {
+		//enc_reset_gop(solo_dev, ch);
 		vb->state = VIDEOBUF_ERROR;
+	}
 
+	enc_buf->in_use = 0;
 	wake_up(&vb->done);
 
 	return 0;
@@ -273,25 +383,6 @@ static void solo_enc_stop_thread(struct solo_enc_dev *solo_enc)
 	}
 }
 
-static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
-{
-	BUG_ON(ch >= solo_dev->nr_chans);
-	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), 1);
-	solo_dev->v4l2_enc[ch]->reset_gop = 1;
-}
-
-static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
-{
-	BUG_ON(ch >= solo_dev->nr_chans);
-	if (!solo_dev->v4l2_enc[ch]->reset_gop)
-		return 0;
-	if (vop)
-		return 1;
-	solo_dev->v4l2_enc[ch]->reset_gop = 0;
-	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), SOLO_DEFAULT_GOP);
-	return 0;
-}
-
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
 	struct solo_enc_buf *enc_buf;
@@ -310,7 +401,7 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	reg_mpeg_size = (vstatus.status0_st.mp4_enc_code_size + 64 + 32) &
 			(~31);
 
-	do {
+	while (solo_dev->enc_idx != cur_q) {
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
 		solo_dev->enc_idx = (solo_dev->enc_idx + 1) % MP4_QS;
@@ -321,6 +412,10 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		vop_type = (mpeg_current >> 29) & 3;
 		mpeg_current &= 0x00ffffff;
 		mpeg_next &= 0x00ffffff;
+
+		/* This channel has no listener yet */
+		if (solo_dev->v4l2_enc[ch]->kthread == NULL)
+			continue;
 
 		mpeg_size = (SOLO_MP4E_EXT_SIZE + mpeg_next - mpeg_current) %
 			    SOLO_MP4E_EXT_SIZE;
@@ -341,14 +436,17 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		enc_buf->ch = ch;
 		enc_buf->off = mpeg_current;
 		enc_buf->size = mpeg_size;
+		enc_buf->in_use = 1;
 		do_gettimeofday(&enc_buf->ts);
 
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
 					SOLO_NR_MP4_QS;
 
-		if (!list_empty(&solo_dev->v4l2_enc[ch]->vidq_active))
-			wake_up_interruptible(&solo_dev->v4l2_enc[ch]->thread_wait);
-	} while(solo_dev->enc_idx != cur_q);
+		if (list_empty(&solo_dev->v4l2_enc[ch]->vidq_active))
+			continue;
+
+		wake_up_interruptible(&solo_dev->v4l2_enc[ch]->thread_wait);
+	}
 
 	return;
 }
@@ -466,7 +564,6 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	__solo_enc_on(solo_enc);
 
 	solo_enc->rd_idx = solo_enc->solo_dev->enc_wr_idx;
-	solo_enc->wait_i_frame = 1;
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
@@ -608,7 +705,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	if ((ret = solo_enc_try_fmt_cap(file, priv, f)))
 		return ret;
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
+	solo_update_mode(solo_enc, SOLO_ENC_MODE_D1);
 
 	return 0;
 }
@@ -774,10 +871,8 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	INIT_LIST_HEAD(&solo_enc->vidq_active);
 	init_waitqueue_head(&solo_enc->thread_wait);
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
+	solo_update_mode(solo_enc, SOLO_ENC_MODE_D1);
 	solo_enc->qp = SOLO_DEFAULT_QP;
-	solo_enc->interlaced = SOLO_DEFAULT_INTERLACED;
-	solo_enc->interval = SOLO_DEFAULT_INTERVAL;
 	solo_enc->gop = SOLO_DEFAULT_GOP;
 
 	return solo_enc;
