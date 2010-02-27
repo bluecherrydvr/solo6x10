@@ -111,6 +111,7 @@ struct solo_enc_dev {
 	u8			ch;
 	u8			mode, gop, qp, interlaced, interval;
 	u8			reset_gop;
+	u8			enc_on;
 	u16			width;
 	u16			height;
 	u16			rd_idx;

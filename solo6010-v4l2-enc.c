@@ -85,24 +85,21 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 	case SOLO_ENC_MODE_CIF:
 		solo_enc->width = 352;
 		solo_enc->height = 240;
-		solo_enc->interlaced = 0;
-		solo_enc->interval = 1;
 		break;
 	case SOLO_ENC_MODE_HD1:
 		solo_enc->width = 704;
 		solo_enc->height = 240;
-		solo_enc->interlaced = 0;
-		solo_enc->interval = 1;
 		break;
 	case SOLO_ENC_MODE_D1:
 		solo_enc->width = 704;
 		solo_enc->height = 480;
-		solo_enc->interlaced = 1;
-		solo_enc->interval = 0;
 		break;
 	default:
 		WARN(1, "mode is unknown");
 	}
+
+	if (mode & 0x08)
+		solo_enc->interlaced = 1;
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
@@ -661,32 +658,46 @@ static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 	return 0;
 }
 
+struct enc_cap {
+	u16 width, height;
+	u8 mode;
+	enum v4l2_field field;
+};
+
+/* Keep these in ascending order */
+static struct enc_cap enccaps[] = {
+	{ 352, 240, SOLO_ENC_MODE_CIF, V4L2_FIELD_INTERLACED },
+	{ 704, 480, SOLO_ENC_MODE_D1,  V4L2_FIELD_NONE       },
+	{ 0, 0, 0 },
+};
+
 static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
-	struct solo_enc_dev *solo_enc = priv;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
-	u16 width, height;
-
-	width = solo_enc->width;
-	height = solo_enc->height;
-
-	/* TODO Should use this to detect mode */
-	if (pix->width != width)
-		pix->width = width;
-	if (pix->height != height)
-		pix->height = height;
-	if (pix->sizeimage != FRAME_BUF_SIZE)
-		pix->sizeimage = FRAME_BUF_SIZE;
-
-	/* Check formats */
-	if (pix->field == V4L2_FIELD_ANY)
-		pix->field = V4L2_FIELD_INTERLACED;
+	int i;
 
 	if (pix->pixelformat != V4L2_PIX_FMT_MPEG ||
-	    pix->field       != V4L2_FIELD_INTERLACED ||
 	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
 		return -EINVAL;
+
+	for (i = 0; enccaps[i].width; i++) {
+		if (enccaps[i].width != pix->width ||
+		    enccaps[i].height != pix->height)
+			continue;
+
+		if (pix->field == V4L2_FIELD_ANY)
+			pix->field = enccaps[i].field;
+		else if (pix->field != enccaps[i].field)
+			continue;
+
+		break;
+	}
+
+	if (enccaps[i].width == 0)
+		return -EINVAL;
+
+	pix->sizeimage = FRAME_BUF_SIZE;
 
 	return 0;
 }
@@ -695,7 +706,9 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	struct v4l2_pix_format *pix = &f->fmt.pix;
 	int ret;
+	int i;
 
 	if (videobuf_queue_is_busy(&solo_enc->vidq))
 		return -EBUSY;
@@ -705,7 +718,18 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	if ((ret = solo_enc_try_fmt_cap(file, priv, f)))
 		return ret;
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_D1);
+	/* Should not fail */
+	for (i = 0; enccaps[i].width; i++) {
+		if (enccaps[i].width == pix->width &&
+		    enccaps[i].height == pix->height &&
+		    enccaps[i].field == pix->field)
+                	break;
+	}
+
+	if (enccaps[i].width == 0)
+		return -EINVAL;
+
+	solo_update_mode(solo_enc, enccaps[i].mode);
 
 	return 0;
 }
@@ -719,7 +743,8 @@ static int solo_enc_get_fmt_cap(struct file *file, void *priv,
 	pix->width = solo_enc->width;
 	pix->height = solo_enc->height;
 	pix->pixelformat = V4L2_PIX_FMT_MPEG;
-	pix->field = V4L2_FIELD_INTERLACED;
+	pix->field = solo_enc->interlaced ? V4L2_FIELD_INTERLACED :
+		     V4L2_FIELD_NONE;
 	pix->sizeimage = FRAME_BUF_SIZE;
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 
@@ -784,6 +809,51 @@ static int solo_enc_s_std(struct file *file, void *priv, v4l2_std_id *i)
 	return 0;
 }
 
+static int solo_enum_framesizes(struct file *file, void *priv,
+				struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->pixel_format != V4L2_PIX_FMT_MPEG)
+		return -EINVAL;
+
+	switch (fsize->index) {
+	case 0:
+		fsize->discrete.width = 352;
+		fsize->discrete.height = 240;
+		break;
+	case 1:
+		fsize->discrete.width = 704;
+		fsize->discrete.height = 480;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+
+	return 0;
+}
+
+static int solo_enum_frameintervals(struct file *file, void *priv,
+				    struct v4l2_frmivalenum *fintv)
+{
+	if (fintv->pixel_format != V4L2_PIX_FMT_MPEG || fintv->index)
+		return -EINVAL;
+
+	fintv->type = V4L2_FRMIVAL_TYPE_STEPWISE;
+
+	fintv->stepwise.min.numerator = 30;
+	fintv->stepwise.min.denominator = 1;
+
+	fintv->stepwise.max.numerator = 30;
+	fintv->stepwise.max.denominator = 15;
+
+	fintv->stepwise.step.numerator = 1;
+	fintv->stepwise.step.denominator = 1;
+
+	return 0;
+}
+
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
 #else
@@ -816,7 +886,10 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	.vidioc_qbuf			= solo_enc_qbuf,
 	.vidioc_dqbuf			= solo_enc_dqbuf,
 	.vidioc_streamon		= solo_enc_streamon,
-        .vidioc_streamoff		= solo_enc_streamoff,
+	.vidioc_streamoff		= solo_enc_streamoff,
+	/* Frame size and interval */
+	.vidioc_enum_framesizes		= solo_enum_framesizes,
+	.vidioc_enum_frameintervals	= solo_enum_frameintervals,
 };
 
 static struct video_device solo_enc_template = {
