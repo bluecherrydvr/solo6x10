@@ -76,13 +76,11 @@ struct vop_header {
 	u32 end_nops[10];
 } __attribute__((packed));
 
+/* Should be called with solo_enc->lock held */
 static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&solo_enc->lock, flags);
-
 	solo_enc->mode = mode;
+
 	switch (mode) {
 	case SOLO_ENC_MODE_CIF:
 		solo_enc->width = 352;
@@ -102,8 +100,6 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 
 	if (mode & 0x08)
 		solo_enc->interlaced = 1;
-
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
 
 static int solo_enc_start_thread(struct solo_enc_dev *solo_enc)
@@ -125,24 +121,18 @@ static void solo_enc_stop_thread(struct solo_enc_dev *solo_enc)
 	}
 }
 
+/* Should be called with solo_enc->lock held */
 static int solo_enc_on(struct solo_enc_dev *solo_enc)
 {
 	u8 ch = solo_enc->ch;
-	unsigned long flags;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	int ret;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	if (solo_enc->enc_on)
+		return -EBUSY;
 
-	if (solo_enc->enc_on) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return 0;
-	}
-
-	if ((ret = solo_enc_start_thread(solo_enc))) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
+	if ((ret = solo_enc_start_thread(solo_enc)))
 		return ret;
-	}
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
@@ -169,8 +159,6 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 	mdelay(10);
 
 	solo_enc->enc_on = 1;
-
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return 0;
 }
@@ -478,11 +466,6 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 				enum v4l2_field field)
 {
 	struct solo_enc_dev *solo_enc  = vq->priv_data;
-	int ret;
-
-	/* XXX: Not sure if this is the best place... */
-	if ((ret = solo_enc_on(solo_enc)))
-		return ret;
 
 	vb->size = FRAME_BUF_SIZE;
 	if (vb->baddr != 0 && vb->bsize < vb->size)
@@ -685,8 +668,12 @@ static struct enc_cap enccaps[] = {
 static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
+	struct solo_enc_dev *solo_enc = priv;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	int i;
+
+	if (solo_enc->enc_on)
+		return -EBUSY;
 
 	if (pix->pixelformat != V4L2_PIX_FMT_MPEG ||
 	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
@@ -718,18 +705,22 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 {
 	struct solo_enc_dev *solo_enc = priv;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
+	unsigned long flags;
 	int ret;
 	int i;
 
 	if (videobuf_queue_is_busy(&solo_enc->vidq))
 		return -EBUSY;
 
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
 	/* For right now, if it doesn't match our running config,
 	 * then fail */
-	if ((ret = solo_enc_try_fmt_cap(file, priv, f)))
+	if ((ret = solo_enc_try_fmt_cap(file, priv, f))) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
 		return ret;
+	}
 
-	/* Should not fail */
 	for (i = 0; enccaps[i].width; i++) {
 		if (enccaps[i].width == pix->width &&
 		    enccaps[i].height == pix->height &&
@@ -737,10 +728,20 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
                 	break;
 	}
 
-	if (enccaps[i].width == 0)
+	/* Should not happen */
+	if (enccaps[i].width == 0) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
 		return -EINVAL;
+	}
 
 	solo_update_mode(solo_enc, enccaps[i].mode);
+
+	if ((ret = solo_enc_on(solo_enc))) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return ret;
+	}
+
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return 0;
 }
@@ -955,7 +956,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	INIT_LIST_HEAD(&solo_enc->vidq_active);
 	init_waitqueue_head(&solo_enc->thread_wait);
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_D1);
+	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
 	solo_enc->qp = SOLO_DEFAULT_QP;
 	solo_enc->gop = SOLO_DEFAULT_GOP;
 
