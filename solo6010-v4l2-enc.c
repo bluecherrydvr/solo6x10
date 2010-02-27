@@ -30,6 +30,8 @@
 #define FRAME_BUF_SIZE		(256 * 1024)
 #define MP4_QS			16
 
+static int solo_enc_thread(void *data);
+
 extern unsigned video_nr;
 
 static unsigned char vid_vop_header[] = {
@@ -104,10 +106,43 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
 
-static void __solo_enc_on(struct solo_enc_dev *solo_enc)
+static int solo_enc_start_thread(struct solo_enc_dev *solo_enc)
+{
+	solo_enc->kthread = kthread_run(solo_enc_thread, solo_enc,
+					SOLO6010_NAME "_enc");
+
+	if (IS_ERR(solo_enc->kthread))
+		return PTR_ERR(solo_enc->kthread);
+
+	return 0;
+}
+
+static void solo_enc_stop_thread(struct solo_enc_dev *solo_enc)
+{
+	if (solo_enc->kthread) {
+		kthread_stop(solo_enc->kthread);
+		solo_enc->kthread = NULL;
+	}
+}
+
+static int solo_enc_on(struct solo_enc_dev *solo_enc)
 {
 	u8 ch = solo_enc->ch;
+	unsigned long flags;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	int ret;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
+	if (solo_enc->enc_on) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return 0;
+	}
+
+	if ((ret = solo_enc_start_thread(solo_enc))) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return ret;
+	}
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
@@ -132,21 +167,19 @@ static void __solo_enc_on(struct solo_enc_dev *solo_enc)
 
 	/* Settle down Beavis... */
 	mdelay(10);
-}
 
-#if 0
-static void solo_enc_on(struct solo_enc_dev *solo_enc)
-{
-	unsigned long flags;
+	solo_enc->enc_on = 1;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
-	__solo_enc_on(solo_enc);
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
+
+	return 0;
 }
-#endif
 
 static void solo_enc_off(struct solo_enc_dev *solo_enc)
 {
+	if (!solo_enc->enc_on)
+		return;
+	solo_enc_stop_thread(solo_enc);
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 }
 
@@ -361,25 +394,6 @@ static int solo_enc_thread(void *data)
         return 0;
 }
 
-static int solo_enc_start_thread(struct solo_enc_dev *solo_enc)
-{
-	solo_enc->kthread = kthread_run(solo_enc_thread, solo_enc,
-					SOLO6010_NAME "_enc");
-
-	if (IS_ERR(solo_enc->kthread))
-		return PTR_ERR(solo_enc->kthread);
-
-	return 0;
-}
-
-static void solo_enc_stop_thread(struct solo_enc_dev *solo_enc)
-{
-	if (solo_enc->kthread) {
-		kthread_stop(solo_enc->kthread);
-		solo_enc->kthread = NULL;
-	}
-}
-
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
 	struct solo_enc_buf *enc_buf;
@@ -464,6 +478,11 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 				enum v4l2_field field)
 {
 	struct solo_enc_dev *solo_enc  = vq->priv_data;
+	int ret;
+
+	/* XXX: Not sure if this is the best place... */
+	if ((ret = solo_enc_on(solo_enc)))
+		return ret;
 
 	vb->size = FRAME_BUF_SIZE;
 	if (vb->baddr != 0 && vb->bsize < vb->size)
@@ -533,24 +552,16 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_dev *solo_enc = video_drvdata(file);
-	int ret;
 	unsigned long flags;
 
 	spin_lock_irqsave(&solo_enc->lock, flags);
 
-	if (solo_enc->kthread) {
+	if (solo_enc->in_use) {
 		spin_unlock_irqrestore(&solo_enc->lock, flags);
 		return -EBUSY;
 	}
 
 	file->private_data = solo_enc;
-
-	ret = solo_enc_start_thread(solo_enc);
-
-	if (ret) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return ret;
-	}
 
 	videobuf_queue_vmalloc_init(&solo_enc->vidq, &solo_enc_video_qops,
 				    NULL, &solo_enc->lock,
@@ -558,9 +569,9 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), solo_enc);
 
-	__solo_enc_on(solo_enc);
-
 	solo_enc->rd_idx = solo_enc->solo_dev->enc_wr_idx;
+
+	solo_enc->in_use = 1;
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
@@ -586,8 +597,8 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 
 	videobuf_stop(&solo_enc->vidq);
 	videobuf_mmap_free(&solo_enc->vidq);
-	solo_enc_stop_thread(solo_enc);
 	solo_enc_off(solo_enc);
+	solo_enc->in_use = 0;
 
 	return 0;
 }
