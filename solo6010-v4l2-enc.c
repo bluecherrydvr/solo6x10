@@ -102,37 +102,20 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 		solo_enc->interlaced = 1;
 }
 
-static int solo_enc_start_thread(struct solo_enc_dev *solo_enc)
-{
-	solo_enc->kthread = kthread_run(solo_enc_thread, solo_enc,
-					SOLO6010_NAME "_enc");
-
-	if (IS_ERR(solo_enc->kthread))
-		return PTR_ERR(solo_enc->kthread);
-
-	return 0;
-}
-
-static void solo_enc_stop_thread(struct solo_enc_dev *solo_enc)
-{
-	if (solo_enc->kthread) {
-		kthread_stop(solo_enc->kthread);
-		solo_enc->kthread = NULL;
-	}
-}
-
 /* Should be called with solo_enc->lock held */
 static int solo_enc_on(struct solo_enc_dev *solo_enc)
 {
 	u8 ch = solo_enc->ch;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	int ret;
 
 	if (solo_enc->enc_on)
-		return -EBUSY;
+		return 0;
 
-	if ((ret = solo_enc_start_thread(solo_enc)))
-		return ret;
+	solo_enc->kthread = kthread_run(solo_enc_thread, solo_enc,
+					SOLO6010_NAME "_enc");
+
+	if (IS_ERR(solo_enc->kthread))
+		return PTR_ERR(solo_enc->kthread);
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
@@ -167,8 +150,14 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 {
 	if (!solo_enc->enc_on)
 		return;
-	solo_enc_stop_thread(solo_enc);
+
+	if (solo_enc->kthread) {
+		kthread_stop(solo_enc->kthread);
+		solo_enc->kthread = NULL;
+	}
+
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
+	solo_enc->enc_on = 0;
 }
 
 static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
@@ -291,7 +280,7 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	/* If this is a key frame, add extra m4v header */
 	if (!enc_buf->vop) {
 		u16 fps = 30000;
-		u16 interval = 1000;
+		u16 interval = (solo_enc->interval + 1) * 1000;
 
 		p = vbuf;
 		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
@@ -565,6 +554,15 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 			     size_t count, loff_t *ppos)
 {
 	struct solo_enc_dev *solo_enc = file->private_data;
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+	if ((ret = solo_enc_on(solo_enc))) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return ret;
+	}
+        spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return videobuf_read_stream(&solo_enc->vidq, data, count, ppos, 0,
 				    file->f_flags & O_NONBLOCK);
@@ -675,10 +673,6 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	if (solo_enc->enc_on)
 		return -EBUSY;
 
-	if (pix->pixelformat != V4L2_PIX_FMT_MPEG ||
-	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
-		return -EINVAL;
-
 	for (i = 0; enccaps[i].width; i++) {
 		if (enccaps[i].width != pix->width ||
 		    enccaps[i].height != pix->height)
@@ -695,6 +689,9 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	if (enccaps[i].width == 0)
 		return -EINVAL;
 
+	/* Just set these */
+	pix->pixelformat = V4L2_PIX_FMT_MPEG;
+	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 	pix->sizeimage = FRAME_BUF_SIZE;
 
 	return 0;
@@ -709,13 +706,12 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	int ret;
 	int i;
 
-	if (videobuf_queue_is_busy(&solo_enc->vidq))
+	if (videobuf_queue_is_busy(&solo_enc->vidq) ||
+	    solo_enc->enc_on)
 		return -EBUSY;
 
 	spin_lock_irqsave(&solo_enc->lock, flags);
 
-	/* For right now, if it doesn't match our running config,
-	 * then fail */
 	if ((ret = solo_enc_try_fmt_cap(file, priv, f))) {
 		spin_unlock_irqrestore(&solo_enc->lock, flags);
 		return ret;
@@ -790,6 +786,15 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 			  struct v4l2_buffer *buf)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+	if ((ret = solo_enc_on(solo_enc))) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return ret;
+	}
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return videobuf_dqbuf(&solo_enc->vidq, buf, file->f_flags & O_NONBLOCK);
 }
