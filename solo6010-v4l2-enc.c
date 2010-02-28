@@ -23,6 +23,7 @@
 #include <linux/freezer.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
+#include <media/v4l2-common.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
@@ -53,46 +54,25 @@ static unsigned char vid_vop_header[] = {
  * byte  29         1-bit  0x100000                   interlace
  */
 
-static struct v4l2_queryctrl solo_qctrl[] = {
-	{
-		.id		= V4L2_CID_BRIGHTNESS,
-		.type		= V4L2_CTRL_TYPE_INTEGER,
-		.name		= "Brightness",
-		.minimum	= 0,
-		.maximum	= 255,
-		.step		= 1,
-		.default_value	= 127,
-		.flags		= V4L2_CTRL_FLAG_SLIDER,
-	}, {
-		.id		= V4L2_CID_CONTRAST,
-		.type		= V4L2_CTRL_TYPE_INTEGER,
-		.name		= "Contrast",
-		.minimum	= 0,
-		.maximum	= 255,
-		.step		= 1,
-		.default_value	= 127,
-		.flags		= V4L2_CTRL_FLAG_SLIDER,
-	}, {
-		.id		= V4L2_CID_SATURATION,
-		.type		= V4L2_CTRL_TYPE_INTEGER,
-		.name		= "Saturation",
-		.minimum	= 0,
-		.maximum	= 255,
-		.step		= 1,
-		.default_value	= 127,
-		.flags		= V4L2_CTRL_FLAG_SLIDER,
-	}, {
-		.id		= V4L2_CID_HUE,
-		.type		= V4L2_CTRL_TYPE_INTEGER,
-		.name		= "Hue",
-		.minimum	= 0,
-		.maximum	= 255,
-		.step		= 1,
-		.default_value	= 127,
-		.flags		= V4L2_CTRL_FLAG_SLIDER,
-	}
+static const u32 solo_user_ctrls[] = {
+	V4L2_CID_BRIGHTNESS,
+	V4L2_CID_CONTRAST,
+	V4L2_CID_SATURATION,
+	V4L2_CID_HUE,
+	0
 };
 
+static const u32 solo_mpeg_ctrls[] = {
+	V4L2_CID_MPEG_VIDEO_ENCODING,
+	V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+	0
+};
+
+static const u32 *solo_ctrl_classes[] = {
+	solo_user_ctrls,
+	solo_mpeg_ctrls,
+	NULL
+};
 
 struct vop_header {
 	/* VD_IDX0 */
@@ -130,7 +110,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 
 	switch (solo_enc->mode) {
 	case SOLO_ENC_MODE_CIF:
-		solo_enc->width = solo_dev->video_hsize / 2;
+		solo_enc->width = solo_dev->video_hsize >> 1;
 		solo_enc->height = solo_dev->video_vsize;
 		break;
 	case SOLO_ENC_MODE_HD1:
@@ -140,7 +120,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 		break;
 	case SOLO_ENC_MODE_D1:
 		solo_enc->width = solo_dev->video_hsize;
-		solo_enc->height = solo_dev->video_vsize * 2;
+		solo_enc->height = solo_dev->video_vsize << 1;
 		solo_enc->bw_weight <<= 2;
 		break;
 	default:
@@ -236,7 +216,8 @@ static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
 	if (vop)
 		return 1;
 	solo_dev->v4l2_enc[ch]->reset_gop = 0;
-	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), SOLO_DEFAULT_GOP);
+	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch),
+		       solo_dev->v4l2_enc[ch]->gop);
 	return 0;
 }
 
@@ -729,8 +710,8 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 		return -EBUSY;
 
 	if (!(pix->width == solo_dev->video_hsize &&
-	      pix->height == solo_dev->video_vsize * 2) &&
-	    !(pix->width == solo_dev->video_hsize / 2 &&
+	      pix->height == solo_dev->video_vsize << 1) &&
+	    !(pix->width == solo_dev->video_hsize >> 1 &&
 	      pix->height == solo_dev->video_vsize))
 		return -EINVAL;
 
@@ -874,12 +855,12 @@ static int solo_enum_framesizes(struct file *file, void *priv,
 
 	switch (fsize->index) {
 	case 0:
-		fsize->discrete.width = solo_dev->video_hsize / 2;
+		fsize->discrete.width = solo_dev->video_hsize >> 1;
 		fsize->discrete.height = solo_dev->video_vsize;
 		break;
 	case 1:
 		fsize->discrete.width = solo_dev->video_hsize;
-		fsize->discrete.height = solo_dev->video_vsize * 2;
+		fsize->discrete.height = solo_dev->video_vsize << 1;
 		break;
 	default:
 		return -EINVAL;
@@ -967,16 +948,25 @@ static int solo_s_parm(struct file *file, void *priv,
 static int solo_queryctrl(struct file *file, void *priv,
 			  struct v4l2_queryctrl *qc)
 {
-	int i;
-
-	if (qc->id & V4L2_CTRL_FLAG_NEXT_CTRL)
+	qc->id = v4l2_ctrl_next(solo_ctrl_classes, qc->id);
+	if (!qc->id)
 		return -EINVAL;
 
-	for (i = 0; i < ARRAY_SIZE(solo_qctrl); i++)
-		if (qc->id && qc->id == solo_qctrl[i].id) {
-			memcpy(qc, &(solo_qctrl[i]), sizeof(*qc));
-			return 0;
-		}
+	if (V4L2_CTRL_ID2CLASS(qc->id) == V4L2_CTRL_CLASS_USER)
+		return v4l2_ctrl_query_fill(qc, 0x0, 0xff, 1, 0x80);
+
+	if (V4L2_CTRL_ID2CLASS(qc->id) != V4L2_CTRL_CLASS_MPEG)
+		return -EINVAL;
+
+	switch (qc->id) {
+	case V4L2_CID_MPEG_VIDEO_ENCODING:
+		return v4l2_ctrl_query_fill(
+			qc, V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC,
+			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC, 1,
+			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC);
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		return v4l2_ctrl_query_fill(qc, 1, 255, 1, 30);
+	}
 
         return -EINVAL;
 }
@@ -986,9 +976,24 @@ static int solo_g_ctrl(struct file *file, void *priv,
 {
 	struct solo_enc_dev *solo_enc = priv;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	int ret = 0;
 
-	return tw28_get_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
-				 &ctrl->value);
+	if (V4L2_CTRL_ID2CLASS(ctrl->id) == V4L2_CTRL_CLASS_USER)
+		return tw28_get_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
+					 &ctrl->value);
+
+	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_ENCODING:
+		ctrl->value = V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC;
+		break;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		ctrl->value = solo_enc->gop;
+		break;
+	default:
+		ret = -EINVAL;
+	}
+
+	return ret;
 }
 
 static int solo_s_ctrl(struct file *file, void *priv,
@@ -996,9 +1001,31 @@ static int solo_s_ctrl(struct file *file, void *priv,
 {
 	struct solo_enc_dev *solo_enc = priv;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	int ret = 0;
 
-	return tw28_set_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
-				 ctrl->value);
+	if (V4L2_CTRL_ID2CLASS(ctrl->id) == V4L2_CTRL_CLASS_USER)
+		return tw28_set_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
+					 ctrl->value);
+
+	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_ENCODING:
+		if (ctrl->value != V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC)
+			return -ERANGE;
+		break;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		if (ctrl->value < 1 || ctrl->value > 255)
+			return -ERANGE;
+		solo_enc->gop = ctrl->value;
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(solo_enc->ch),
+			       solo_enc->gop);
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(solo_enc->ch),
+			       solo_enc->gop);
+		break;
+	default:
+		ret = -EINVAL;
+	}
+
+	return ret;
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
