@@ -98,8 +98,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 		WARN(1, "mode is unknown");
 	}
 
-	if (mode & 0x08)
-		solo_enc->interlaced = 1;
+	solo_enc->interlaced = (mode & 0x08) ? 1 : 0;
 }
 
 /* Should be called with solo_enc->lock held */
@@ -107,6 +106,7 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 {
 	u8 ch = solo_enc->ch;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	u8 interval;
 
 	if (solo_enc->enc_on)
 		return 0;
@@ -125,15 +125,20 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 	solo_reg_write(solo_dev, SOLO_VE_CH_INTL(ch),
 		       solo_enc->interlaced ? 1 : 0);
 
+	if (solo_enc->interlaced)
+		interval = solo_enc->interval - 1;
+	else
+		interval = solo_enc->interval;
+
 	/* Standard encoding only */
 	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), solo_enc->gop);
 	solo_reg_write(solo_dev, SOLO_VE_CH_QP(ch), solo_enc->qp);
-	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV(ch), solo_enc->interval);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV(ch), interval);
 
 	/* Extended encoding only */
 	solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(ch), solo_enc->gop);
 	solo_reg_write(solo_dev, SOLO_VE_CH_QP_E(ch), solo_enc->qp);
-	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV_E(ch), solo_enc->interval);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_INTV_E(ch), interval);
 
 	/* Enables the standard encoder */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
@@ -280,7 +285,7 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 	/* If this is a key frame, add extra m4v header */
 	if (!enc_buf->vop) {
 		u16 fps = 30000;
-		u16 interval = (solo_enc->interval + 1) * 1000;
+		u16 interval = solo_enc->interval * 1000;
 
 		p = vbuf;
 		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
@@ -870,6 +875,60 @@ static int solo_enum_frameintervals(struct file *file, void *priv,
 	return 0;
 }
 
+static int solo_g_parm(struct file *file, void *priv,
+		       struct v4l2_streamparm *sp)
+{
+	struct solo_enc_dev *solo_enc = priv;
+	struct v4l2_captureparm *cp = &sp->parm.capture;
+
+	cp->capability = V4L2_CAP_TIMEPERFRAME;
+	cp->timeperframe.numerator = solo_enc->interval;
+	cp->timeperframe.denominator = 30;
+	cp->capturemode = 0;
+	/* XXX: Shouldn't we be able to get/set this from videobuf? */
+	cp->readbuffers = 2;
+
+        return 0;
+}
+
+static int solo_s_parm(struct file *file, void *priv,
+		       struct v4l2_streamparm *sp)
+{
+	struct solo_enc_dev *solo_enc = priv;
+	unsigned long flags;
+	struct v4l2_captureparm *cp = &sp->parm.capture;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
+	if (solo_enc->enc_on) {
+		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		return -EBUSY;
+	}
+
+	if ((cp->timeperframe.numerator == 0) ||
+	    (cp->timeperframe.denominator == 0)) {
+		/* reset framerate */
+		cp->timeperframe.numerator = 1;
+		cp->timeperframe.denominator = 30;
+	}
+
+	if (cp->timeperframe.denominator != 30)
+		cp->timeperframe.denominator = 30;
+
+	if (cp->timeperframe.numerator > 15)
+		cp->timeperframe.numerator = 15;
+
+	solo_enc->interval = cp->timeperframe.numerator;
+	/* XXX GOP needs to be handled better */
+	solo_enc->gop = cp->timeperframe.denominator /
+			cp->timeperframe.numerator;
+
+	cp->capability = V4L2_CAP_TIMEPERFRAME;
+
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
+
+        return 0;
+}
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
@@ -907,6 +966,9 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	/* Frame size and interval */
 	.vidioc_enum_framesizes		= solo_enum_framesizes,
 	.vidioc_enum_frameintervals	= solo_enum_frameintervals,
+	/* Video capture parameters */
+	.vidioc_s_parm			= solo_s_parm,
+	.vidioc_g_parm			= solo_g_parm,
 };
 
 static struct video_device solo_enc_template = {
@@ -964,6 +1026,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
 	solo_enc->qp = SOLO_DEFAULT_QP;
 	solo_enc->gop = SOLO_DEFAULT_GOP;
+	solo_enc->interval = 1;
 
 	return solo_enc;
 }
