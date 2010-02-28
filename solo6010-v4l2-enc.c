@@ -77,27 +77,28 @@ struct vop_header {
 } __attribute__((packed));
 
 /* Should be called with solo_enc->lock held */
-static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
+static void solo_update_mode(struct solo_enc_dev *solo_enc)
 {
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
 	/* XXX GOP needs to be handled better */
 	solo_enc->gop = 30 / solo_enc->interval;
-	solo_enc->mode = mode;
-	solo_enc->interlaced = (mode & 0x08) ? 1 : 0;
+	solo_enc->interlaced = (solo_enc->mode & 0x08) ? 1 : 0;
 	solo_enc->bw_weight = 30 / solo_enc->interval;
 
-	switch (mode) {
+	switch (solo_enc->mode) {
 	case SOLO_ENC_MODE_CIF:
-		solo_enc->width = 352;
-		solo_enc->height = 240;
+		solo_enc->width = solo_dev->video_hsize / 2;
+		solo_enc->height = solo_dev->video_vsize;
 		break;
 	case SOLO_ENC_MODE_HD1:
-		solo_enc->width = 704;
-		solo_enc->height = 240;
+		solo_enc->width = solo_dev->video_hsize;
+		solo_enc->height = solo_dev->video_vsize;
 		solo_enc->bw_weight <<= 1;
 		break;
 	case SOLO_ENC_MODE_D1:
-		solo_enc->width = 704;
-		solo_enc->height = 480;
+		solo_enc->width = solo_dev->video_hsize;
+		solo_enc->height = solo_dev->video_vsize * 2;
 		solo_enc->bw_weight <<= 2;
 		break;
 	default:
@@ -115,7 +116,7 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 	if (solo_enc->enc_on)
 		return 0;
 
-	solo_update_mode(solo_enc, solo_enc->mode);
+	solo_update_mode(solo_enc);
 
 	if (solo_enc->bw_weight > solo_dev->enc_bw_remain)
 		return -EBUSY;
@@ -158,6 +159,8 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 	mdelay(10);
 
 	solo_enc->enc_on = 1;
+
+	solo_enc->rd_idx = solo_enc->solo_dev->enc_wr_idx;
 
 	return 0;
 }
@@ -233,15 +236,13 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 
 	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
 		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
+		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 		if (enc_buf->ch == ch && enc_buf->in_use && enc_buf->size)
 			break;
-		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 	}
 
 	if (!enc_buf || enc_buf->ch != ch) 
 		return -1;
-
-	solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
 
 	if (vb->bsize < enc_buf->size) {
 		printk("Buffer too big for vb\n");
@@ -557,8 +558,6 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), solo_enc);
 
-	solo_enc->rd_idx = solo_enc->solo_dev->enc_wr_idx;
-
 	solo_enc->in_use = 1;
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
@@ -591,11 +590,22 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_dev *solo_enc = file->private_data;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	u8 ch = solo_enc->ch;
 
 	videobuf_stop(&solo_enc->vidq);
 	videobuf_mmap_free(&solo_enc->vidq);
 	solo_enc_off(solo_enc);
 	solo_enc->in_use = 0;
+
+	/* Flush ring buffers */
+	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
+		struct solo_enc_buf *enc_buf =
+			&solo_dev->enc_buf[solo_enc->rd_idx];
+		if (enc_buf->ch == ch && enc_buf->in_use)
+			enc_buf->in_use = 0;
+		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
+	}
 
 	return 0;
 }
@@ -603,7 +613,7 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 static int solo_enc_querycap(struct file *file, void  *priv,
 			     struct v4l2_capability *cap)
 {
-	struct solo_enc_dev  *solo_enc  = priv;
+	struct solo_enc_dev  *solo_enc = priv;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	strcpy(cap->driver, SOLO6010_NAME);
@@ -666,43 +676,25 @@ static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 	return 0;
 }
 
-struct enc_cap {
-	u16 width, height;
-	u8 mode;
-	enum v4l2_field field;
-};
-
-/* Keep these in ascending order */
-static struct enc_cap enccaps[] = {
-	{ 352, 240, SOLO_ENC_MODE_CIF, V4L2_FIELD_INTERLACED },
-	{ 704, 480, SOLO_ENC_MODE_D1,  V4L2_FIELD_NONE       },
-	{ 0, 0, 0 },
-};
-
 static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
-	int i;
 
 	if (solo_enc->enc_on)
 		return -EBUSY;
 
-	for (i = 0; enccaps[i].width; i++) {
-		if (enccaps[i].width != pix->width ||
-		    enccaps[i].height != pix->height)
-			continue;
+	if (!(pix->width == solo_dev->video_hsize &&
+	      pix->height == solo_dev->video_vsize * 2) &&
+	    !(pix->width == solo_dev->video_hsize / 2 &&
+	      pix->height == solo_dev->video_vsize))
+		return -EINVAL;
 
-		if (pix->field == V4L2_FIELD_ANY)
-			pix->field = enccaps[i].field;
-		else if (pix->field != enccaps[i].field)
-			continue;
-
-		break;
-	}
-
-	if (enccaps[i].width == 0)
+	if (pix->field == V4L2_FIELD_ANY)
+		pix->field = V4L2_FIELD_INTERLACED;
+	else if (pix->field != V4L2_FIELD_INTERLACED)
 		return -EINVAL;
 
 	/* Just set these */
@@ -717,10 +709,10 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	unsigned long flags;
 	int ret;
-	int i;
 
 	if (videobuf_queue_is_busy(&solo_enc->vidq) ||
 	    solo_enc->enc_on)
@@ -733,29 +725,16 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 		return ret;
 	}
 
-	for (i = 0; enccaps[i].width; i++) {
-		if (enccaps[i].width == pix->width &&
-		    enccaps[i].height == pix->height &&
-		    enccaps[i].field == pix->field)
-                	break;
-	}
+	if (pix->width == solo_dev->video_hsize)
+		solo_enc->mode = SOLO_ENC_MODE_D1;
+	else
+		solo_enc->mode = SOLO_ENC_MODE_CIF;
 
-	/* Should not happen */
-	if (enccaps[i].width == 0) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return -EINVAL;
-	}
-
-	solo_update_mode(solo_enc, enccaps[i].mode);
-
-	if ((ret = solo_enc_on(solo_enc))) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return ret;
-	}
+	ret = solo_enc_on(solo_enc);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
-	return 0;
+	return ret;
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
@@ -845,17 +824,20 @@ static int solo_enc_s_std(struct file *file, void *priv, v4l2_std_id *i)
 static int solo_enum_framesizes(struct file *file, void *priv,
 				struct v4l2_frmsizeenum *fsize)
 {
+	struct solo_enc_dev  *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
 	if (fsize->pixel_format != V4L2_PIX_FMT_MPEG)
 		return -EINVAL;
 
 	switch (fsize->index) {
 	case 0:
-		fsize->discrete.width = 352;
-		fsize->discrete.height = 240;
+		fsize->discrete.width = solo_dev->video_hsize / 2;
+		fsize->discrete.height = solo_dev->video_vsize;
 		break;
 	case 1:
-		fsize->discrete.width = 704;
-		fsize->discrete.height = 480;
+		fsize->discrete.width = solo_dev->video_hsize;
+		fsize->discrete.height = solo_dev->video_vsize * 2;
 		break;
 	default:
 		return -EINVAL;
@@ -933,7 +915,7 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 
-	solo_update_mode(solo_enc, solo_enc->mode);
+	solo_update_mode(solo_enc);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
@@ -1036,7 +1018,8 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	solo_enc->qp = SOLO_DEFAULT_QP;
         solo_enc->gop = SOLO_DEFAULT_GOP;
 	solo_enc->interval = 1;
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
+	solo_enc->mode = SOLO_ENC_MODE_CIF;
+	solo_update_mode(solo_enc);
 
 	return solo_enc;
 }
