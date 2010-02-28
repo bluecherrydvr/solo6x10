@@ -113,6 +113,7 @@ struct solo_enc_dev {
 	u8			reset_gop;
 	u8			enc_on;
 	u8			in_use;
+	u8			bw_weight;
 	u16			width;
 	u16			height;
 	u16			rd_idx;
@@ -161,11 +162,12 @@ struct solo6010_dev {
 
 	/* V4L2 Encoder items */
 	struct solo_enc_dev	*v4l2_enc[SOLO_MAX_CHANNELS];
+	u16			enc_bw_remain;
 	/* IDX into hw mp4 encoder */
 	u8			enc_idx;
-	struct solo_enc_buf	enc_buf[SOLO_NR_MP4_QS];
-	/* IDX into our sw enc_buf ring buffer */
+	/* Out software ring of enc buf references */
 	u16			enc_wr_idx;
+	struct solo_enc_buf	enc_buf[SOLO_NR_MP4_QS];
 
 	/* Current video settings */
 	u8 			video_type;

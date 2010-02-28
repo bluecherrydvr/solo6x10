@@ -79,7 +79,11 @@ struct vop_header {
 /* Should be called with solo_enc->lock held */
 static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 {
+	/* XXX GOP needs to be handled better */
+	solo_enc->gop = 30 / solo_enc->interval;
 	solo_enc->mode = mode;
+	solo_enc->interlaced = (mode & 0x08) ? 1 : 0;
+	solo_enc->bw_weight = 30 / solo_enc->interval;
 
 	switch (mode) {
 	case SOLO_ENC_MODE_CIF:
@@ -89,16 +93,16 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc, u8 mode)
 	case SOLO_ENC_MODE_HD1:
 		solo_enc->width = 704;
 		solo_enc->height = 240;
+		solo_enc->bw_weight <<= 1;
 		break;
 	case SOLO_ENC_MODE_D1:
 		solo_enc->width = 704;
 		solo_enc->height = 480;
+		solo_enc->bw_weight <<= 2;
 		break;
 	default:
 		WARN(1, "mode is unknown");
 	}
-
-	solo_enc->interlaced = (mode & 0x08) ? 1 : 0;
 }
 
 /* Should be called with solo_enc->lock held */
@@ -110,6 +114,13 @@ static int solo_enc_on(struct solo_enc_dev *solo_enc)
 
 	if (solo_enc->enc_on)
 		return 0;
+
+	solo_update_mode(solo_enc, solo_enc->mode);
+
+	if (solo_enc->bw_weight > solo_dev->enc_bw_remain)
+		return -EBUSY;
+
+	solo_dev->enc_bw_remain -= solo_enc->bw_weight;
 
 	solo_enc->kthread = kthread_run(solo_enc_thread, solo_enc,
 					SOLO6010_NAME "_enc");
@@ -160,7 +171,7 @@ static void solo_enc_off(struct solo_enc_dev *solo_enc)
 		kthread_stop(solo_enc->kthread);
 		solo_enc->kthread = NULL;
 	}
-
+	solo_enc->solo_dev->enc_bw_remain += solo_enc->bw_weight;
 	solo_reg_write(solo_enc->solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 	solo_enc->enc_on = 0;
 }
@@ -919,11 +930,10 @@ static int solo_s_parm(struct file *file, void *priv,
 		cp->timeperframe.numerator = 15;
 
 	solo_enc->interval = cp->timeperframe.numerator;
-	/* XXX GOP needs to be handled better */
-	solo_enc->gop = cp->timeperframe.denominator /
-			cp->timeperframe.numerator;
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
+
+	solo_update_mode(solo_enc, solo_enc->mode);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
@@ -1023,10 +1033,10 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	INIT_LIST_HEAD(&solo_enc->vidq_active);
 	init_waitqueue_head(&solo_enc->thread_wait);
 
-	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
 	solo_enc->qp = SOLO_DEFAULT_QP;
-	solo_enc->gop = SOLO_DEFAULT_GOP;
+        solo_enc->gop = SOLO_DEFAULT_GOP;
 	solo_enc->interval = 1;
+	solo_update_mode(solo_enc, SOLO_ENC_MODE_CIF);
 
 	return solo_enc;
 }
@@ -1053,6 +1063,9 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 			solo_enc_free(solo_dev->v4l2_enc[i]);
 		return ret;
 	}
+
+	/* D1@30fps * 4 */
+	solo_dev->enc_bw_remain = 30 * 4 * 4;
 
 	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
 		 solo_dev->v4l2_enc[0]->vfd->num,
