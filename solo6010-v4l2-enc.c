@@ -307,7 +307,7 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 
 		/* Frame rate and interval */
 		p[22] = fps >> 4;
-		p[23] = ((fps << 4) & 0xf0) | 0x04 | (interval >> 13);
+		p[23] = ((fps << 4) & 0xf0) | 0x0c | ((interval >> 13) & 0x3);
 		p[24] = (interval >> 5) & 0xff;
 		p[25] = ((interval << 3) & 0xf8) | 0x04;
 
