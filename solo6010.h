@@ -76,7 +76,7 @@
 #define SOLO_ENC_MODE_D1		9
 
 #define SOLO_DEFAULT_GOP		30
-#define SOLO_DEFAULT_QP			4
+#define SOLO_DEFAULT_QP			3
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
