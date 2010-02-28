@@ -175,7 +175,6 @@ static u8 tbl_pal_tw2864_common[] = {
 
 #define is_tw286x(__solo, __id) (!(__solo->tw2815 & (1 << __id)))
 
-#if 0
 static u8 tw_readbyte(struct solo6010_dev *solo_dev, int chip_id, u8 tw68x_off,
 		      u8 tw_off)
 {
@@ -201,7 +200,6 @@ static void tw_writebyte(struct solo6010_dev *solo_dev, int chip_id,
 				   TW_CHIP_OFFSET_ADDR(chip_id),
 				   tw_off, val);
 }
-#endif
 
 static void tw_write_and_verify(struct solo6010_dev *solo_dev, u8 addr, u8 off,
 				u8 val)
@@ -639,148 +637,137 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
  * read in each techwell chip is set on the lower 4-bits. Also bit 0 means
  * signal loss for the corresponding channel, bit 1 means signal gain.
  */
-unsigned int tw2815_get_video_status(struct solo6010_dev *solo_dev)
+u16 tw28_get_video_status(struct solo6010_dev *solo_dev)
 {
-	unsigned int status = 0x0;
-	unsigned int i = 0;
+	un16 status = 0;
+	u8 val;
+	int i;
 
-	/* Read the video signal status for the channels in the i-th
-         * techwell chip */
-	for (i = 0; i < solo_dev->tw28_cnt; i++)
-		status |= tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
-				      TW_AV_STAT_ADDR);
-
-	/* 
-	 * NOTE: The LX Server applications treats 0 as there is video
-	 * signal while 1 is no video signal. For now we revert its value
-	 * to minimize modifications in LX applications.
-	 */
-	status = ~(status & 0xffff);
+	/* Read the video signal status for the channels in the
+         * techwell chip(s) */
+	for (i = 0; i < solo_dev->tw28_cnt; i++) {
+		val = tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
+				   TW_AV_STAT_ADDR) & 0x0f;
+		status |= val << (i * 4);
+	}
 
 	return status;
 }
 
 /* Status of audio from up to 4 techwell chips are combined into 1 variable.
  * See techwell datasheet for details. */
-unsigned int tw2815_get_audio_status(struct solo6010_dev *solo_dev)
+u16 tw28_get_audio_status(struct solo6010_dev *solo_dev)
 {
-	unsigned int val;
-	unsigned int status = 0x0;
-	unsigned int i = 0;
+	u8 val;
+	u16 status = 0;
+	int i;
 
-	for (i = 0; i < TW_NUM_CHIP; ++i) {
-		val = tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
-				  TW_AV_STAT_ADDR);
-
-		status |= ((val & 0xf0) >> 4) << (i * TW_NUMCHANNEL_PERCHIP);
+	for (i = 0; i < solo_dev->tw28_cnt; i++) {
+		val = (tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
+				   TW_AV_STAT_ADDR) & 0xf0) >> 4;
+		status |= val << (i * 4);
 	}
 
-	status = ~(status & 0xffff);
 	return status;
 }
-
-void tw2815_Set_ColorComponentValue(struct solo6010_dev *solo_dev,
-				    unsigned int color_comp,
-				    unsigned int channel,
-				    unsigned int u_val)
+#endif
+int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
+		      __s32 val)
 {
-	unsigned int chip_num;
+	int ret = 0;
+	/* Get the right chip and on-chip channel */
+	u8 chip_num = ch / 4;
 
-	/* Determine which techwell chip number this channel belongs to. */
-	chip_num = (channel / 4);
-	/* Determine the corresponding channel for this techwell chip. */
-	channel = channel % 4;
+	ch %= 4;
 
-	switch (color_comp) {
-	case TW_COLOR_HUE:
+	if (val > 255 || val < 0)
+		return -ERANGE;
+
+	switch (ctrl) {
+	case V4L2_CID_HUE:
 		if (is_tw286x(solo_dev, chip_num)) {
-			if (u_val >= 125)
-				u_val -= 125;
+			if (val >= 125)
+				val -= 125;
 			else
-				u_val += 125;
+				val += 125;
 		}
-		tw_writebyte(solo_dev, chip_num, TW286x_HUE_ADDR(channel),
-			     TW_HUE_ADDR(channel), u_val);
+		tw_writebyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
+			     TW_HUE_ADDR(ch), val);
 
 		break;
 
-	case TW_COLOR_SATURATION:
+	case V4L2_CID_SATURATION:
 		if (is_tw286x(solo_dev, chip_num)) {
 			solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
-					       TW_CHIP_OFFSET_ADDR(chip_num),
-					       TW286x_SATURATIONU_ADDR
-					       (channel), u_val);
+					   TW_CHIP_OFFSET_ADDR(chip_num),
+					   TW286x_SATURATIONU_ADDR(ch), val);
 		}
-		tw_writebyte(solo_dev, chip_num,
-			     TW286x_SATURATIONV_ADDR(channel),
-			     TW_SATURATION_ADDR(channel), u_val);
+		tw_writebyte(solo_dev, chip_num, TW286x_SATURATIONV_ADDR(ch),
+			     TW_SATURATION_ADDR(ch), val);
 
 		break;
 
-	case TW_COLOR_CONTRAST:
-		tw_writebyte(solo_dev, chip_num,
-			     TW286x_CONTRAST_ADDR(channel),
-			     TW_CONTRAST_ADDR(channel), u_val);
+	case V4L2_CID_CONTRAST:
+		tw_writebyte(solo_dev, chip_num, TW286x_CONTRAST_ADDR(ch),
+			     TW_CONTRAST_ADDR(ch), val);
 		break;
 
-	case TW_COLOR_BRIGHTNESS:
+	case V4L2_CID_BRIGHTNESS:
 		if (is_tw286x(solo_dev, chip_num)) {
-			if (u_val == 125 || !u_val)
-				u_val = 212;
-			else if (u_val > 125)
-				u_val -= 125;
+			if (val == 125 || !val)
+				val = 212;
+			else if (val > 125)
+				val -= 125;
 			else
-				u_val += 125;
+				val += 125;
 		}
-		tw_writebyte(solo_dev, chip_num,
-			     TW286x_BRIGHTNESS_ADDR(channel),
-			     TW_BRIGHTNESS_ADDR(channel), u_val);
+		tw_writebyte(solo_dev, chip_num, TW286x_BRIGHTNESS_ADDR(ch),
+			     TW_BRIGHTNESS_ADDR(ch), val);
 
 		break;
 	default:
-		printk_once("[tw2815] Unknown color component %d\n",
-			    color_comp);
-		break;
+		ret = -EINVAL;
 	}
+
+	return ret;
 }
 
-int tw2815_Get_ColorComponentValue(struct solo6010_dev *solo_dev,
-				   unsigned int color_comp,
-				   unsigned int channel)
+int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
+		      __s32 *val)
 {
-	unsigned int chip_num;
+	int ret = 0;
+	/* Get the right chip and on-chip channel */
+	u8 chip_num = ch / 4;
 
-	if (channel < 0 || channel >= solo_dev->nr_chans)
-		return -1;
+	ch %= 4;
 
-	/* Determine which techwell chip number this channel belongs to. */
-	chip_num = channel / 4;
-	/* Determine the corresponding channel for this techwell chip. */
-	channel = channel % 4;
-
-	switch (color_comp) {
-	case TW_COLOR_HUE:
-		return tw_readbyte(solo_dev, chip_num, TW286x_HUE_ADDR(channel),
-				   TW_HUE_ADDR(channel));
-	case TW_COLOR_SATURATION:
-		return tw_readbyte(solo_dev, chip_num,
-				   TW286x_SATURATIONU_ADDR(channel),
-				   TW_SATURATION_ADDR(channel));
-	case TW_COLOR_CONTRAST:
-		return tw_readbyte(solo_dev, chip_num,
-				   TW286x_CONTRAST_ADDR(channel),
-				   TW_CONTRAST_ADDR(channel));
-	case TW_COLOR_BRIGHTNESS:
-		return tw_readbyte(solo_dev, chip_num,
-				   TW286x_BRIGHTNESS_ADDR(channel),
-				   TW_BRIGHTNESS_ADDR(channel));
+	switch (ctrl) {
+	case V4L2_CID_HUE:
+		*val = tw_readbyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
+				   TW_HUE_ADDR(ch));
+		break;
+	case V4L2_CID_SATURATION:
+		*val = tw_readbyte(solo_dev, chip_num,
+				   TW286x_SATURATIONU_ADDR(ch),
+				   TW_SATURATION_ADDR(ch));
+		break;
+	case V4L2_CID_CONTRAST:
+		*val = tw_readbyte(solo_dev, chip_num,
+				   TW286x_CONTRAST_ADDR(ch),
+				   TW_CONTRAST_ADDR(ch));
+		break;
+	case V4L2_CID_BRIGHTNESS:
+		*val = tw_readbyte(solo_dev, chip_num,
+				   TW286x_BRIGHTNESS_ADDR(ch),
+				   TW_BRIGHTNESS_ADDR(ch));
+		break;
 	default:
-		printk_once("[tw2815] Unknown color component %d\n",
-			    color_comp);
+		ret = -EINVAL;
 	}
-	return -1;
-}
 
+	return ret;
+}
+#if 0
 /*
  * For audio output volume, the output channel is only 1. In this case we
  * don't need to offset TW_CHIP_OFFSET_ADDR. The TW_CHIP_OFFSET_ADDR used

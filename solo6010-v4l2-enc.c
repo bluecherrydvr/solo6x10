@@ -25,6 +25,7 @@
 #include <media/v4l2-ioctl.h>
 
 #include "solo6010.h"
+#include "solo6010-tw28.h"
 
 #define MIN_VID_BUFFERS		4
 #define FRAME_BUF_SIZE		(256 * 1024)
@@ -51,6 +52,47 @@ static unsigned char vid_vop_header[] = {
  * bytes 27,28,29  13-bits 000x1111 11111111 1x000000 height
  * byte  29         1-bit  0x100000                   interlace
  */
+
+static struct v4l2_queryctrl solo_qctrl[] = {
+	{
+		.id		= V4L2_CID_BRIGHTNESS,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+		.name		= "Brightness",
+		.minimum	= 0,
+		.maximum	= 255,
+		.step		= 1,
+		.default_value	= 127,
+		.flags		= V4L2_CTRL_FLAG_SLIDER,
+	}, {
+		.id		= V4L2_CID_CONTRAST,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+		.name		= "Contrast",
+		.minimum	= 0,
+		.maximum	= 255,
+		.step		= 1,
+		.default_value	= 127,
+		.flags		= V4L2_CTRL_FLAG_SLIDER,
+	}, {
+		.id		= V4L2_CID_SATURATION,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+		.name		= "Saturation",
+		.minimum	= 0,
+		.maximum	= 255,
+		.step		= 1,
+		.default_value	= 127,
+		.flags		= V4L2_CTRL_FLAG_SLIDER,
+	}, {
+		.id		= V4L2_CID_HUE,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+		.name		= "Hue",
+		.minimum	= 0,
+		.maximum	= 255,
+		.step		= 1,
+		.default_value	= 127,
+		.flags		= V4L2_CTRL_FLAG_SLIDER,
+	}
+};
+
 
 struct vop_header {
 	/* VD_IDX0 */
@@ -922,6 +964,43 @@ static int solo_s_parm(struct file *file, void *priv,
         return 0;
 }
 
+static int solo_queryctrl(struct file *file, void *priv,
+			  struct v4l2_queryctrl *qc)
+{
+	int i;
+
+	if (qc->id & V4L2_CTRL_FLAG_NEXT_CTRL)
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(solo_qctrl); i++)
+		if (qc->id && qc->id == solo_qctrl[i].id) {
+			memcpy(qc, &(solo_qctrl[i]), sizeof(*qc));
+			return 0;
+		}
+
+        return -EINVAL;
+}
+
+static int solo_g_ctrl(struct file *file, void *priv,
+		       struct v4l2_control *ctrl)
+{
+	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
+	return tw28_get_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
+				 &ctrl->value);
+}
+
+static int solo_s_ctrl(struct file *file, void *priv,
+		       struct v4l2_control *ctrl)
+{
+	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
+	return tw28_set_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
+				 ctrl->value);
+}
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
 #else
@@ -961,6 +1040,10 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	/* Video capture parameters */
 	.vidioc_s_parm			= solo_s_parm,
 	.vidioc_g_parm			= solo_g_parm,
+	/* Controls */
+	.vidioc_queryctrl		= solo_queryctrl,
+	.vidioc_g_ctrl			= solo_g_ctrl,
+	.vidioc_s_ctrl			= solo_s_ctrl,
 };
 
 static struct video_device solo_enc_template = {
