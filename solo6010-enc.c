@@ -114,14 +114,26 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	kfree(buf);
 }
 
+static void solo_jpeg_config(struct solo6010_dev *solo_dev)
+{
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
+		       (2 << 24) | (2 << 16) | (2 << 8) | (2 << 0));
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, 0);
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, 0);
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG,
+		(SOLO_JPEG_EXT_SIZE(solo_dev) & 0xffff0000) |
+		((SOLO_JPEG_EXT_ADDR(solo_dev) >> 16) & 0x0000ffff));
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_CTRL, 0xffffffff);
+}
+
 static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 {
 	int i;
 
 	/* We can only use VE_INTR_CTRL(0) if we want to support mjpeg */
 	solo_reg_write(solo_dev, SOLO_VE_CFG0,
-		       SOLO_VE_INTR_CTRL(0) |
-		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE >> 16) |
+		       SOLO_VE_INTR_CTRL(3) |
+		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE(solo_dev) >> 16) |
 		       SOLO_VE_BLOCK_BASE(SOLO_MP4E_EXT_ADDR(solo_dev) >> 16));
 
 	solo_reg_write(solo_dev, SOLO_VE_CFG1,
@@ -153,6 +165,7 @@ int solo_enc_init(struct solo6010_dev *solo_dev)
 
 	solo_capture_config(solo_dev);
 	solo_mp4e_config(solo_dev);
+	solo_jpeg_config(solo_dev);
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(i), 0);

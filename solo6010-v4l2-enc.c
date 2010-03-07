@@ -27,9 +27,10 @@
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
+#include "solo6010-jpeg.h"
 
 #define MIN_VID_BUFFERS		4
-#define FRAME_BUF_SIZE		(256 * 1024)
+#define FRAME_BUF_SIZE		(512 * 1024)
 #define MP4_QS			16
 
 static int solo_enc_thread(void *data);
@@ -221,100 +222,110 @@ static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
 	return 0;
 }
 
-static int enc_get_dma(struct solo6010_dev *solo_dev, void *buf,
-		       unsigned int off, unsigned int size)
+static int enc_get_mpeg_dma(struct solo6010_dev *solo_dev, void *buf,
+			    unsigned int off, unsigned int size)
 {
 	int ret;
 
-	if (off + size <= SOLO_MP4E_EXT_SIZE)
+	if (off > SOLO_MP4E_EXT_SIZE(solo_dev))
+		return -EINVAL;
+
+	if (off + size <= SOLO_MP4E_EXT_SIZE(solo_dev))
 		return solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
 				    SOLO_MP4E_EXT_ADDR(solo_dev) + off, size);
 
 	/* Buffer wrap */
 	ret = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
 			   SOLO_MP4E_EXT_ADDR(solo_dev) + off,
-			   SOLO_MP4E_EXT_SIZE - off);
+			   SOLO_MP4E_EXT_SIZE(solo_dev) - off);
 
 	ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0,
-			    buf + SOLO_MP4E_EXT_SIZE - off,
+			    buf + SOLO_MP4E_EXT_SIZE(solo_dev) - off,
 			    SOLO_MP4E_EXT_ADDR(solo_dev),
-			    size + off - SOLO_MP4E_EXT_SIZE);
+			    size + off - SOLO_MP4E_EXT_SIZE(solo_dev));
 
 	return ret;
 }
 
-/* On successful return (0), leaves solo_enc->lock unlocked */
-static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
-			     struct videobuf_buffer *vb,
-			     unsigned long flags)
+static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, void *buf,
+			    unsigned int off, unsigned int size)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	struct solo_enc_buf *enc_buf = NULL;
-	u8 ch = solo_enc->ch;
-	struct vop_header vh;
-	int error = 1;
-	void *vbuf;
-	u8 *p;
 	int ret;
 
-	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
-		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
-		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
-		if (enc_buf->ch == ch && enc_buf->in_use && enc_buf->size)
-			break;
-	}
+	if (off > SOLO_JPEG_EXT_SIZE(solo_dev))
+		return -EINVAL;
 
-	if (!enc_buf || enc_buf->ch != ch) 
-		return -1;
+	if (off + size <= SOLO_JPEG_EXT_SIZE(solo_dev))
+		return solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
+				    SOLO_JPEG_EXT_ADDR(solo_dev) + off, size);
 
-	if (vb->bsize < enc_buf->size) {
-		printk("Buffer too big for vb\n");
-		return -1;
-	}
+	/* Buffer wrap */
+	ret = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
+			   SOLO_JPEG_EXT_ADDR(solo_dev) + off,
+			   SOLO_JPEG_EXT_SIZE(solo_dev) - off);
 
-	if (!(vbuf = videobuf_to_vmalloc(vb))) {
-		printk("Faled to vmalloc\n");
-		return -1;
-	}
+	ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0,
+			    buf + SOLO_JPEG_EXT_SIZE(solo_dev) - off,
+			    SOLO_JPEG_EXT_ADDR(solo_dev),
+			    size + off - SOLO_JPEG_EXT_SIZE(solo_dev));
 
-	/* Now that we know we have a valid buffer we care about. At this
-	 * point, if we fail, we have to show the buffer in an ERROR state */
-	list_del(&vb->queue);
+	return ret;
+}
 
-	/* Is it ok that we mess with this buffer out of lock? */
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+static int solo_fill_jpeg(struct solo_enc_dev *solo_enc,
+			  struct solo_enc_buf *enc_buf,
+			  struct videobuf_buffer *vb, void *vbuf)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
+	jpeg_set_header(vbuf, solo_enc->width, solo_enc->height);
+	vbuf += JPEG_HEADER_SIZE;
+	vb->size = enc_buf->jpeg_size + JPEG_HEADER_SIZE;
+
+	return enc_get_jpeg_dma(solo_dev, vbuf, enc_buf->jpeg_off,
+			       enc_buf->jpeg_size);
+}
+
+static int solo_fill_mpeg(struct solo_enc_dev *solo_enc,
+			  struct solo_enc_buf *enc_buf,
+			  struct videobuf_buffer *vb, void *vbuf)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct vop_header vh;
+	u8 *p = vbuf;
+	int ret;
 
 	/* First get the hardware vop header (not real mpeg) */
-	ret = enc_get_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
+	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
 	if (ret)
-		goto buf_error;
+		return -1;
 
 	if (vh.size > enc_buf->size) {
 		printk("vh.size shows too large\n");
-		goto buf_error;
+		return -1;
 	}
 
 	vb->width = vh.hsize << 4;
-        vb->height = vh.vsize << 4;
+	vb->height = vh.vsize << 4;
 	vb->size = vh.size;
 
-	p = vbuf;
 	if (!enc_buf->vop) {
 		vb->size += sizeof(vid_vop_header);
 		p += sizeof(vid_vop_header);
 	}
 
 	/* Now get the actual mpeg payload */
-	enc_buf->off = (enc_buf->off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE;
+	enc_buf->off = (enc_buf->off + sizeof(vh)) %
+			SOLO_MP4E_EXT_SIZE(solo_dev);
 	enc_buf->size -= sizeof(vh);
 
-	ret = enc_get_dma(solo_dev, p, enc_buf->off, enc_buf->size);
+	ret = enc_get_mpeg_dma(solo_dev, p, enc_buf->off, enc_buf->size);
 	if (ret)
-		goto buf_error;
+		return -1;
 
 	if (p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01 || p[3] != 0xb6) {
 		printk("Invalid mpeg data?\n");
-		goto buf_error;
+		return -1;
 	}
 
 	/* If this is a key frame, add extra m4v header */
@@ -344,19 +355,63 @@ static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
 			p[29] |= 0x20;
 	}
 
-	vb->field_count++;
-	vb->ts = enc_buf->ts;
+	/* TODO Mark keyframe in vb? */
 
-	// TODO Set keyframe or pframe flag?
-	error = 0;
+	return 0;
+}
 
-buf_error:
-	if (!error) {
-		vb->state = VIDEOBUF_DONE;
-	} else {
-		//enc_reset_gop(solo_dev, ch);
-		vb->state = VIDEOBUF_ERROR;
+/* On successful return (0), leaves solo_enc->lock unlocked */
+static int solo_enc_fillbuf(struct solo_enc_dev *solo_enc,
+			    struct videobuf_buffer *vb,
+			    unsigned long flags)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_enc_buf *enc_buf = NULL;
+	u8 ch = solo_enc->ch;
+	void *vbuf;
+	int ret;
+
+	while (solo_enc->rd_idx != solo_dev->enc_wr_idx) {
+		enc_buf = &solo_dev->enc_buf[solo_enc->rd_idx];
+		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_RING_BUFS;
+		if (enc_buf->ch == ch && enc_buf->in_use && enc_buf->size)
+			break;
 	}
+
+	if (!enc_buf || enc_buf->ch != ch) 
+		return -1;
+
+	if ((solo_enc->fmt == V4L2_PIX_FMT_MPEG &&
+	     vb->bsize < enc_buf->size) ||
+	    (solo_enc->fmt == V4L2_PIX_FMT_MJPEG &&
+	     vb->bsize < (enc_buf->jpeg_size + JPEG_HEADER_SIZE))) {
+		printk("Buffer too big for vb\n");
+		return -1;
+	}
+
+	if (!(vbuf = videobuf_to_vmalloc(vb))) {
+		printk("Faled to vmalloc\n");
+		return -1;
+	}
+
+	/* Now that we know we have a valid buffer we care about. At this
+	 * point, if we fail, we have to show the buffer in an ERROR state */
+	list_del(&vb->queue);
+
+	/* Is it ok that we mess with this buffer out of lock? */
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
+
+	if (solo_enc->fmt == V4L2_PIX_FMT_MPEG)
+		ret = solo_fill_mpeg(solo_enc, enc_buf, vb, vbuf);
+	else
+		ret = solo_fill_jpeg(solo_enc, enc_buf, vb, vbuf);
+
+	if (!ret) {
+		vb->field_count++;
+		vb->ts = enc_buf->ts;
+		vb->state = VIDEOBUF_DONE;
+	} else
+		vb->state = VIDEOBUF_ERROR;
 
 	enc_buf->in_use = 0;
 	wake_up(&vb->done);
@@ -415,8 +470,9 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
 	struct solo_enc_buf *enc_buf;
 	struct videnc_status vstatus;
-	u32 mpeg_current, mpeg_next;
-	u32 reg_mpeg_size, mpeg_size;
+	u32 mpeg_current, mpeg_next, mpeg_size;
+	u32 jpeg_current, jpeg_next, jpeg_size;
+	u32 reg_mpeg_size;
 	u8 cur_q, vop_type;
 	u8 ch;
 
@@ -432,23 +488,35 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	while (solo_dev->enc_idx != cur_q) {
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
+		jpeg_current = solo_reg_read(solo_dev,
+					SOLO_VE_JPEG_QUE(solo_dev->enc_idx));
 		solo_dev->enc_idx = (solo_dev->enc_idx + 1) % MP4_QS;
 		mpeg_next = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
+		jpeg_next = solo_reg_read(solo_dev,
+					SOLO_VE_JPEG_QUE(solo_dev->enc_idx));
 
 		ch = (mpeg_current >> 24) & 0x1f;
 		vop_type = (mpeg_current >> 29) & 3;
+
 		mpeg_current &= 0x00ffffff;
-		mpeg_next &= 0x00ffffff;
+		mpeg_next    &= 0x00ffffff;
+		jpeg_current &= 0x00ffffff;
+		jpeg_next    &= 0x00ffffff;
 
 		/* This channel has no listener yet */
 		if (solo_dev->v4l2_enc[ch]->kthread == NULL)
 			continue;
 
-		mpeg_size = (SOLO_MP4E_EXT_SIZE + mpeg_next - mpeg_current) %
-			    SOLO_MP4E_EXT_SIZE;
+		mpeg_size = (SOLO_MP4E_EXT_SIZE(solo_dev) +
+			     mpeg_next - mpeg_current) %
+			    SOLO_MP4E_EXT_SIZE(solo_dev);
 
-		/* XXX WTF does this mean? */
+		jpeg_size = (SOLO_JPEG_EXT_SIZE(solo_dev) +
+			     jpeg_next - jpeg_current) %
+			    SOLO_JPEG_EXT_SIZE(solo_dev);
+
+		/* XXX I think this means we had a ring overflow? */
 		if (mpeg_current > mpeg_next && mpeg_size != reg_mpeg_size) {
 			enc_reset_gop(solo_dev, ch);
 			continue;
@@ -464,11 +532,14 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		enc_buf->ch = ch;
 		enc_buf->off = mpeg_current;
 		enc_buf->size = mpeg_size;
+		enc_buf->jpeg_off = jpeg_current;
+		enc_buf->jpeg_size = jpeg_size;
+
 		enc_buf->in_use = 1;
 		do_gettimeofday(&enc_buf->ts);
 
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
-					SOLO_NR_MP4_QS;
+					SOLO_NR_RING_BUFS;
 
 		if (list_empty(&solo_dev->v4l2_enc[ch]->vidq_active))
 			continue;
@@ -627,7 +698,7 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 			&solo_dev->enc_buf[solo_enc->rd_idx];
 		if (enc_buf->ch == ch && enc_buf->in_use)
 			enc_buf->in_use = 0;
-		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_MP4_QS;
+		solo_enc->rd_idx = (solo_enc->rd_idx + 1) % SOLO_NR_RING_BUFS;
 	}
 
 	return 0;
@@ -688,13 +759,20 @@ static int solo_enc_get_input(struct file *file, void *priv,
 static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 				 struct v4l2_fmtdesc *f)
 {
-	if (f->index)
+	if (f->index > 1)
 		return -EINVAL;
 
-	f->pixelformat = V4L2_PIX_FMT_MPEG;
 	f->flags = V4L2_FMT_FLAG_COMPRESSED;
-	snprintf(f->description, sizeof(f->description),
-		 "%s", "MPEG-4 AVC");
+	switch (f->index) {
+	case 0:
+		f->pixelformat = V4L2_PIX_FMT_MPEG;
+		strcpy(f->description, "MPEG-4 AVC");
+		break;
+	case 1:
+		f->pixelformat = V4L2_PIX_FMT_MJPEG;
+		strcpy(f->description, "MJPEG");
+		break;
+	}
 
 	return 0;
 }
@@ -709,19 +787,26 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	if (solo_enc->enc_on)
 		return -EBUSY;
 
+	if (pix->pixelformat != V4L2_PIX_FMT_MPEG &&
+	    pix->pixelformat != V4L2_PIX_FMT_MJPEG)
+		return -EINVAL;
+
 	if (!(pix->width == solo_dev->video_hsize &&
 	      pix->height == solo_dev->video_vsize << 1) &&
 	    !(pix->width == solo_dev->video_hsize >> 1 &&
-	      pix->height == solo_dev->video_vsize))
-		return -EINVAL;
+	      pix->height == solo_dev->video_vsize)) {
+		/* Default to CIF 1/2 size */
+		pix->width = solo_dev->video_hsize >> 1;
+		pix->height = solo_dev->video_vsize;
+	}
 
 	if (pix->field == V4L2_FIELD_ANY)
 		pix->field = V4L2_FIELD_INTERLACED;
-	else if (pix->field != V4L2_FIELD_INTERLACED)
-		return -EINVAL;
+	else if (pix->field != V4L2_FIELD_INTERLACED) {
+		pix->field = V4L2_FIELD_INTERLACED;
+	}
 
 	/* Just set these */
-	pix->pixelformat = V4L2_PIX_FMT_MPEG;
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
 	pix->sizeimage = FRAME_BUF_SIZE;
 
@@ -752,6 +837,8 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 		solo_enc->mode = SOLO_ENC_MODE_D1;
 	else
 		solo_enc->mode = SOLO_ENC_MODE_CIF;
+
+	solo_enc->fmt = pix->pixelformat;
 
 	ret = solo_enc_on(solo_enc);
 
@@ -1129,6 +1216,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
         solo_enc->gop = SOLO_DEFAULT_GOP;
 	solo_enc->interval = 1;
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
+	solo_enc->fmt = V4L2_PIX_FMT_MPEG;
 	solo_update_mode(solo_enc);
 
 	return solo_enc;

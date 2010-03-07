@@ -58,16 +58,20 @@
 #define SOLO_MP4E_EXT_ADDR(__solo) \
 		(SOLO_EREF_EXT_ADDR(__solo) + \
 		 (SOLO_EREF_EXT_SIZE * __solo->nr_chans))
-#define SOLO_MP4E_EXT_SIZE			0x00080000
+#define SOLO_MP4E_EXT_SIZE(__solo)		(0x00080000 * __solo->nr_chans)
 
 #define SOLO_DREF_EXT_ADDR(__solo) \
-		(SOLO_MP4E_EXT_ADDR(__solo) + \
-		 (SOLO_MP4E_EXT_SIZE * __solo->nr_chans))
+		(SOLO_MP4E_EXT_ADDR(__solo) + SOLO_MP4E_EXT_SIZE(__solo))
 #define SOLO_DREF_EXT_SIZE			0x00140000
 
 #define SOLO_MP4D_EXT_ADDR(__solo) \
 		(SOLO_DREF_EXT_ADDR(__solo) + \
 		 (SOLO_DREF_EXT_SIZE * __solo->nr_chans))
 #define SOLO_MP4D_EXT_SIZE			0x00080000
+
+#define SOLO_JPEG_EXT_ADDR(__solo) \
+		(SOLO_MP4D_EXT_ADDR(__solo) + \
+		 (SOLO_MP4D_EXT_SIZE * __solo->nr_chans))
+#define SOLO_JPEG_EXT_SIZE(__solo)		(0x00080000 * __solo->nr_chans)
 
 #endif /* __SOLO6010_OFFSETS_H */

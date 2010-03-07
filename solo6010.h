@@ -80,7 +80,7 @@
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
-#define SOLO_NR_MP4_QS			512
+#define SOLO_NR_RING_BUFS			512
 
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
@@ -117,6 +117,7 @@ struct solo_enc_dev {
 	u16			width;
 	u16			height;
 	u16			rd_idx;
+	u32			fmt;
 };
 
 struct solo_enc_buf {
@@ -125,6 +126,8 @@ struct solo_enc_buf {
 	u8			in_use;
 	u32			off;
 	u32			size;
+	u32			jpeg_off;
+	u32			jpeg_size;
 	struct timeval		ts;
 };
 
@@ -167,7 +170,7 @@ struct solo6010_dev {
 	u8			enc_idx;
 	/* Out software ring of enc buf references */
 	u16			enc_wr_idx;
-	struct solo_enc_buf	enc_buf[SOLO_NR_MP4_QS];
+	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 
 	/* Current video settings */
 	u8 			video_type;
