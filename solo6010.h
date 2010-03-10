@@ -49,7 +49,7 @@
 /*
  * The SOLO6010 actually has 8 i2c channels, but we only use 2.
  * 0 - Techwell chip(s)
- * 1 - SAA7128 (only if we don't have tw2865)
+ * 1 - SAA7128
  */
 #define SOLO_I2C_ADAPTERS		2
 #define SOLO_I2C_TW			0
@@ -141,7 +141,7 @@ struct solo6010_dev {
 	spinlock_t		reg_io_lock;
 
 	/* tw28xx accounting */
-	u8			tw2864, tw2865, tw2815;
+	u8			tw2864, tw2815;
 	u8			tw28_cnt;
 
 	/* i2c related items */
