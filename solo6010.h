@@ -82,6 +82,8 @@
  * This gives us 512 * 16kbyte queues. */
 #define SOLO_NR_RING_BUFS			512
 
+#define SOLO_CLOCK_MHZ			108
+
 enum SOLO_I2C_STATE {
 	IIC_STATE_IDLE,
 	IIC_STATE_START,
@@ -177,6 +179,9 @@ struct solo6010_dev {
 	u16			video_hsize, video_vsize;
 	u16			vout_hstart, vout_vstart;
 	u16			vin_hstart, vin_vstart;
+
+	/* Audio components */
+	struct snd_card		*snd_card;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
@@ -238,11 +243,15 @@ void solo_enc_exit(struct solo6010_dev *solo_dev);
 int solo_enc_v4l2_init(struct solo6010_dev *solo_dev);
 void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev);
 
+int solo_g723_init(struct solo6010_dev *solo_dev);
+void solo_g723_exit(struct solo6010_dev *solo_dev);
+
 /* ISR's */
 int solo_i2c_isr(struct solo6010_dev *solo_dev);
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
+void solo_g723_interrupt(struct solo6010_dev *solo_dev);
 
 /* i2c read/write */
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);

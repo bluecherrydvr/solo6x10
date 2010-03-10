@@ -30,8 +30,6 @@ MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 
-#define SOLO_CLOCK_MHZ		108
-
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask)
 {
 	solo_dev->irq_mask |= mask;
@@ -98,6 +96,7 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	}
 
 	/* Bring down the sub-devices first */
+	solo_g723_exit(solo_dev);
 	solo_enc_v4l2_exit(solo_dev);
 	solo_enc_exit(solo_dev);
 	solo_v4l2_exit(solo_dev);
@@ -217,6 +216,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	if ((ret = solo_enc_v4l2_init(solo_dev)))
+		goto fail_probe;
+
+	if ((ret = solo_g723_init(solo_dev)))
 		goto fail_probe;
 
 	return 0;
