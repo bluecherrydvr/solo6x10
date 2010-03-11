@@ -27,6 +27,10 @@
 #define SOLO_VCLK_DELAY			3
 #define SOLO_PROGRESSIVE_VSIZE		1024
 
+static unsigned video_type;
+module_param(video_type, uint, 0644);
+MODULE_PARM_DESC(video_nr, "video_type (0 = NTSC/Default, 1 = PAL)");
+
 static void solo_vin_config(struct solo6010_dev *solo_dev)
 {
 	solo_dev->vin_hstart = 8;
@@ -130,10 +134,16 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 
 int solo_disp_init(struct solo6010_dev *solo_dev)
 {
-	/* Start out with NTSC */
-	solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
 	solo_dev->video_hsize = 704;
-	solo_dev->video_vsize = 240;
+	if (video_type == 0) {
+		solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
+		solo_dev->video_vsize = 240;
+		solo_dev->fps = 30;
+	} else {
+		solo_dev->video_type = SOLO_VO_FMT_TYPE_PAL;
+		solo_dev->video_vsize = 288;
+		solo_dev->fps = 25;
+	}
 
 	solo_vin_config(solo_dev);
 	solo_disp_config(solo_dev);

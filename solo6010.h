@@ -80,7 +80,7 @@
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
-#define SOLO_NR_RING_BUFS			512
+#define SOLO_NR_RING_BUFS		512
 
 #define SOLO_CLOCK_MHZ			108
 
@@ -175,13 +175,17 @@ struct solo6010_dev {
 	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 
 	/* Current video settings */
-	u8 			video_type;
+	u32 			video_type;
 	u16			video_hsize, video_vsize;
 	u16			vout_hstart, vout_vstart;
 	u16			vin_hstart, vin_vstart;
+	u8			fps;
 
 	/* Audio components */
-	struct snd_card		*snd_card;
+	struct snd_card			*snd_card;
+	struct snd_pcm			*snd_pcm;
+	struct snd_pcm_substream	*psubs;
+	struct snd_pcm_substream	*csubs;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)

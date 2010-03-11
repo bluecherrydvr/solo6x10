@@ -39,7 +39,7 @@ extern unsigned video_nr;
 
 static unsigned char vid_vop_header[] = {
 	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x20,
-	0x02, 0x48, 0x0d, 0xc0, 0x00, 0x40, 0x00, 0x40,
+	0x02, 0x48, 0x05, 0xc0, 0x00, 0x40, 0x00, 0x40,
 	0x00, 0x40, 0x00, 0x80, 0x00, 0x97, 0x53, 0x04,
 	0x1f, 0x4c, 0x58, 0x10, 0x78, 0x51, 0x18, 0x3e,
 };
@@ -54,6 +54,10 @@ static unsigned char vid_vop_header[] = {
  * bytes 27,28,29  13-bits 000x1111 11111111 1x000000 height
  * byte  29         1-bit  0x100000                   interlace
  */
+
+/* For aspect */
+#define XVID_PAR_43_PAL		2
+#define XVID_PAR_43_NTSC	3
 
 static const u32 solo_user_ctrls[] = {
 	V4L2_CID_BRIGHTNESS,
@@ -105,19 +109,14 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	/* XXX GOP needs to be handled better */
-	solo_enc->gop = 30 / solo_enc->interval;
+	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_enc->interlaced = (solo_enc->mode & 0x08) ? 1 : 0;
-	solo_enc->bw_weight = 30 / solo_enc->interval;
+	solo_enc->bw_weight = max(solo_dev->fps / solo_enc->interval, 1);
 
 	switch (solo_enc->mode) {
 	case SOLO_ENC_MODE_CIF:
 		solo_enc->width = solo_dev->video_hsize >> 1;
 		solo_enc->height = solo_dev->video_vsize;
-		break;
-	case SOLO_ENC_MODE_HD1:
-		solo_enc->width = solo_dev->video_hsize;
-		solo_enc->height = solo_dev->video_vsize;
-		solo_enc->bw_weight <<= 1;
 		break;
 	case SOLO_ENC_MODE_D1:
 		solo_enc->width = solo_dev->video_hsize;
@@ -330,14 +329,16 @@ static int solo_fill_mpeg(struct solo_enc_dev *solo_enc,
 
 	/* If this is a key frame, add extra m4v header */
 	if (!enc_buf->vop) {
-		u16 fps = 30000;
+		u16 fps = solo_dev->fps * 1000;
 		u16 interval = solo_enc->interval * 1000;
 
 		p = vbuf;
 		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
 
-		/* Aspect ratio: 3 == 4:3 NTSC */
-		p[10] = (p[10] & 0x87) | ((3 << 3) & 0x78);
+		if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
+			p[10] |= ((XVID_PAR_43_NTSC << 3) & 0x78);
+		else
+			p[10] |= ((XVID_PAR_43_PAL << 3) & 0x78);
 
 		/* Frame rate and interval */
 		p[22] = fps >> 4;
@@ -726,6 +727,7 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 			       struct v4l2_input *input)
 {
 	struct solo_enc_dev *solo_enc  = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	if (input->index)
 		return -EINVAL;
@@ -733,7 +735,12 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 	snprintf(input->name, sizeof(input->name), "Encoder %d",
 		 solo_enc->ch + 1);
 	input->type = V4L2_INPUT_TYPE_CAMERA;
-	input->std = V4L2_STD_NTSC_M;
+
+	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
+		input->std = V4L2_STD_NTSC_M;
+	else
+		input->std = V4L2_STD_PAL_M;
+
 	/* TODO Should check for signal status on this camera */
 	input->status = 0;
 
@@ -961,15 +968,18 @@ static int solo_enum_framesizes(struct file *file, void *priv,
 static int solo_enum_frameintervals(struct file *file, void *priv,
 				    struct v4l2_frmivalenum *fintv)
 {
+	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
 	if (fintv->pixel_format != V4L2_PIX_FMT_MPEG || fintv->index)
 		return -EINVAL;
 
 	fintv->type = V4L2_FRMIVAL_TYPE_STEPWISE;
 
-	fintv->stepwise.min.numerator = 30;
+	fintv->stepwise.min.numerator = solo_dev->fps;
 	fintv->stepwise.min.denominator = 1;
 
-	fintv->stepwise.max.numerator = 30;
+	fintv->stepwise.max.numerator = solo_dev->fps;
 	fintv->stepwise.max.denominator = 15;
 
 	fintv->stepwise.step.numerator = 1;
@@ -982,11 +992,12 @@ static int solo_g_parm(struct file *file, void *priv,
 		       struct v4l2_streamparm *sp)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 	cp->timeperframe.numerator = solo_enc->interval;
-	cp->timeperframe.denominator = 30;
+	cp->timeperframe.denominator = solo_dev->fps;
 	cp->capturemode = 0;
 	/* XXX: Shouldn't we be able to get/set this from videobuf? */
 	cp->readbuffers = 2;
@@ -998,6 +1009,7 @@ static int solo_s_parm(struct file *file, void *priv,
 		       struct v4l2_streamparm *sp)
 {
 	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	unsigned long flags;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
@@ -1012,11 +1024,11 @@ static int solo_s_parm(struct file *file, void *priv,
 	    (cp->timeperframe.denominator == 0)) {
 		/* reset framerate */
 		cp->timeperframe.numerator = 1;
-		cp->timeperframe.denominator = 30;
+		cp->timeperframe.denominator = solo_dev->fps;
 	}
 
-	if (cp->timeperframe.denominator != 30)
-		cp->timeperframe.denominator = 30;
+	if (cp->timeperframe.denominator != solo_dev->fps)
+		cp->timeperframe.denominator = solo_dev->fps;
 
 	if (cp->timeperframe.numerator > 15)
 		cp->timeperframe.numerator = 15;
@@ -1035,6 +1047,9 @@ static int solo_s_parm(struct file *file, void *priv,
 static int solo_queryctrl(struct file *file, void *priv,
 			  struct v4l2_queryctrl *qc)
 {
+	struct solo_enc_dev *solo_enc = priv;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
 	qc->id = v4l2_ctrl_next(solo_ctrl_classes, qc->id);
 	if (!qc->id)
 		return -EINVAL;
@@ -1052,7 +1067,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC, 1,
 			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC);
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
-		return v4l2_ctrl_query_fill(qc, 1, 255, 1, 30);
+		return v4l2_ctrl_query_fill(qc, 1, 255, 1, solo_dev->fps);
 	}
 
         return -EINVAL;
@@ -1167,7 +1182,7 @@ static struct video_device solo_enc_template = {
 	.minor			= -1,
 	.release		= video_device_release,
 
-	.tvnorms		= V4L2_STD_NTSC_M,
+	.tvnorms		= V4L2_STD_NTSC_M | V4L2_STD_PAL_M,
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
@@ -1213,7 +1228,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	init_waitqueue_head(&solo_enc->thread_wait);
 
 	solo_enc->qp = SOLO_DEFAULT_QP;
-        solo_enc->gop = SOLO_DEFAULT_GOP;
+        solo_enc->gop = solo_dev->fps;
 	solo_enc->interval = 1;
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->fmt = V4L2_PIX_FMT_MPEG;
@@ -1245,8 +1260,8 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 		return ret;
 	}
 
-	/* D1@30fps * 4 */
-	solo_dev->enc_bw_remain = 30 * 4 * 4;
+	/* D1@MAX-FPS * 4 */
+	solo_dev->enc_bw_remain = solo_dev->fps * 4 * 4;
 
 	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
 		 solo_dev->v4l2_enc[0]->vfd->num,
