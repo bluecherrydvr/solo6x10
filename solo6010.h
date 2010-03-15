@@ -26,6 +26,8 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 #include <asm/io.h>
+#include <asm/atomic.h>
+
 #include <linux/videodev2.h>
 #include <media/videobuf-vmalloc.h>
 
@@ -103,23 +105,16 @@ struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
 	/* V4L2 Items */
 	struct video_device	*vfd;
-	struct videobuf_queue	vidq;
-	struct list_head	vidq_active;
-	/* Kernel thread */
-	struct task_struct	*kthread;
-	wait_queue_head_t	thread_wait;
 	/* General accounting */
+	wait_queue_head_t	thread_wait;
 	spinlock_t		lock;
+	atomic_t		readers;
 	u8			ch;
 	u8			mode, gop, qp, interlaced, interval;
 	u8			reset_gop;
-	u8			enc_on;
-	u8			in_use;
 	u8			bw_weight;
 	u16			width;
 	u16			height;
-	u16			rd_idx;
-	u32			fmt;
 };
 
 struct solo_enc_buf {
@@ -170,7 +165,7 @@ struct solo6010_dev {
 	u16			enc_bw_remain;
 	/* IDX into hw mp4 encoder */
 	u8			enc_idx;
-	/* Out software ring of enc buf references */
+	/* Our software ring of enc buf references */
 	u16			enc_wr_idx;
 	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 
