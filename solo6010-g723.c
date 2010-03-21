@@ -237,7 +237,7 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 	}
 
 	solo_g723_config(solo_dev);
-	solo6010_irq_on(solo_dev, SOLO_IRQ_G723);
+	//solo6010_irq_on(solo_dev, SOLO_IRQ_G723);
 
 	return 0;
 }

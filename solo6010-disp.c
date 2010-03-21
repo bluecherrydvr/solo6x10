@@ -199,7 +199,7 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 	}
 
 	/* Default motion settings */
-        solo_reg_write(solo_dev, SOLO_VI_MOT_ADR, SOLO_VI_MOTION_EN(0xffff) |
+        solo_reg_write(solo_dev, SOLO_VI_MOT_ADR, SOLO_VI_MOTION_EN(0) |
 		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
 	solo_reg_write(solo_dev, SOLO_VI_MOT_CTRL,
 		       SOLO_VI_MOTION_FRAME_COUNT(3) |
@@ -209,6 +209,26 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);
+}
+
+void solo_motion_on(struct solo6010_dev *solo_dev, u8 ch)
+{
+	if (!solo_dev->motion_mask)
+		solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
+	solo_dev->motion_mask |= (1 << ch);
+	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
+		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
+		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
+}
+
+void solo_motion_off(struct solo6010_dev *solo_dev, u8 ch)
+{
+	solo_dev->motion_mask &= ~(1 << ch);
+	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
+		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
+		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
+	if (!solo_dev->motion_mask)
+		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 }
 
 int solo_disp_init(struct solo6010_dev *solo_dev)
@@ -234,6 +254,8 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 void solo_disp_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
+
+	solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_ZOOM_CTRL, 0);

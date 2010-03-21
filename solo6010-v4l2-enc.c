@@ -196,6 +196,9 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	/* Enables the standard encoder */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
 
+	/* Enable motion */
+	solo_motion_on(solo_dev, ch);
+
 	/* Settle down Beavis... */
 	mdelay(10);
 
@@ -222,6 +225,7 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 		return;
 
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
+	solo_motion_off(solo_dev, solo_enc->ch);
 }
 
 static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
@@ -498,6 +502,8 @@ void solo_motion_isr(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		struct solo_enc_dev *solo_enc = solo_dev->v4l2_enc[i];
+		if (!solo_enc)
+			continue;
 		if (!(status & (1 << i)) || solo_enc->motion_detected)
 			continue;
 		solo_enc->motion_detected = 1;
@@ -1331,8 +1337,6 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
 		 solo_dev->v4l2_enc[0]->vfd->num,
 		 solo_dev->v4l2_enc[solo_dev->nr_chans - 1]->vfd->num);
-
-	solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
 
 	return 0;
 }

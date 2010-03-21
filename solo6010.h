@@ -137,6 +137,7 @@ struct solo6010_dev {
 	u8 __iomem		*reg_base;
 	int			nr_chans;
 	u32			irq_mask;
+	u32			motion_mask;
 	spinlock_t		reg_io_lock;
 
 	/* tw28xx accounting */
@@ -265,5 +266,9 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
 int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size);
+
+/* Enable and disable motion sensing per-channel */
+void solo_motion_on(struct solo6010_dev *solo_dev, u8 ch);
+void solo_motion_off(struct solo6010_dev *solo_dev, u8 ch);
 
 #endif /* __SOLO6010_H */
