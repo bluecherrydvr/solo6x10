@@ -10,3 +10,5 @@
  - implement a buf flag in v4l2 api to signal motion event
  - implement a CID control for motion enable/disable and areas/thresholds
  - implement toggle to enable/disable motion markers
+
+- sound needs to be implemented
