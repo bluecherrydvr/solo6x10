@@ -27,6 +27,14 @@
 #define SOLO_VCLK_DELAY			3
 #define SOLO_PROGRESSIVE_VSIZE		1024
 
+#define SOLO_DEF_MOT_THRESH		0x0300
+#define SOLO_MOT_THRESH_W		64
+#define SOLO_MOT_THRESH_H		64
+#define SOLO_MOT_THRESH_SIZE		8192
+#define SOLO_MOT_THRESH_REAL		(SOLO_MOT_THRESH_W * SOLO_MOT_THRESH_H)
+#define SOLO_MOT_FLAG_SIZE		512
+#define SOLO_MOT_FLAG_AREA		(SOLO_MOT_FLAG_SIZE * 32)
+
 static unsigned video_type;
 module_param(video_type, uint, 0644);
 MODULE_PARM_DESC(video_nr, "video_type (0 = NTSC/Default, 1 = PAL)");
@@ -67,12 +75,30 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_CH_FORMAT,
 		       SOLO_VI_FD_SEL_MASK(0) | SOLO_VI_PROG_MASK(0));
 
-	/* XXX: Use this for stable check? */
+	/* TODO: Use this for stable check? */
 	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
 	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
-	solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG, 0);
+	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC) {
+		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
+			       SOLO_VI_PB_USER_MODE);
+		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
+			       SOLO_VI_PB_HSIZE(858) | SOLO_VI_PB_VSIZE(246));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
+			       SOLO_VI_PB_VSTART(4) |
+			       SOLO_VI_PB_VSTOP(4 + 240));
+	} else {
+		solo_reg_write(solo_dev, SOLO_VI_PB_CONFIG,
+			       SOLO_VI_PB_USER_MODE | SOLO_VI_PB_PAL);
+		solo_reg_write(solo_dev, SOLO_VI_PB_RANGE_HV,
+			       SOLO_VI_PB_HSIZE(864) | SOLO_VI_PB_VSIZE(294));
+		solo_reg_write(solo_dev, SOLO_VI_PB_ACT_V,
+			       SOLO_VI_PB_VSTART(4) |
+			       SOLO_VI_PB_VSTOP(4 + 288));
+	}
+	solo_reg_write(solo_dev, SOLO_VI_PB_ACT_H, SOLO_VI_PB_HSTART(16) |
+		       SOLO_VI_PB_HSTOP(16 + 720));
 }
 
 static void solo_disp_config(struct solo6010_dev *solo_dev)
@@ -127,9 +153,62 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 
 	/* Disable the watchdog */
 	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
+}
 
-	/* Test signal - BENC */
-	//solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, SOLO_VI_FMT_TEST_SIGNAL);
+static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,
+			       u16 val, int reg_size)
+{
+	u16 buf[64];
+	int i;
+	int ret = 0;
+
+	for (i = 0; i < sizeof(buf) >> 1; i++)
+		buf[i] = val;
+
+	for (i = 0; i < reg_size; i += sizeof(buf))
+		ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1, buf,
+				    SOLO_MOTION_EXT_ADDR(solo_dev) + off + i,
+				    sizeof(buf));
+
+	return ret;
+}
+
+/* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
+ * threshold and working table for each channel. Atleast that's what the
+ * spec says. However, this code (take from rdk) has some mystery 8k
+ * block right after the flag area, before the first thresh table. */
+static void solo_motion_config(struct solo6010_dev *solo_dev)
+{
+	int i;
+
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		/* Clear motion flag area */
+		solo_dma_vin_region(solo_dev, i * SOLO_MOT_FLAG_SIZE, 0x0000,
+				    SOLO_MOT_FLAG_SIZE);
+
+		/* Clear working cache table */
+		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
+				    SOLO_MOT_THRESH_SIZE +
+				    (i * SOLO_MOT_THRESH_SIZE * 2),
+				    0x0000, SOLO_MOT_THRESH_REAL);
+
+		/* Set default threshold table */
+		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
+				    (i * SOLO_MOT_THRESH_SIZE * 2),
+				    SOLO_DEF_MOT_THRESH, SOLO_MOT_THRESH_REAL);
+	}
+
+	/* Default motion settings */
+        solo_reg_write(solo_dev, SOLO_VI_MOT_ADR, SOLO_VI_MOTION_EN(0xffff) |
+		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
+	solo_reg_write(solo_dev, SOLO_VI_MOT_CTRL,
+		       SOLO_VI_MOTION_FRAME_COUNT(3) |
+		       SOLO_VI_MOTION_SAMPLE_LENGTH(solo_dev->video_hsize / 16)
+		       | //SOLO_VI_MOTION_INTR_START_STOP |
+		       SOLO_VI_MOTION_SAMPLE_COUNT(10));
+
+	solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
+	solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);
 }
 
 int solo_disp_init(struct solo6010_dev *solo_dev)
@@ -146,6 +225,7 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 	}
 
 	solo_vin_config(solo_dev);
+	solo_motion_config(solo_dev);
 	solo_disp_config(solo_dev);
 
 	return 0;

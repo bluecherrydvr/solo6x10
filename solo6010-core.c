@@ -65,13 +65,16 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 		solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_PCI_ERR);
 	}
 
-	for (i = 0; i < SOLO_NR_P2M; i++) {
+	for (i = 0; i < SOLO_NR_P2M; i++)
 		if (status & SOLO_IRQ_P2M(i))
 			solo_p2m_isr(solo_dev, i);
-	}
 
 	if (status & SOLO_IRQ_IIC)
 		solo_i2c_isr(solo_dev);
+
+	/* Call this first so enc gets detected flag set */
+	if (status & SOLO_IRQ_MOTION)
+		solo_motion_isr(solo_dev);
 
 	if (status & SOLO_IRQ_ENCODER)
 		solo_enc_v4l2_isr(solo_dev);
@@ -200,13 +203,13 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	if ((ret = solo_p2m_init(solo_dev)))
 		goto fail_probe;
 
+	if ((ret = solo_disp_init(solo_dev)))
+		goto fail_probe;
+
 	if ((ret = solo_gpio_init(solo_dev)))
 		goto fail_probe;
 
 	if ((ret = solo_tw28_init(solo_dev)))
-		goto fail_probe;
-
-	if ((ret = solo_disp_init(solo_dev)))
 		goto fail_probe;
 
 	if ((ret = solo_v4l2_init(solo_dev)))

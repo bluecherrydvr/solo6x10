@@ -322,10 +322,8 @@ static int solo_fill_mpeg(struct solo_enc_dev *solo_enc,
 	if (ret)
 		return -1;
 
-	if (vh.size > enc_buf->size) {
-		printk("vh.size shows too large\n");
+	if (vh.size > enc_buf->size)
 		return -1;
-	}
 
 	vb->width = vh.hsize << 4;
 	vb->height = vh.vsize << 4;
@@ -345,10 +343,9 @@ static int solo_fill_mpeg(struct solo_enc_dev *solo_enc,
 	if (ret)
 		return -1;
 
-	if (p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01 || p[3] != 0xb6) {
-		printk("Invalid mpeg data?\n");
+	/* Check for valid mpeg data */
+	if (p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01 || p[3] != 0xb6)
 		return -1;
-	}
 
 	/* If this is a key frame, add extra m4v header */
 	if (!enc_buf->vop) {
@@ -410,14 +407,11 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	     vb->bsize < enc_buf->size) ||
 	    (fh->fmt == V4L2_PIX_FMT_MJPEG &&
 	     vb->bsize < (enc_buf->jpeg_size + JPEG_HEADER_SIZE))) {
-		printk("Buffer too big for vb\n");
 		return -1;
 	}
 
-	if (!(vbuf = videobuf_to_vmalloc(vb))) {
-		printk("Faled to vmalloc\n");
+	if (!(vbuf = videobuf_to_vmalloc(vb)))
 		return -1;
-	}
 
 	/* Now that we know we have a valid buffer we care about. At this
 	 * point, if we fail, we have to show the buffer in an ERROR state */
@@ -489,6 +483,27 @@ static int solo_enc_thread(void *data)
 	remove_wait_queue(&solo_enc->thread_wait, &wait);
 
         return 0;
+}
+
+void solo_motion_isr(struct solo6010_dev *solo_dev)
+{
+	u32 status, sec, usec;
+	int i;
+
+	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_MOTION);
+
+	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
+	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
+	status = solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS);
+
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		struct solo_enc_dev *solo_enc = solo_dev->v4l2_enc[i];
+		if (!(status & (1 << i)) || solo_enc->motion_detected)
+			continue;
+		solo_enc->motion_detected = 1;
+		solo_enc->motion_sec = sec;
+		solo_enc->motion_usec = usec;
+	}
 }
 
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
@@ -860,6 +875,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	else
 		solo_enc->mode = SOLO_ENC_MODE_CIF;
 
+	/* This does not change the encoder at all */
 	fh->fmt = pix->pixelformat;
 
 	ret = solo_enc_on(fh);
@@ -925,7 +941,23 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 	}
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
-	return videobuf_dqbuf(&fh->vidq, buf, file->f_flags & O_NONBLOCK);
+	ret = videobuf_dqbuf(&fh->vidq, buf, file->f_flags & O_NONBLOCK);
+	if (ret)
+		return ret;
+
+	/* Fake bframe to signal motion detection */
+	if (solo_enc->motion_detected) {
+		buf->flags |= V4L2_BUF_FLAG_BFRAME;
+		solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
+			       1 << solo_enc->ch);
+		solo_enc->motion_detected = 0;
+	}
+
+	/* XXX Set key-frame/p-frame flag */
+	// buf->flags |= V4L2_BUF_FLAG_KEYFRAME;
+	// buf->flags |= V4L2_BUF_FLAG_PFRAME;
+
+	return 0;
 }
 
 static int solo_enc_streamon(struct file *file, void *priv,
@@ -1082,7 +1114,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 	switch (qc->id) {
 	case V4L2_CID_MPEG_VIDEO_ENCODING:
 		return v4l2_ctrl_query_fill(
-			qc, V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC,
+			qc, V4L2_MPEG_VIDEO_ENCODING_MPEG_1,
 			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC, 1,
 			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC);
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
@@ -1090,6 +1122,18 @@ static int solo_queryctrl(struct file *file, void *priv,
 	}
 
         return -EINVAL;
+}
+
+static int solo_querymenu(struct file *file, void *priv,
+			  struct v4l2_querymenu *qmenu)
+{
+	struct v4l2_queryctrl qctrl;
+	int err;
+
+	qctrl.id = qmenu->id;
+	if ((err = solo_queryctrl(file, priv, &qctrl)))
+		return err;
+	return v4l2_ctrl_query_menu(qmenu, &qctrl, NULL);
 }
 
 static int solo_g_ctrl(struct file *file, void *priv,
@@ -1192,6 +1236,7 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	.vidioc_g_parm			= solo_g_parm,
 	/* Controls */
 	.vidioc_queryctrl		= solo_queryctrl,
+	.vidioc_querymenu		= solo_querymenu,
 	.vidioc_g_ctrl			= solo_g_ctrl,
 	.vidioc_s_ctrl			= solo_s_ctrl,
 };
@@ -1287,12 +1332,16 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 		 solo_dev->v4l2_enc[0]->vfd->num,
 		 solo_dev->v4l2_enc[solo_dev->nr_chans - 1]->vfd->num);
 
+	solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
+
 	return 0;
 }
 
 void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
+
+	solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_enc_free(solo_dev->v4l2_enc[i]);

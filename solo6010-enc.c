@@ -36,8 +36,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_CAP_BASE,
 		       SOLO_CAP_MAX_PAGE(SOLO_CAP_EXT_MAX_PAGE *
 					 solo_dev->nr_chans) |
-		       SOLO_CAP_BASE_ADDR((SOLO_CAP_EXT_ADDR(solo_dev) >> 16) &
-					  0xffff));
+		       SOLO_CAP_BASE_ADDR(SOLO_CAP_EXT_ADDR(solo_dev) >> 16));
 	solo_reg_write(solo_dev, SOLO_CAP_BTW,
 		       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
 		       SOLO_CAP_MAX_BANDWIDTH(CAPTURE_MAX_BANDWIDTH));

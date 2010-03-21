@@ -113,6 +113,8 @@ struct solo_enc_dev {
 	u8			mode, gop, qp, interlaced, interval;
 	u8			reset_gop;
 	u8			bw_weight;
+	u8			motion_detected;
+	u32			motion_sec, motion_usec;
 	u16			width;
 	u16			height;
 };
@@ -251,6 +253,7 @@ void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
 void solo_g723_interrupt(struct solo6010_dev *solo_dev);
+void solo_motion_isr(struct solo6010_dev *solo_dev);
 
 /* i2c read/write */
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);
