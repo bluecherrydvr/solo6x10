@@ -23,6 +23,7 @@
 #include <linux/freezer.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
+#include <media/v4l2-common.h>
 
 #include "solo6010.h"
 
@@ -587,6 +588,83 @@ static int solo_s_std(struct file *file, void *priv, v4l2_std_id *i)
 	return 0;
 }
 
+static const u32 solo_motion_ctrls[] = {
+	V4L2_CID_MOTION_TRACE,
+	0
+};
+
+static const u32 *solo_ctrl_classes[] = {
+	solo_motion_ctrls,
+	NULL
+};
+
+static int solo_disp_queryctrl(struct file *file, void *priv,
+			       struct v4l2_queryctrl *qc)
+{
+	qc->id = v4l2_ctrl_next(solo_ctrl_classes, qc->id);
+	if (!qc->id)
+		return -EINVAL;
+
+	switch (qc->id) {
+#ifdef PRIVATE_CIDS
+	case V4L2_CID_MOTION_TRACE:
+		qc->type = V4L2_CTRL_TYPE_BOOLEAN;
+		qc->minimum = 0;
+		qc->maximum = qc->step = 1;
+		qc->default_value = 0;
+		strlcpy(qc->name, "Motion Detection Trace", sizeof(qc->name));
+		return 0;
+#else
+	case V4L2_CID_MOTION_TRACE:
+		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
+#endif
+	}
+	return -EINVAL;
+}
+
+static int solo_disp_g_ctrl(struct file *file, void *priv,
+			    struct v4l2_control *ctrl)
+{
+	struct solo_filehandle *fh = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	switch (ctrl->id) {
+	case V4L2_CID_MOTION_TRACE:
+		ctrl->value = solo_reg_read(solo_dev, SOLO_VI_MOTION_BAR)
+			? 1 : 0;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+static int solo_disp_s_ctrl(struct file *file, void *priv,
+			    struct v4l2_control *ctrl)
+{
+	struct solo_filehandle *fh = priv;
+	struct solo6010_dev *solo_dev = fh->solo_dev;
+
+	switch (ctrl->id) {
+	case V4L2_CID_MOTION_TRACE:
+		if (ctrl->value) {
+			solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER,
+					SOLO_VI_MOTION_Y_ADD |
+					SOLO_VI_MOTION_Y_VALUE(0x20) |
+					SOLO_VI_MOTION_CB_VALUE(0x10) |
+					SOLO_VI_MOTION_CR_VALUE(0x10));
+			solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR,
+					SOLO_VI_MOTION_CR_ADD |
+					SOLO_VI_MOTION_Y_VALUE(0x10) |
+					SOLO_VI_MOTION_CB_VALUE(0x80) |
+					SOLO_VI_MOTION_CR_VALUE(0x10));
+		} else {
+			solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
+			solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);
+		}
+		return 0;
+	}
+	return -EINVAL;
+}
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_v4l2_fops = {
 #else
@@ -620,6 +698,10 @@ static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 	.vidioc_dqbuf			= solo_dqbuf,
 	.vidioc_streamon		= solo_streamon,
         .vidioc_streamoff		= solo_streamoff,
+	/* Controls */
+	.vidioc_queryctrl		= solo_disp_queryctrl,
+        .vidioc_g_ctrl			= solo_disp_g_ctrl,
+        .vidioc_s_ctrl			= solo_disp_s_ctrl,
 };
 
 static struct video_device solo_v4l2_template = {

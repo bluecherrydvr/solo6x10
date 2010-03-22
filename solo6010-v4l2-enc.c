@@ -83,19 +83,9 @@ static const u32 solo_mpeg_ctrls[] = {
 	0
 };
 
-#ifndef V4L2_BUF_FLAG_MOTION
-#define V4L2_BUF_FLAG_MOTION		0x0400
-#endif
-#ifndef V4L2_CID_MOTION_ENABLE
-#define PRIVATE_CIDS
-#define V4L2_CID_MOTION_ENABLE		(V4L2_CID_PRIVATE_BASE+0)
-#define V4L2_CID_MOTION_THRESHOLD	(V4L2_CID_PRIVATE_BASE+1)
-#define V4L2_CID_MOTION_TRACE		(V4L2_CID_PRIVATE_BASE+2)
-#endif
 static const u32 solo_motion_ctrls[] = {
 	V4L2_CID_MOTION_ENABLE,
 	V4L2_CID_MOTION_THRESHOLD,
-	V4L2_CID_MOTION_TRACE,
 	0
 };
 
@@ -1186,20 +1176,11 @@ static int solo_queryctrl(struct file *file, void *priv,
 		qc->default_value = 0;
 		strlcpy(qc->name, "Motion Detection Enable", sizeof(qc->name));
 		return 0;
-	case V4L2_CID_MOTION_TRACE:
-		qc->type = V4L2_CTRL_TYPE_BOOLEAN;
-		qc->minimum = 0;
-		qc->maximum = qc->step = 1;
-		qc->default_value = 0;
-		strlcpy(qc->name, "Motion Detection Trace", sizeof(qc->name));
-		return 0;
 #else
 	case V4L2_CID_MOTION_THRESHOLD:
 		return v4l2_ctrl_query_fill(qc, 0, 0xffff, 1,
 					    SOLO_DEF_MOT_THRESH);
 	case V4L2_CID_MOTION_ENABLE:
-		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
-	case V4L2_CID_MOTION_TRACE:
 		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
 #endif
 	}
@@ -1245,10 +1226,6 @@ static int solo_g_ctrl(struct file *file, void *priv,
 	case V4L2_CID_MOTION_ENABLE:
 		ctrl->value = solo_is_motion_on(solo_enc);
 		break;
-	case V4L2_CID_MOTION_TRACE:
-		ctrl->value = solo_reg_read(solo_dev, SOLO_VI_MOTION_BAR)
-			? 1 : 0;
-		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -1293,23 +1270,6 @@ static int solo_s_ctrl(struct file *file, void *priv,
 			solo_motion_on(solo_enc);
 		else
 			solo_motion_off(solo_enc);
-		break;
-	case V4L2_CID_MOTION_TRACE:
-		if (ctrl->value) {
-			solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER,
-					SOLO_VI_MOTION_Y_ADD |
-					SOLO_VI_MOTION_Y_VALUE(0x20) |
-					SOLO_VI_MOTION_CB_VALUE(0x10) |
-					SOLO_VI_MOTION_CR_VALUE(0x10));
-			solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR,
-					SOLO_VI_MOTION_CR_ADD |
-					SOLO_VI_MOTION_Y_VALUE(0x10) |
-					SOLO_VI_MOTION_CB_VALUE(0x80) |
-					SOLO_VI_MOTION_CR_VALUE(0x10));
-		} else {
-			solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
-			solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);
-		}
 		break;
 	default:
 		ret = -EINVAL;
