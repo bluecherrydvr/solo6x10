@@ -114,6 +114,7 @@ struct solo_enc_dev {
 	u8			reset_gop;
 	u8			bw_weight;
 	u8			motion_detected;
+	u16			motion_thresh;
 	u32			motion_sec, motion_usec;
 	u16			width;
 	u16			height;
@@ -267,8 +268,8 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size);
 
-/* Enable and disable motion sensing per-channel */
-void solo_motion_on(struct solo6010_dev *solo_dev, u8 ch);
-void solo_motion_off(struct solo6010_dev *solo_dev, u8 ch);
+/* Set the threshold for motion detection */
+void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
+#define SOLO_DEF_MOT_THRESH		0x0300
 
 #endif /* __SOLO6010_H */

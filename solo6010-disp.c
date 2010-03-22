@@ -27,7 +27,6 @@
 #define SOLO_VCLK_DELAY			3
 #define SOLO_PROGRESSIVE_VSIZE		1024
 
-#define SOLO_DEF_MOT_THRESH		0x0300
 #define SOLO_MOT_THRESH_W		64
 #define SOLO_MOT_THRESH_H		64
 #define SOLO_MOT_THRESH_SIZE		8192
@@ -173,6 +172,16 @@ static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,
 	return ret;
 }
 
+void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
+{
+	if (ch > solo_dev->nr_chans)
+		return;
+
+	solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
+			    (ch * SOLO_MOT_THRESH_SIZE * 2),
+			    val, SOLO_MOT_THRESH_REAL);
+}
+
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
  * threshold and working table for each channel. Atleast that's what the
  * spec says. However, this code (take from rdk) has some mystery 8k
@@ -193,9 +202,7 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 				    0x0000, SOLO_MOT_THRESH_REAL);
 
 		/* Set default threshold table */
-		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
-				    (i * SOLO_MOT_THRESH_SIZE * 2),
-				    SOLO_DEF_MOT_THRESH, SOLO_MOT_THRESH_REAL);
+		solo_set_motion_threshold(solo_dev, i, SOLO_DEF_MOT_THRESH);
 	}
 
 	/* Default motion settings */
@@ -209,26 +216,6 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);
-}
-
-void solo_motion_on(struct solo6010_dev *solo_dev, u8 ch)
-{
-	if (!solo_dev->motion_mask)
-		solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
-	solo_dev->motion_mask |= (1 << ch);
-	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
-		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
-		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
-}
-
-void solo_motion_off(struct solo6010_dev *solo_dev, u8 ch)
-{
-	solo_dev->motion_mask &= ~(1 << ch);
-	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
-		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
-		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
-	if (!solo_dev->motion_mask)
-		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 }
 
 int solo_disp_init(struct solo6010_dev *solo_dev)
