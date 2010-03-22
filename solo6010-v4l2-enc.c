@@ -992,11 +992,14 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 		return ret;
 
 	/* Signal motion detection */
-	if (solo_enc->motion_detected) {
-		buf->flags |= V4L2_BUF_FLAG_MOTION;
-		solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
-			       1 << solo_enc->ch);
-		solo_enc->motion_detected = 0;
+	if (solo_is_motion_on(solo_enc)) {
+		buf->flags |= V4L2_BUF_FLAG_MOTION_ON;
+		if (solo_enc->motion_detected) {
+			buf->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
+			solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
+				       1 << solo_enc->ch);
+			solo_enc->motion_detected = 0;
+		}
 	}
 
 	return 0;
