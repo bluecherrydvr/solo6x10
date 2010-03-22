@@ -7,8 +7,8 @@
 - switch between 4 frames/irq to 1 when using mjpeg (and then back when not)
 
 - motion
- - implement a buf flag in v4l2 api to signal motion event
- - implement a CID control for motion enable/disable and areas/thresholds
+ - implement a CID control for areas/thresholds
  - implement toggle to enable/disable motion markers
+  - DONE: but not working
 
 - sound needs to be implemented
