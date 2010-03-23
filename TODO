@@ -1,14 +1,11 @@
 - encoder on/off controls
 - mpeg cid bitrate mode (vbr/cbr)
 - mpeg cid bitrate/bitrate-peak
-- Make it so we can have multiple readers
 - mpeg encode of user data
 - mpeg decode of user data
 - switch between 4 frames/irq to 1 when using mjpeg (and then back when not)
 
 - motion
  - implement a CID control for areas/thresholds
- - implement toggle to enable/disable motion markers
-  - DONE: but not working
 
 - sound needs to be implemented
