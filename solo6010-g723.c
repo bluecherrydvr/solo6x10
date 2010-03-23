@@ -33,10 +33,8 @@
 #define G723_MAX_ITEM		120
 #define G723_DEC_CHANNEL	17
 
-/* XXX: Why the descrepancy of outmode mask? */
-//#define OUTMODE_MASK		0x300
-#define OUTMODE_MASK		0x000
-//#define OUTMODE_MASK		0x3FF
+/* Sets up channels 16-19 for decoding and 0-15 for encoding */
+#define OUTMODE_MASK		0x300
 
 #define SAMPLERATE		8000
 #define BITRATE			25
@@ -52,10 +50,9 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 		       SOLO_AUDIO_CLK_DIV(clk_div));
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_FDMA_INTR,
-		       SOLO_AUDIO_FDMA_INTERVAL(1) |
-		       SOLO_AUDIO_INTR_ORDER(G723_INTR_ORDER) |
-		       SOLO_AUDIO_FDMA_BASE((SOLO_G723_EXT_ADDR(solo_dev) >> 16)
-		       & 0xffff));
+		      SOLO_AUDIO_FDMA_INTERVAL(1) |
+		      SOLO_AUDIO_INTR_ORDER(G723_INTR_ORDER) |
+		      SOLO_AUDIO_FDMA_BASE(SOLO_G723_EXT_ADDR(solo_dev) >> 16));
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_CONTROL,
 		       SOLO_AUDIO_ENABLE | SOLO_AUDIO_I2S_MODE |
