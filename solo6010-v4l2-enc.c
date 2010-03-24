@@ -161,8 +161,6 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
-	/* XXX GOP needs to be handled better */
-	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_enc->interlaced = (solo_enc->mode & 0x08) ? 1 : 0;
 	solo_enc->bw_weight = max(solo_dev->fps / solo_enc->interval, 1);
 
@@ -1133,6 +1131,7 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 
+	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_update_mode(solo_enc);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
