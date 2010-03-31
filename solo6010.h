@@ -33,8 +33,22 @@
 
 #include "solo6010-registers.h"
 
+#ifndef PCI_VENDOR_ID_SOFTLOGIC
 #define PCI_VENDOR_ID_SOFTLOGIC		0x9413
 #define PCI_DEVICE_ID_SOLO6010		0x6010
+#endif
+
+#ifndef PCI_VENDOR_ID_BLUECHERRY
+#define PCI_VENDOR_ID_BLUECHERRY	0x1BB3
+/* Neugent Softlogic 6010 based cards */
+#define PCI_DEVICE_ID_NEUSOLO_4		0x4304
+#define PCI_DEVICE_ID_NEUSOLO_9		0x4309
+#define PCI_DEVICE_ID_NEUSOLO_16	0x4310
+/* Commell Softlogic 6010 based cards */
+#define PCI_DEVICE_ID_COMMSOLO_4	0x4E04
+#define PCI_DEVICE_ID_COMMSOLO_9	0x4E09
+#define PCI_DEVICE_ID_COMMSOLO_16	0x4E10
+#endif /* Bluecherry */
 
 #define SOLO6010_NAME			"solo6010"
 
