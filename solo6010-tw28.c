@@ -439,8 +439,8 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 			tw2815_setup(solo_dev, TW_CHIP_OFFSET_ADDR(i));
 	}
 
-	dev_info(&solo_dev->pdev->dev, "Initialized %d tw28xx chips:",
-		 solo_dev->tw28_cnt);
+	dev_info(&solo_dev->pdev->dev, "Initialized %d tw28xx chip%s:",
+		 solo_dev->tw28_cnt, solo_dev->tw28_cnt == 1 ? "" : "s");
 
 	if (solo_dev->tw2864)
 		printk(" tw2864[%d]", hweight32(solo_dev->tw2864));
