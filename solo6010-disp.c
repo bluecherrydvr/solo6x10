@@ -36,7 +36,7 @@
 
 static unsigned video_type;
 module_param(video_type, uint, 0644);
-MODULE_PARM_DESC(video_nr, "video_type (0 = NTSC/Default, 1 = PAL)");
+MODULE_PARM_DESC(video_type, "video_type (0 = NTSC/Default, 1 = PAL)");
 
 static void solo_vin_config(struct solo6010_dev *solo_dev)
 {
