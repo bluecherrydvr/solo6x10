@@ -47,9 +47,9 @@
 int solo_tw28_init(struct solo6010_dev *solo_dev);
 
 int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
-		      __s32 val);
+		      s32 val);
 int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
-		      __s32 *val);
+		      s32 *val);
 
 #if 0
 unsigned int tw2815_get_video_status(struct SOLO6010 *solo6010);

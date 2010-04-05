@@ -34,13 +34,13 @@
 #define DEFAULT_VACTIVE_PAL		(312-DEFAULT_VDELAY_PAL)
 
 static u8 tbl_tw2864_template[] = {
-	0x00, 0xd4, 0x70, 0x30, 0x80, 0x80, 0x00, 0x02, // 0x00
+	0x00, 0x00, 0x80, 0x10, 0x80, 0x80, 0x00, 0x02, // 0x00
 	0x12, 0xf5, 0x09, 0xd0, 0x00, 0x00, 0x00, 0x7f,
-	0x00, 0xd4, 0x70, 0x30, 0x80, 0x80, 0x00, 0x02, // 0x10
+	0x00, 0x00, 0x80, 0x10, 0x80, 0x80, 0x00, 0x02, // 0x10
 	0x12, 0xf5, 0x09, 0xd0, 0x00, 0x00, 0x00, 0x7f,
-	0x00, 0xd4, 0x70, 0x30, 0x80, 0x80, 0x00, 0x02, // 0x20
+	0x00, 0x00, 0x80, 0x10, 0x80, 0x80, 0x00, 0x02, // 0x20
 	0x12, 0xf5, 0x09, 0xd0, 0x00, 0x00, 0x00, 0x7f,
-	0x00, 0xd4, 0x70, 0x30, 0x80, 0x80, 0x00, 0x02, // 0x30
+	0x00, 0x00, 0x80, 0x10, 0x80, 0x80, 0x00, 0x02, // 0x30
 	0x12, 0xf5, 0x09, 0xd0, 0x00, 0x00, 0x00, 0x7f,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x40
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -499,9 +499,10 @@ u16 tw28_get_audio_status(struct solo6010_dev *solo_dev)
 }
 #endif
 int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
-		      __s32 val)
+		      s32 val)
 {
-	int ret = 0;
+	char sval;
+
 	/* Get the right chip and on-chip channel */
 	u8 chip_num = ch / 4;
 
@@ -512,14 +513,12 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 
 	switch (ctrl) {
 	case V4L2_CID_HUE:
-		if (is_tw286x(solo_dev, chip_num)) {
-			if (val >= 125)
-				val -= 125;
-			else
-				val += 125;
-		}
+		if (is_tw286x(solo_dev, chip_num))
+			sval = val - 128;
+		else
+			sval = (char)val;
 		tw_writebyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
-			     TW_HUE_ADDR(ch), val);
+			     TW_HUE_ADDR(ch), sval);
 
 		break;
 
@@ -540,29 +539,25 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		break;
 
 	case V4L2_CID_BRIGHTNESS:
-		if (is_tw286x(solo_dev, chip_num)) {
-			if (val == 125 || !val)
-				val = 212;
-			else if (val > 125)
-				val -= 125;
-			else
-				val += 125;
-		}
+		if (is_tw286x(solo_dev, chip_num))
+			sval = val - 128;
+		else
+			sval = (char)val;
 		tw_writebyte(solo_dev, chip_num, TW286x_BRIGHTNESS_ADDR(ch),
-			     TW_BRIGHTNESS_ADDR(ch), val);
+			     TW_BRIGHTNESS_ADDR(ch), sval);
 
 		break;
 	default:
-		ret = -EINVAL;
+		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
 int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
-		      __s32 *val)
+		      s32 *val)
 {
-	int ret = 0;
+	u8 rval;
 	/* Get the right chip and on-chip channel */
 	u8 chip_num = ch / 4;
 
@@ -570,8 +565,12 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 
 	switch (ctrl) {
 	case V4L2_CID_HUE:
-		*val = tw_readbyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
+		rval = tw_readbyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
 				   TW_HUE_ADDR(ch));
+		if (is_tw286x(solo_dev, chip_num))
+			*val = (s32)((char)rval) + 128;
+		else
+			*val = rval;
 		break;
 	case V4L2_CID_SATURATION:
 		*val = tw_readbyte(solo_dev, chip_num,
@@ -584,15 +583,19 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 				   TW_CONTRAST_ADDR(ch));
 		break;
 	case V4L2_CID_BRIGHTNESS:
-		*val = tw_readbyte(solo_dev, chip_num,
+		rval = tw_readbyte(solo_dev, chip_num,
 				   TW286x_BRIGHTNESS_ADDR(ch),
 				   TW_BRIGHTNESS_ADDR(ch));
+		if (is_tw286x(solo_dev, chip_num)) 
+			*val = (s32)((char)rval) + 128;
+		else
+			*val = rval;
 		break;
 	default:
-		ret = -EINVAL;
+		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 #if 0
 /*
