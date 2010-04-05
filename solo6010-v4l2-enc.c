@@ -74,6 +74,7 @@ static const u32 solo_user_ctrls[] = {
 	V4L2_CID_CONTRAST,
 	V4L2_CID_SATURATION,
 	V4L2_CID_HUE,
+	V4L2_CID_SHARPNESS,
 	0
 };
 
@@ -1149,10 +1150,14 @@ static int solo_queryctrl(struct file *file, void *priv,
 	if (!qc->id)
 		return -EINVAL;
 
-	if (V4L2_CTRL_ID2CLASS(qc->id) == V4L2_CTRL_CLASS_USER)
-		return v4l2_ctrl_query_fill(qc, 0x0, 0xff, 1, 0x80);
-
 	switch (qc->id) {
+	case V4L2_CID_BRIGHTNESS:
+	case V4L2_CID_CONTRAST:
+	case V4L2_CID_SATURATION:
+	case V4L2_CID_HUE:
+		return v4l2_ctrl_query_fill(qc, 0x00, 0xff, 1, 0x80);
+	case V4L2_CID_SHARPNESS:
+		return v4l2_ctrl_query_fill(qc, 0x00, 0x0f, 1, 0x00);
 	case V4L2_CID_MPEG_VIDEO_ENCODING:
 		return v4l2_ctrl_query_fill(
 			qc, V4L2_MPEG_VIDEO_ENCODING_MPEG_1,

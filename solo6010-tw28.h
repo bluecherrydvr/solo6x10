@@ -41,6 +41,7 @@
 #define TW286x_SATURATIONV_ADDR(n)		(0x05 | ((n) << 4))
 #define TW286x_CONTRAST_ADDR(n)			(0x02 | ((n) << 4))
 #define TW286x_BRIGHTNESS_ADDR(n)		(0x01 | ((n) << 4))
+#define TW286x_SHARPNESS(n)			(0x03 | ((n) << 4))
 #define TW286x_AUDIO_OUTPUT_VOL_ADDR		0xdf
 #define TW286x_AUDIO_INPUT_GAIN_ADDR(n)		(0xD0+((n==3)|(n==4)))
 

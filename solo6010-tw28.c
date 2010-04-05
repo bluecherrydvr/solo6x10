@@ -70,13 +70,13 @@ static u8 tbl_tw2864_template[] = {
 
 #define is_tw286x(__solo, __id) (!(__solo->tw2815 & (1 << __id)))
 
-static u8 tw_readbyte(struct solo6010_dev *solo_dev, int chip_id, u8 tw68x_off,
+static u8 tw_readbyte(struct solo6010_dev *solo_dev, int chip_id, u8 tw6x_off,
 		      u8 tw_off)
 {
 	if (is_tw286x(solo_dev, chip_id))
 		return solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 					 TW_CHIP_OFFSET_ADDR(chip_id),
-					 tw68x_off);
+					 tw6x_off);
 	else
 		return solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 					 TW_CHIP_OFFSET_ADDR(chip_id),
@@ -84,12 +84,12 @@ static u8 tw_readbyte(struct solo6010_dev *solo_dev, int chip_id, u8 tw68x_off,
 }
 
 static void tw_writebyte(struct solo6010_dev *solo_dev, int chip_id,
-			 u8 tw68x_off, u8 tw_off, u8 val)
+			 u8 tw6x_off, u8 tw_off, u8 val)
 {
 	if (is_tw286x(solo_dev, chip_id))
 		solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
 				   TW_CHIP_OFFSET_ADDR(chip_id),
-				   tw68x_off, val);
+				   tw6x_off, val);
 	else
 		solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
 				   TW_CHIP_OFFSET_ADDR(chip_id),
@@ -512,6 +512,23 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		return -ERANGE;
 
 	switch (ctrl) {
+	case V4L2_CID_SHARPNESS:
+		/* Only 286x has sharpness */
+		if (val > 0x0f || val < 0)
+			return -ERANGE;
+		if (is_tw286x(solo_dev, chip_num)) {
+			u8 v = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
+						 TW_CHIP_OFFSET_ADDR(chip_num),
+						 TW286x_SHARPNESS(chip_num));
+			v &= 0xf0;
+			v |= val;
+			solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
+					   TW_CHIP_OFFSET_ADDR(chip_num),
+					   TW286x_SHARPNESS(chip_num), v);
+		} else if (val != 0)
+			return -ERANGE;
+		break;
+
 	case V4L2_CID_HUE:
 		if (is_tw286x(solo_dev, chip_num))
 			sval = val - 128;
@@ -564,6 +581,16 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 	ch %= 4;
 
 	switch (ctrl) {
+	case V4L2_CID_SHARPNESS:
+		/* Only 286x has sharpness */
+		if (is_tw286x(solo_dev, chip_num)) {
+                        rval = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
+						 TW_CHIP_OFFSET_ADDR(chip_num),
+						 TW286x_SHARPNESS(chip_num));
+			*val = rval & 0x0f;
+		} else
+			*val = 0;
+		break;
 	case V4L2_CID_HUE:
 		rval = tw_readbyte(solo_dev, chip_num, TW286x_HUE_ADDR(ch),
 				   TW_HUE_ADDR(ch));
