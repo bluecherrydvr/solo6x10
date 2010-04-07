@@ -29,7 +29,7 @@
 #include <asm/atomic.h>
 
 #include <linux/videodev2.h>
-#include <media/videobuf-vmalloc.h>
+#include <media/videobuf-core.h>
 
 #include "solo6010-registers.h"
 

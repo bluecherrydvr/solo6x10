@@ -21,9 +21,11 @@
 #include <linux/module.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-common.h>
+#include <media/videobuf-dma-contig.h>
 
 #include "solo6010.h"
 
@@ -34,18 +36,11 @@
 #define SOLO_DEFAULT_CHAN	0
 #define SOLO_DISP_BUF_SIZE	(64 * 1024) // 64k
 
-//#define COPY_WHOLE_LINE
-
 /* Image size is two fields, SOLO_HW_BPL is one horizontal line */
 #define solo_vlines(__solo)	(__solo->video_vsize * 2)
 #define solo_image_size(__solo) (solo_bytesperline(__solo) * \
 				 solo_vlines(__solo))
-
-#ifdef COPY_WHOLE_LINE
-#define solo_bytesperline(__solo) SOLO_HW_BPL
-#else
 #define solo_bytesperline(__solo) (__solo->video_hsize * 2)
-#endif
 
 #define MIN_VID_BUFFERS		4
 
@@ -55,7 +50,6 @@ struct solo_filehandle {
 	struct videobuf_queue	vidq;
 	struct task_struct      *kthread;
 	spinlock_t		slock;
-	u8			vout_buf[SOLO_DISP_BUF_SIZE];
 	int			old_write;
 	struct list_head	vidq_active;
 	wait_queue_head_t	thread_wait;
@@ -127,14 +121,14 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 			 struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
-	u8 *vbuf;
+	dma_addr_t vbuf;
 	unsigned int fdma_addr;
 	int cur_write;
 	int frame_size;
 	int error = 1;
 	int i;
 
-	if (!(vbuf = videobuf_to_vmalloc(vb)))
+	if (!(vbuf = videobuf_to_dma_contig(vb)))
 		goto finish_buf;
 
 	/* XXX: Is this really a good idea? */
@@ -149,10 +143,11 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	fh->old_write = cur_write;
 
 	if (erase_off(solo_dev)) {
+		void *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 		int image_size = solo_image_size(solo_dev);
 		for (i = 0; i < image_size; i += 2) {
-			((u8 *)vbuf)[i] = 0x80;
-			((u8 *)vbuf)[i + 1] = 0x00;
+			((u8 *)p)[i] = 0x80;
+			((u8 *)p)[i + 1] = 0x00;
 		}
 		error = 0;
 		goto finish_buf;
@@ -162,23 +157,14 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (cur_write * frame_size);
 
 	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
-#ifdef COPY_WHOLE_LINE
-		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
-				 vbuf, fdma_addr, SOLO_DISP_BUF_SIZE) < 0)
-			goto finish_buf;
-		vbuf += SOLO_DISP_BUF_SIZE;
-#else
 		int j;
-		if (solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
-				 fh->vout_buf, fdma_addr,
-				 SOLO_DISP_BUF_SIZE) < 0)
-			goto finish_buf;
 		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_HW_BPL); j++) {
-			memcpy(vbuf, fh->vout_buf + (j * SOLO_HW_BPL),
-			       solo_bytesperline(solo_dev));
+			if (solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
+					   vbuf, fdma_addr + (j * SOLO_HW_BPL),
+					   solo_bytesperline(solo_dev)))
+				goto finish_buf;
 			vbuf += solo_bytesperline(solo_dev);
 		}
-#endif
 		fdma_addr += SOLO_DISP_BUF_SIZE;
 	}
 	error = 0;
@@ -298,7 +284,7 @@ static int solo_buf_prepare(struct videobuf_queue *vq,
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 		int rc = videobuf_iolock(vq, vb, NULL);
 		if (rc < 0) {
-			videobuf_vmalloc_free(vb);
+			videobuf_dma_contig_free(vq, vb);
 			vb->state = VIDEOBUF_NEEDS_INIT;
 			return rc;
 		}
@@ -321,7 +307,7 @@ static void solo_buf_queue(struct videobuf_queue *vq,
 static void solo_buf_release(struct videobuf_queue *vq,
 			     struct videobuf_buffer *vb)
 {
-	videobuf_vmalloc_free(vb);
+	videobuf_dma_contig_free(vq, vb);
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
@@ -371,8 +357,8 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 		return ret;
 	}
 
-	videobuf_queue_vmalloc_init(&fh->vidq, &solo_video_qops,
-				    NULL, &fh->slock,
+	videobuf_queue_dma_contig_init(&fh->vidq, &solo_video_qops,
+				    &solo_dev->pdev->dev, &fh->slock,
 				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				    SOLO_DISP_PIX_FIELD,
 				    sizeof(struct videobuf_buffer), fh);
