@@ -21,6 +21,7 @@
 #include <linux/poll.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
+#include <linux/version.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -202,10 +203,17 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 	struct snd_card *card;
 	int ret;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29)
 	ret = snd_card_create(SNDRV_DEFAULT_IDX1, "Softlogic",
 			      THIS_MODULE, 0, &solo_dev->snd_card);
 	if (ret < 0)
 		return ret;
+#else
+	solo_dev->snd_card = snd_card_new(SNDRV_DEFAULT_IDX1, "Softlogic",
+					  THIS_MODULE, 0);
+	if (solo_dev->snd_card == NULL)
+		return -ENOMEM;
+#endif
 
 	card = solo_dev->snd_card;
 
