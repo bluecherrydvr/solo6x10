@@ -85,26 +85,32 @@ start_dma:
 }
 
 #ifdef SOLO_TEST_P2M
-static int p2m_test(struct solo6010_dev *solo_dev, u8 id, u32 base, int size,
-		    unsigned char a)
+
+#define P2M_TEST_CHAR		0xbe
+
+static unsigned long long p2m_test(struct solo6010_dev *solo_dev, u8 id,
+				   u32 base, int size)
 {
 	u8 *wr_buf;
 	u8 *rd_buf;
 	int i;
-	int err_cnt = 0;
+	unsigned long long err_cnt = 0;
 
 	wr_buf = kmalloc(size, GFP_KERNEL);
-	if (!wr_buf)
-		return -1;
+	if (!wr_buf) {
+		printk(SOLO6010_NAME ": Failed to malloc for p2m_test\n");
+		return size;
+	}
 
 	rd_buf = kmalloc(size, GFP_KERNEL);
 	if (!rd_buf) {
+		printk(SOLO6010_NAME ": Failed to malloc for p2m_test\n");
 		kfree(wr_buf);
-		return -1;
+		return size;
 	}
 
-	memset(wr_buf, a, size);
-	memset(rd_buf, a + 1, size);
+	memset(wr_buf, P2M_TEST_CHAR, size);
+	memset(rd_buf, P2M_TEST_CHAR + 1, size);
 
 	solo_p2m_dma(solo_dev, id, 1, wr_buf, base, size);
 	solo_p2m_dma(solo_dev, id, 0, rd_buf, base, size);
@@ -119,16 +125,22 @@ static int p2m_test(struct solo6010_dev *solo_dev, u8 id, u32 base, int size,
 	return err_cnt;
 }
 
+#define TEST_CHUNK_SIZE		(8 * 1024)
+
 static void run_p2m_test(struct solo6010_dev *solo_dev)
 {
-	int i, j, errs = 0;
-	u8 a;
+	unsigned long long errs = 0;
+	u32 size = SOLO_JPEG_EXT_ADDR(solo_dev) + SOLO_JPEG_EXT_SIZE(solo_dev);
+	int i, d;
 
-	for (j = 0; j < SOLO_NR_P2M; j++)
-		for (i = 0, a = 0xff; i < 256; i++, a--)
-			errs += p2m_test(solo_dev, j, 0, 32, a);
+	printk(KERN_WARNING "%s: Testing %u bytes of external ram\n",
+	       SOLO6010_NAME, size);
 
-	printk(KERN_WARNING "%s: Found %d errors during p2m test\n",
+	for (i = 0; i < size; i += TEST_CHUNK_SIZE)
+		for (d = 0; d < 4; d++)
+			errs += p2m_test(solo_dev, d, i, TEST_CHUNK_SIZE);
+
+	printk(KERN_WARNING "%s: Found %llu errors during p2m test\n",
 	       SOLO6010_NAME, errs);
 
 	return;
