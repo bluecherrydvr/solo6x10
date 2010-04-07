@@ -360,9 +360,14 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 
-	jpeg_set_header(p, solo_enc->width, solo_enc->height);
-	vbuf += JPEG_HEADER_SIZE;
-	vb->size = enc_buf->jpeg_size + JPEG_HEADER_SIZE;
+	memcpy(p, jpeg_header, sizeof(jpeg_header));
+	p[SOF0_START + 5] = 0xff & (solo_enc->height >> 8);
+	p[SOF0_START + 6] = 0xff & solo_enc->height;
+	p[SOF0_START + 7] = 0xff & (solo_enc->width >> 8);
+	p[SOF0_START + 8] = 0xff & solo_enc->width;
+
+	vbuf += sizeof(jpeg_header);
+	vb->size = enc_buf->jpeg_size + sizeof(jpeg_header);
 
 	return enc_get_jpeg_dma(solo_dev, vbuf, enc_buf->jpeg_off,
 				enc_buf->jpeg_size);
@@ -468,7 +473,7 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	if ((fh->fmt == V4L2_PIX_FMT_MPEG &&
 	     vb->bsize < enc_buf->size) ||
 	    (fh->fmt == V4L2_PIX_FMT_MJPEG &&
-	     vb->bsize < (enc_buf->jpeg_size + JPEG_HEADER_SIZE))) {
+	     vb->bsize < (enc_buf->jpeg_size + sizeof(jpeg_header)))) {
 		return -1;
 	}
 
