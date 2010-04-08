@@ -88,16 +88,24 @@ static const u32 solo_mpeg_ctrls[] = {
 	0
 };
 
-static const u32 solo_motion_ctrls[] = {
+static const u32 solo_private_ctrls[] = {
 	V4L2_CID_MOTION_ENABLE,
 	V4L2_CID_MOTION_THRESHOLD,
+	0
+};
+
+static const u32 solo_fmtx_ctrls[] = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	V4L2_CID_RDS_TX_RADIO_TEXT,
+#endif
 	0
 };
 
 static const u32 *solo_ctrl_classes[] = {
 	solo_user_ctrls,
 	solo_mpeg_ctrls,
-	solo_motion_ctrls,
+	solo_fmtx_ctrls,
+	solo_private_ctrls,
 	NULL
 };
 
@@ -1217,6 +1225,16 @@ static int solo_queryctrl(struct file *file, void *priv,
 	case V4L2_CID_MOTION_ENABLE:
 		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+	case V4L2_CID_RDS_TX_RADIO_TEXT:
+		qc->type = V4L2_CTRL_TYPE_STRING;
+		qc->minimum = 0;
+		qc->maximum = OSD_TEXT_MAX;
+		qc->step = 1;
+		qc->default_value = 0;
+		strlcpy(qc->name, "OSD Text", sizeof(qc->name));
+		return 0;
+#endif
 	}
 
         return -EINVAL;
@@ -1316,6 +1334,82 @@ static int solo_s_ctrl(struct file *file, void *priv,
 	return 0;
 }
 
+static int solo_s_ext_ctrls(struct file *file, void *priv,
+			    struct v4l2_ext_controls *ctrls)
+{
+	struct solo_enc_fh *fh = priv;
+	struct solo_enc_dev *solo_enc = fh->enc;
+	int i;
+
+	for (i = 0; i < ctrls->count; i++) {
+		struct v4l2_ext_control *ctrl = (ctrls->controls + i);
+		int err;
+
+		switch (ctrl->id) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		case V4L2_CID_RDS_TX_RADIO_TEXT:
+			if (ctrl->size - 1 > OSD_TEXT_MAX)
+                                err = -ERANGE;
+			else {
+                        	err = copy_from_user(solo_enc->osd_text,
+						     ctrl->string,
+						     OSD_TEXT_MAX);
+				solo_enc->osd_text[OSD_TEXT_MAX] = '\0';
+				if (!err)
+					err = solo_osd_print(solo_enc);
+			}
+			break;
+#endif
+		default:
+			err = -EINVAL;
+		}
+
+		if (err < 0) {
+			ctrls->error_idx = i;
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+static int solo_g_ext_ctrls(struct file *file, void *priv,
+			    struct v4l2_ext_controls *ctrls)
+{
+	struct solo_enc_fh *fh = priv;
+	struct solo_enc_dev *solo_enc = fh->enc;
+	int i;
+
+	for (i = 0; i < ctrls->count; i++) {
+		struct v4l2_ext_control *ctrl = (ctrls->controls + i);
+		int err;
+
+		switch (ctrl->id) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+		case V4L2_CID_RDS_TX_RADIO_TEXT:
+			if (ctrl->size < OSD_TEXT_MAX) {
+				ctrl->size = OSD_TEXT_MAX;
+				err = -ENOSPC;
+			} else {
+				err = copy_to_user(ctrl->string,
+						   solo_enc->osd_text,
+						   OSD_TEXT_MAX);
+			}
+			break;
+#endif
+		default:
+			err = -EINVAL;
+		}
+
+		if (err < 0) {
+			ctrls->error_idx = i;
+			return err;
+		}
+	}
+
+	return 0;
+}
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
 #else
@@ -1362,6 +1456,8 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	.vidioc_querymenu		= solo_querymenu,
 	.vidioc_g_ctrl			= solo_g_ctrl,
 	.vidioc_s_ctrl			= solo_s_ctrl,
+	.vidioc_g_ext_ctrls		= solo_g_ext_ctrls,
+	.vidioc_s_ext_ctrls		= solo_s_ext_ctrls,
 };
 
 static struct video_device solo_enc_template = {

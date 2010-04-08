@@ -126,6 +126,8 @@ struct solo_p2m_dev {
 	u8			desc[SOLO_P2M_DESC_SIZE];
 };
 
+#define OSD_TEXT_MAX		20
+
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
 	/* V4L2 Items */
@@ -143,6 +145,7 @@ struct solo_enc_dev {
 	u32			motion_sec, motion_usec;
 	u16			width;
 	u16			height;
+	char			osd_text[OSD_TEXT_MAX + 1];
 };
 
 struct solo_enc_buf {
@@ -296,5 +299,8 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
 #define SOLO_DEF_MOT_THRESH		0x0300
+
+/* Write text on OSD */
+int solo_osd_print(struct solo_enc_dev *solo_enc);
 
 #endif /* __SOLO6010_H */
