@@ -60,7 +60,7 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 		       SOLO_AUDIO_I2S_MULTI(3) | SOLO_AUDIO_MODE(OUTMODE_MASK));
 }
 
-void solo_g723_interrupt(struct solo6010_dev *solo_dev)
+void solo_g723_isr(struct solo6010_dev *solo_dev)
 {
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_G723);
 }

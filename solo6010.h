@@ -126,7 +126,7 @@ struct solo_p2m_dev {
 	u8			desc[SOLO_P2M_DESC_SIZE];
 };
 
-#define OSD_TEXT_MAX		20
+#define OSD_TEXT_MAX		30
 
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
@@ -282,7 +282,7 @@ int solo_i2c_isr(struct solo6010_dev *solo_dev);
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
-void solo_g723_interrupt(struct solo6010_dev *solo_dev);
+void solo_g723_isr(struct solo6010_dev *solo_dev);
 void solo_motion_isr(struct solo6010_dev *solo_dev);
 
 /* i2c read/write */
