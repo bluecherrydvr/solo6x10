@@ -1,0 +1,3 @@
+*.[ch]			usr/src/solo6010-#VERSION#
+Makefile		usr/src/solo6010-#VERSION#
+debian/dkms.conf	usr/src/solo6010-#VERSION#

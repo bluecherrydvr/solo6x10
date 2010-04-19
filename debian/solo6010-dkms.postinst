@@ -1,0 +1,43 @@
+#!/bin/sh
+set -e
+
+PKG="solo6010-dkms"
+MOD="solo6010"
+PKGVER=`dpkg-query -W -f='${Version}' "$PKG" | cut -d: -f2 | cut -f1 -d-`
+
+case "$1" in
+        configure)
+                echo "Removing all [$MOD-$PKGVER] DKMS Modules"
+                dkms remove -m $MOD -v $PKGVER --all >/dev/null || true
+                echo "Done."
+                echo "Adding [$MOD-$PKGVER] Module to DKMS build system"
+                dkms add -m $MOD -v $PKGVER >/dev/null
+                if ! dpkg --status linux-headers-`uname -r` 2>/dev/null | grep -qs "Status: install ok installed"; then
+                        flavor=`uname -r | sed "s/.*-//"`
+                        echo
+                        echo "*************************************************"
+                        echo "ERROR: Missing kernel headers."
+                        echo
+                        echo "You appear to have at least some kernel headers"
+                        echo "installed, but you do not have the necessary"
+                        echo "headers to build $PKG against this kernel."
+                        echo
+                        echo "You might try installing the meta package:"
+                        echo " $ sudo apt-get install linux-headers-$flavor"
+                        echo "or specifically"
+                        echo " $ sudo apt-get install linux-headers-"`uname -r`
+                        echo "to obtain the necessary build dependencies."
+                        echo
+                        echo "*************************************************"
+                        echo
+                        exit 1
+                fi
+                echo "Doing initial module build"
+                dkms build -m $MOD -v $PKGVER >/dev/null
+                echo "Installing initial module"
+                dkms install -m $MOD -v $PKGVER >/dev/null
+                echo "Done."
+        ;;
+esac
+
+#DEBHELPER#

@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+# Copyright (C) 2010 Ben Collins <bcollins@bluecherry.com>
+# Copyright (C) 2009 Alberto Milone
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+
+DRIVER_NAME := solo6010
+VERSION := $(shell dpkg-parsechangelog | grep '^Version:' | cut -d' ' -f2 | cut -d- -f1 | cut -d\: -f2)
+PKG  := $(DRIVER_NAME)-dkms
+
+configure/$(PKG)::
+	for i in dkms.conf				\
+		$(PKG).install; do			\
+		sed -e "s|#VERSION#|$(VERSION)|"	\
+			debian/$$i.in > debian/$$i;	\
+	done
+
+clean::
+	rm -f debian/dkms.conf debian/$(PKG).install
+	rm -rf $(CURDIR)/$(PKG)

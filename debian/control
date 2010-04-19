@@ -1,0 +1,13 @@
+Source: solo6010
+Section: kernel
+Priority: optional
+Maintainer: Ben Collins <bcollins@bluecherry.com>
+Build-Depends: debhelper (>= 7)
+Standards-Version: 3.8.4
+
+Package: solo6010-dkms
+Architecture: all
+Depends: dkms, make, gcc
+Description: Softlogic 6010 Video4Linux MPEG-4 Encoder/Decoder support
+ This package provides support for Softlogic 6010 MPEG encoder/decoder
+ boards through the dkms kernel module build system.

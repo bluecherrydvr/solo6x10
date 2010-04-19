@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+PKG="solo6010-dkms"
+MOD="solo6010"
+PKGVER=`dpkg-query -W -f='${Version}' "$PKG" | cut -d: -f2 | cut -f1 -d-`
+
+case "$1" in
+	remove|upgrade)
+		echo "Removing all [$MOD-$PKGVER] DKMS Modules"
+		dkms remove -m $MOD -v $PKGVER --all >/dev/null || true
+		echo "Done."
+	;;
+esac
+
+#DEBHELPER#
