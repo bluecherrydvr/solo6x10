@@ -1,7 +1,7 @@
 Source: solo6010
 Section: kernel
 Priority: optional
-Maintainer: Ben Collins <bcollins@bluecherry.com>
+Maintainer: Ben Collins <bcollins@bluecherry.net>
 Build-Depends: debhelper (>= 7)
 Standards-Version: 3.8.4
 

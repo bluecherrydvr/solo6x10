@@ -1,5 +1,5 @@
 #!/usr/bin/make -f
-# Copyright (C) 2010 Ben Collins <bcollins@bluecherry.com>
+# Copyright (C) 2010 Ben Collins <bcollins@bluecherry.net>
 # Copyright (C) 2009 Alberto Milone
 
 include /usr/share/cdbs/1/rules/debhelper.mk
