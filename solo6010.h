@@ -209,10 +209,9 @@ struct solo6010_dev {
 	u8			fps;
 
 	/* Audio components */
-	struct snd_card			*snd_card;
-	struct snd_pcm			*snd_pcm;
-	struct snd_pcm_substream	*psubs;
-	struct snd_pcm_substream	*csubs;
+	struct snd_card		*snd_card;
+	struct snd_pcm		*snd_pcm;
+	atomic_t		snd_users;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)

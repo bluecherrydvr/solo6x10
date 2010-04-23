@@ -9,3 +9,6 @@
  - implement a CID control for areas/thresholds
 
 - sound needs to be implemented
+
+- Needed for v4l2-enc, so each device can advertise its sound dev
+	pcm->card->number, pcm->device, ss->number
