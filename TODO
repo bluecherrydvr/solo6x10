@@ -8,7 +8,11 @@
 - motion
  - implement a CID control for areas/thresholds
 
-- sound needs to be implemented
+- sound
+ - implement copy of buffers
+ - decide if g723 decode is done in-kernel or user-space
+ - implement playback via external sound jack
+ - implement loopback of external sound jack with incoming audio?
+ - mixer controls
 
-- Needed for v4l2-enc, so each device can advertise its sound dev
-	pcm->card->number, pcm->device, ss->number
+- v4l display should have a read-only numeric for number of channels
