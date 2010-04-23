@@ -40,11 +40,16 @@
 #define SAMPLERATE		8000
 #define BITRATE			25
 
+#define PERIOD_BYTES		256
+#define PERIOD_MAX		64
+#define MAX_BUFFER		(PERIOD_BYTES * PERIOD_MAX)
+
 struct solo_snd_pcm {
 	int				on;
 	spinlock_t			lock;
 	struct solo6010_dev		*solo_dev;
 	struct snd_pcm_substream	*ss;
+	unsigned char			buf[MAX_BUFFER];
 };
 
 static void solo_g723_config(struct solo6010_dev *solo_dev)
@@ -97,11 +102,11 @@ static struct snd_pcm_hardware snd_solo_pcm_hw = {
 	.rate_max		= 8000,
 	.channels_min		= 1,
 	.channels_max		= 1,
-	.buffer_bytes_max	= 256,
-	.period_bytes_min	= 256,
-	.period_bytes_max	= 256,
+	.buffer_bytes_max	= MAX_BUFFER,
+	.period_bytes_min	= PERIOD_BYTES,
+	.period_bytes_max	= PERIOD_BYTES,
 	.periods_min		= 1,
-	.periods_max		= 1,
+	.periods_max		= PERIOD_MAX,
 };
 
 static int snd_solo_pcm_open(struct snd_pcm_substream *ss)
@@ -198,7 +203,9 @@ static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
 {
 	struct snd_card *card = solo_dev->snd_card;
 	struct snd_pcm *pcm;
+	struct snd_pcm_substream *ss;
 	int ret;
+	int i;
 
 	ret = snd_pcm_new(card, card->driver, 0, 0, solo_dev->nr_chans,
 			  &pcm);
@@ -212,9 +219,12 @@ static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
 	pcm->info_flags = 0;
 	strcpy(pcm->name, card->shortname);
 
+	for (i = 0, ss = pcm->streams[1].substream; ss; ss = ss->next, i++)
+		sprintf(ss->name, "Camera #%d Audio", i);
+
 	ret = snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
 					snd_dma_pci_data(solo_dev->pdev),
-					256, 256);
+					PERIOD_BYTES, MAX_BUFFER);
 	if (ret < 0)
 		return ret;
 
