@@ -9,10 +9,6 @@
  - implement a CID control for areas/thresholds
 
 - sound
- - implement copy of buffers
- - decide if g723 decode is done in-kernel or user-space
  - implement playback via external sound jack
  - implement loopback of external sound jack with incoming audio?
  - mixer controls
-
-- v4l display should have a read-only numeric for number of channels

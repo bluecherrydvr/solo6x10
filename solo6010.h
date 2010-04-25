@@ -213,6 +213,7 @@ struct solo6010_dev {
 	struct snd_card		*snd_card;
 	struct snd_pcm		*snd_pcm;
 	atomic_t		snd_users;
+	int			g723_hw_idx;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)

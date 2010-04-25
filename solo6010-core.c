@@ -79,6 +79,9 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 	if (status & SOLO_IRQ_ENCODER)
 		solo_enc_v4l2_isr(solo_dev);
 
+	if (status & SOLO_IRQ_G723)
+		solo_g723_isr(solo_dev);
+
 	return IRQ_HANDLED;
 }
 
