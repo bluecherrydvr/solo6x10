@@ -28,13 +28,12 @@
 #include <sound/pcm.h>
 
 #include "solo6010.h"
-#include "solo6010-g723-dec.h"
 
 #define G723_INTR_ORDER		0
 #define G723_FDMA_PAGES		32
-#define G723_PERIOD_SIZE	48
+#define G723_PERIOD_BYTES	48
 #define G723_PERIOD_BLOCK	1024
-#define G723_FRAMES_PER_PAGE	128
+#define G723_FRAMES_PER_PAGE	48
 
 /* Sets up channels 16-19 for decoding and 0-15 for encoding */
 #define OUTMODE_MASK		0x300
@@ -44,10 +43,8 @@
 
 /* The solo writes to 1k byte pages, 32 pages, in the dma. Each 1k page
  * is broken down to 20 * 48 byte regions (one for each channel possible)
- * with the rest of the page being dummy data. Once decoded, the 48 byte
- * g723 becomes 256 bytes of S16 (48 * 8 / 3 * 2) or 128 S16 frames. */
-#define PERIOD_BYTES		(((G723_PERIOD_SIZE * 8) / 3) * 2)
-#define MAX_BUFFER		(PERIOD_BYTES * PERIODS_MAX)
+ * with the rest of the page being dummy data. */
+#define MAX_BUFFER		(G723_PERIOD_BYTES * PERIODS_MAX)
 #define IRQ_PAGES		0 // 0 - 4
 #define PERIODS_MIN		(1 << IRQ_PAGES)
 #define PERIODS_MAX		G723_FDMA_PAGES
@@ -56,7 +53,7 @@ struct solo_snd_pcm {
 	int				on;
 	spinlock_t			lock;
 	struct solo6010_dev		*solo_dev;
-	struct g723_state		state;
+	unsigned char			g723_buf[G723_PERIOD_BYTES];
 };
 
 static void solo_g723_config(struct solo6010_dev *solo_dev)
@@ -122,15 +119,15 @@ static struct snd_pcm_hardware snd_solo_pcm_hw = {
 				   SNDRV_PCM_INFO_INTERLEAVED |
 				   SNDRV_PCM_INFO_BLOCK_TRANSFER |
 				   SNDRV_PCM_INFO_MMAP_VALID),
-	.formats		= SNDRV_PCM_FMTBIT_S16_LE,
+	.formats		= SNDRV_PCM_FMTBIT_U8,
 	.rates			= SNDRV_PCM_RATE_8000,
 	.rate_min		= 8000,
 	.rate_max		= 8000,
 	.channels_min		= 1,
 	.channels_max		= 1,
 	.buffer_bytes_max	= MAX_BUFFER,
-	.period_bytes_min	= PERIOD_BYTES,
-	.period_bytes_max	= PERIOD_BYTES,
+	.period_bytes_min	= G723_PERIOD_BYTES,
+	.period_bytes_max	= G723_PERIOD_BYTES,
 	.periods_min		= PERIODS_MIN,
 	.periods_max		= PERIODS_MAX,
 };
@@ -180,7 +177,6 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 				solo6010_irq_on(solo_dev, SOLO_IRQ_G723);
 			solo_pcm->on = 1;
 		}
-		g723_init(&solo_pcm->state);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 		if (solo_pcm->on) {
@@ -217,26 +213,22 @@ static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
 {
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
 	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
-	unsigned char g723_buf[G723_PERIOD_SIZE];
-	short pcm_buf[PERIOD_BYTES / 2];
 	int err, i;
 
 	for (i = 0; i < (count / G723_FRAMES_PER_PAGE); i++) {
 		int page = (pos / G723_FRAMES_PER_PAGE) + i;
 
-		err = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_G723E, 0, g723_buf,
-				SOLO_G723_EXT_ADDR(solo_dev) +
-				(page * G723_PERIOD_BLOCK) +
-				(ss->number * G723_PERIOD_SIZE),
-				G723_PERIOD_SIZE);
+		err = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_G723E, 0,
+				   solo_pcm->g723_buf,
+				   SOLO_G723_EXT_ADDR(solo_dev) +
+				   (page * G723_PERIOD_BLOCK) +
+				   (ss->number * G723_PERIOD_BYTES),
+				   G723_PERIOD_BYTES);
 		if (err)
 			return err;
 
-		g723_decode(&solo_pcm->state, g723_buf, G723_PERIOD_SIZE,
-			    pcm_buf);
-
-		err = copy_to_user(dst + (i * PERIOD_BYTES), pcm_buf,
-				   PERIOD_BYTES);
+		err = copy_to_user(dst + (i * G723_PERIOD_BYTES),
+				   solo_pcm->g723_buf, G723_PERIOD_BYTES);
 
 		if (err)
 			return err; 
