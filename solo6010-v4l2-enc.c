@@ -305,6 +305,9 @@ static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 	if (off > SOLO_MP4E_EXT_SIZE(solo_dev))
 		return -EINVAL;
 
+	if (size == 0)
+		return -EINVAL;
+
 	if (off + size <= SOLO_MP4E_EXT_SIZE(solo_dev))
 		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
 				      SOLO_MP4E_EXT_ADDR(solo_dev) + off, size);
@@ -487,10 +490,6 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
 		return -1;
 
-	/* Now that we know we have a valid buffer we care about. At this
-	 * point, if we fail, we have to show the buffer in an ERROR state */
-	list_del(&vb->queue);
-
 	/* Is it ok that we mess with this buffer out of lock? */
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
@@ -499,12 +498,13 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	else
 		ret = solo_fill_jpeg(fh, enc_buf, vb, vbuf);
 
-	if (!ret) {
-		vb->field_count++;
-		vb->ts = enc_buf->ts;
-		vb->state = VIDEOBUF_DONE;
-	} else
-		vb->state = VIDEOBUF_ERROR;
+	if (ret) // Ignore failures
+		return 0;
+
+	list_del(&vb->queue);
+	vb->field_count++;
+	vb->ts = enc_buf->ts;
+	vb->state = VIDEOBUF_DONE;
 
 	wake_up(&vb->done);
 
