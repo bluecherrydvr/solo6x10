@@ -45,7 +45,7 @@
  * is broken down to 20 * 48 byte regions (one for each channel possible)
  * with the rest of the page being dummy data. */
 #define MAX_BUFFER		(G723_PERIOD_BYTES * PERIODS_MAX)
-#define IRQ_PAGES		0 // 0 - 4
+#define IRQ_PAGES		4 // 0 - 4
 #define PERIODS_MIN		(1 << IRQ_PAGES)
 #define PERIODS_MAX		G723_FDMA_PAGES
 
@@ -84,7 +84,6 @@ void solo_g723_isr(struct solo6010_dev *solo_dev)
 	struct solo_snd_pcm *solo_pcm;
 
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_G723);
-	solo_dev->g723_hw_idx = solo_reg_read(solo_dev, SOLO_AUDIO_STA) & 0x1f;
 
 	for (ss = pstr->substream; ss != NULL; ss = ss->next) {
 		if (snd_pcm_substream_chip(ss) == NULL)
@@ -197,14 +196,16 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 
 static int snd_solo_pcm_prepare(struct snd_pcm_substream *ss)
 {
-//	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
         return 0;
 }
 
 static snd_pcm_uframes_t snd_solo_pcm_pointer(struct snd_pcm_substream *ss)
 {
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
-	return solo_pcm->solo_dev->g723_hw_idx * G723_FRAMES_PER_PAGE;
+	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
+	snd_pcm_uframes_t idx = solo_reg_read(solo_dev, SOLO_AUDIO_STA) & 0x1f;
+
+	return idx * G723_FRAMES_PER_PAGE;
 }
 
 static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
