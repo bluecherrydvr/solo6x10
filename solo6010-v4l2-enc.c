@@ -305,9 +305,6 @@ static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 	if (off > SOLO_MP4E_EXT_SIZE(solo_dev))
 		return -EINVAL;
 
-	if (size == 0)
-		return -EINVAL;
-
 	if (off + size <= SOLO_MP4E_EXT_SIZE(solo_dev))
 		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
 				      SOLO_MP4E_EXT_ADDR(solo_dev) + off, size);
@@ -391,6 +388,10 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct vop_header vh;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 	int ret;
+	int frame_size, frame_off;
+
+	if (enc_buf->size <= sizeof(vh))
+		return -1;
 
 	/* First get the hardware vop header (not real mpeg) */
 	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
@@ -411,11 +412,10 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	}
 
 	/* Now get the actual mpeg payload */
-	enc_buf->off = (enc_buf->off + sizeof(vh)) %
+	frame_off = (enc_buf->off + sizeof(vh)) %
 			SOLO_MP4E_EXT_SIZE(solo_dev);
-	enc_buf->size -= sizeof(vh);
-	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, enc_buf->off,
-			       enc_buf->size);
+	frame_size = enc_buf->size - sizeof(vh);
+	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
 	if (ret)
 		return -1;
 
