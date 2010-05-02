@@ -12,3 +12,4 @@
  - implement playback via external sound jack
  - implement loopback of external sound jack with incoming audio?
  - mixer controls
+ - implement pause/resume (make use of in bc-server)
