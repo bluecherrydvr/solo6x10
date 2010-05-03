@@ -173,6 +173,8 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
+	assert_spin_locked(&solo_enc->lock);
+
 	solo_enc->interlaced = (solo_enc->mode & 0x08) ? 1 : 0;
 	solo_enc->bw_weight = max(solo_dev->fps / solo_enc->interval, 1);
 
@@ -201,6 +203,8 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 
 	if (fh->enc_on)
 		return 0;
+
+	assert_spin_locked(&solo_enc->lock);
 
 	solo_update_mode(solo_enc);
 
