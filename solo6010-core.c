@@ -25,7 +25,7 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
-MODULE_DESCRIPTION("Softlogic 6010 MP4 Encoder/Decoder V4L2 Driver");
+MODULE_DESCRIPTION("Softlogic 6010 MP4 Encoder/Decoder V4L2/ALSA Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");

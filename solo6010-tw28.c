@@ -502,10 +502,10 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		      s32 val)
 {
 	char sval;
+	u8 chip_num;
 
 	/* Get the right chip and on-chip channel */
-	u8 chip_num = ch / 4;
-
+	chip_num = ch / 4;
 	ch %= 4;
 
 	if (val > 255 || val < 0)
@@ -574,10 +574,10 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		      s32 *val)
 {
-	u8 rval;
-	/* Get the right chip and on-chip channel */
-	u8 chip_num = ch / 4;
+	u8 rval, chip_num;
 
+	/* Get the right chip and on-chip channel */
+	chip_num = ch / 4;
 	ch %= 4;
 
 	switch (ctrl) {
@@ -624,6 +624,7 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 
 	return 0;
 }
+
 #if 0
 /*
  * For audio output volume, the output channel is only 1. In this case we
@@ -645,29 +646,40 @@ void tw2815_Set_AudioOutVol(struct solo6010_dev *solo_dev, unsigned int u_val)
 	tw_writebyte(solo_dev, chip_num, TW286x_AUDIO_OUTPUT_VOL_ADDR,
 		     TW_AUDIO_OUTPUT_VOL_ADDR, u_val);
 }
+#endif
 
-void tw2815_Set_AudioInGain(struct solo6010_dev *solo_dev, unsigned int channel,
-			    unsigned int u_val)
+u8 tw28_get_audio_gain(struct solo6010_dev *solo_dev, u8 ch)
 {
-	unsigned int val;
-	unsigned int chip_num;
+	u8 val;
+	u8 chip_num;
 
-	/* Determine which techwell chip number this channel belongs to */
-	chip_num = channel / 4;
-
-	/* Determine the corresponding channel for this techwell chip. We
-	 * use 1-based notation so we won't be confuse on the techwell data
-	 * sheet */
-	channel = (channel % 4) + 1;
+	/* Get the right chip and on-chip channel */
+	chip_num = ch / 4;
+	ch %= 4;
 
 	val = tw_readbyte(solo_dev, chip_num,
-			  TW286x_AUDIO_INPUT_GAIN_ADDR(channel),
-			  TW_AUDIO_INPUT_GAIN_ADDR(channel));
+			  TW286x_AUDIO_INPUT_GAIN_ADDR(ch),
+			  TW_AUDIO_INPUT_GAIN_ADDR(ch));
 
-	u_val = (val & ((channel % 2 == 1) ? 0xf0 : 0x0f)) |
-		((channel % 2 == 1) ? u_val : u_val << 4);
-
-	tw_writebyte(solo_dev, chip_num, TW286x_AUDIO_INPUT_GAIN_ADDR(channel),
-		     TW_AUDIO_INPUT_GAIN_ADDR(channel), u_val);
+	return (ch % 2) ? (val >> 4) : (val & 0x0f);
 }
-#endif
+
+void tw28_set_audio_gain(struct solo6010_dev *solo_dev, u8 ch, u8 val)
+{
+	u8 old_val;
+	u8 chip_num;
+
+	/* Get the right chip and on-chip channel */
+	chip_num = ch / 4;
+	ch %= 4;
+
+	old_val = tw_readbyte(solo_dev, chip_num,
+			      TW286x_AUDIO_INPUT_GAIN_ADDR(ch),
+			      TW_AUDIO_INPUT_GAIN_ADDR(ch));
+
+	val = (old_val & ((ch % 2) ? 0x0f : 0xf0)) |
+		((ch % 2) ? (val << 4) : val);
+
+	tw_writebyte(solo_dev, chip_num, TW286x_AUDIO_INPUT_GAIN_ADDR(ch),
+		     TW_AUDIO_INPUT_GAIN_ADDR(ch), val);
+}

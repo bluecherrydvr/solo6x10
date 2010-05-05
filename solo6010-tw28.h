@@ -32,7 +32,7 @@
 #define TW_CONTRAST_ADDR(n)			(0x09 | ((n) << 4))
 #define TW_BRIGHTNESS_ADDR(n)			(0x0a | ((n) << 4))
 #define TW_AUDIO_OUTPUT_VOL_ADDR		0x70
-#define TW_AUDIO_INPUT_GAIN_ADDR(n)		(0x60+((n==4)|(n==1)))
+#define TW_AUDIO_INPUT_GAIN_ADDR(n)		(0x60 + ((n > 1) ? 1 : 0))
 
 /* tw286x */
 #define TW286X_AV_STAT_ADDR			0xfd
@@ -43,7 +43,7 @@
 #define TW286x_BRIGHTNESS_ADDR(n)		(0x01 | ((n) << 4))
 #define TW286x_SHARPNESS(n)			(0x03 | ((n) << 4))
 #define TW286x_AUDIO_OUTPUT_VOL_ADDR		0xdf
-#define TW286x_AUDIO_INPUT_GAIN_ADDR(n)		(0xD0+((n==3)|(n==4)))
+#define TW286x_AUDIO_INPUT_GAIN_ADDR(n)		(0xD0 + ((n > 1) ? 1 : 0))
 
 int solo_tw28_init(struct solo6010_dev *solo_dev);
 
@@ -52,12 +52,13 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		      s32 *val);
 
+u8 tw28_get_audio_gain(struct solo6010_dev *solo_dev, u8 ch);
+void tw28_set_audio_gain(struct solo6010_dev *solo_dev, u8 ch, u8 val);
+
 #if 0
 unsigned int tw2815_get_video_status(struct SOLO6010 *solo6010);
 unsigned int tw2815_get_audio_status(struct SOLO6010 *solo6010);
 void tw2815_Set_AudioOutVol(struct SOLO6010 *solo6010, unsigned int u_val);
-void tw2815_Set_AudioInGain(struct SOLO6010 *solo6010, unsigned int channel,
-			    unsigned int u_val);
 #endif
 
 #endif /* __SOLO6010_TW28_H */

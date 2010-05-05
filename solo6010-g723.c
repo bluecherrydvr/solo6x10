@@ -26,8 +26,10 @@
 #include <sound/core.h>
 #include <sound/initval.h>
 #include <sound/pcm.h>
+#include <sound/control.h>
 
 #include "solo6010.h"
+#include "solo6010-tw28.h"
 
 #define G723_INTR_ORDER		0
 #define G723_FDMA_PAGES		32
@@ -250,6 +252,53 @@ static struct snd_pcm_ops snd_solo_pcm_ops = {
 	.copy = snd_solo_pcm_copy,
 };
 
+static int snd_solo_capture_volume_info(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_info *info)
+{
+	info->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	info->count = 1;
+	info->value.integer.min = 0;
+	info->value.integer.max = 15;
+	info->value.integer.step = 1;
+
+	return 0;
+}
+
+static int snd_solo_capture_volume_get(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *value)
+{
+	struct solo6010_dev *solo_dev = snd_kcontrol_chip(kcontrol);
+	u8 ch = value->id.numid - 1;
+
+	value->value.integer.value[0] = tw28_get_audio_gain(solo_dev, ch);
+
+        return 0;
+}
+
+static int snd_solo_capture_volume_put(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *value)
+{
+	struct solo6010_dev *solo_dev = snd_kcontrol_chip(kcontrol);
+	u8 ch = value->id.numid - 1;
+        u8 old_val;
+
+        old_val = tw28_get_audio_gain(solo_dev, ch);
+	if (old_val == value->value.integer.value[0])
+		return 0;
+
+	tw28_set_audio_gain(solo_dev, ch, value->value.integer.value[0]);
+
+        return 1;
+}
+
+static struct snd_kcontrol_new snd_solo_capture_volume = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+	.name = "Capture Volume",
+	.info = snd_solo_capture_volume_info,
+	.get = snd_solo_capture_volume_get,
+	.put = snd_solo_capture_volume_put,
+};
+
 static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
 {
 	struct snd_card *card = solo_dev->snd_card;
@@ -290,6 +339,7 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 {
 	static struct snd_device_ops ops = { NULL };
 	struct snd_card *card;
+	struct snd_kcontrol_new kctl;
 	char name[32];
 	int ret;
 
@@ -321,6 +371,14 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 	ret = snd_device_new(card, SNDRV_DEV_LOWLEVEL, solo_dev, &ops);
 	if (ret < 0)
 		goto snd_error;
+
+	/* Mixer controls */
+	strcpy(card->mixername, "SOLO-6010");
+	kctl = snd_solo_capture_volume;
+	kctl.count = solo_dev->nr_chans;
+        ret = snd_ctl_add(card, snd_ctl_new1(&kctl, solo_dev));
+	if (ret < 0)
+		return ret;
 
 	if ((ret = solo_snd_pcm_init(solo_dev)) < 0)
 		goto snd_error;
