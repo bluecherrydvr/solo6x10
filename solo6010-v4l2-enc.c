@@ -394,7 +394,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	int ret;
 	int frame_size, frame_off;
 
-	if (enc_buf->size <= sizeof(vh))
+	if (WARN_ON_ONCE(enc_buf->size <= sizeof(vh)))
 		return -1;
 
 	/* First get the hardware vop header (not real mpeg) */
@@ -402,7 +402,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	if (ret)
 		return -1;
 
-	if (vh.size > enc_buf->size)
+	if (WARN_ON_ONCE(vh.size > enc_buf->size))
 		return -1;
 
 	vb->width = vh.hsize << 4;
@@ -420,11 +420,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 			SOLO_MP4E_EXT_SIZE(solo_dev);
 	frame_size = enc_buf->size - sizeof(vh);
 	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
-	if (ret)
-		return -1;
-
-	/* Check for valid mpeg data */
-	if (p[0] != 0x00 || p[1] != 0x00 || p[2] != 0x01 || p[3] != 0xb6)
+	if (WARN_ON_ONCE(ret))
 		return -1;
 
 	/* If this is a key frame, add extra m4v header */
@@ -454,10 +450,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 		/* Interlace */
 		if (vh.interlace)
 			p[29] |= 0x20;
-
-		//vb->flags |= V4L2_BUF_FLAG_KEYFRAME;
-	}// else
-	//	vb->flags |= V4L2_BUF_FLAG_PFRAME;
+	}
 
 	return 0;
 }
@@ -778,15 +771,18 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 {
 	struct solo_enc_fh *fh = file->private_data;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	unsigned long flags;
-	int ret;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
-	if ((ret = solo_enc_on(fh))) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return ret;
+	/* Make sure the encoder is on */
+	if (!fh->enc_on) {
+		unsigned long flags;
+		int ret;
+
+		spin_lock_irqsave(&solo_enc->lock, flags);
+		ret = solo_enc_on(fh);
+	        spin_unlock_irqrestore(&solo_enc->lock, flags);
+		if (ret)
+			return ret;
 	}
-        spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return videobuf_read_stream(&fh->vidq, data, count, ppos, 0,
 				    file->f_flags & O_NONBLOCK);
@@ -1012,15 +1008,18 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	unsigned long flags;
 	int ret;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
-	if ((ret = solo_enc_on(fh))) {
+	/* Make sure the encoder is on */
+	if (!fh->enc_on) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&solo_enc->lock, flags);
+		ret = solo_enc_on(fh);
 		spin_unlock_irqrestore(&solo_enc->lock, flags);
-		return ret;
+		if (ret)
+			return ret;
 	}
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	ret = videobuf_dqbuf(&fh->vidq, buf, file->f_flags & O_NONBLOCK);
 	if (ret)
@@ -1035,6 +1034,16 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 				       1 << solo_enc->ch);
 			solo_enc->motion_detected = 0;
 		}
+	}
+
+	/* Check for key frame on mpeg data */
+	if (fh->fmt == V4L2_PIX_FMT_MPEG) {
+		struct videobuf_buffer *vb = fh->vidq.bufs[buf->index];
+		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
+		if (p[3] == 0x00)
+			buf->flags |= V4L2_BUF_FLAG_KEYFRAME;
+		else
+			buf->flags |= V4L2_BUF_FLAG_PFRAME;
 	}
 
 	return 0;
@@ -1477,6 +1486,7 @@ static struct video_device solo_enc_template = {
 static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 {
 	struct solo_enc_dev *solo_enc;
+	unsigned long flags;
 	int ret;
 
 	solo_enc = kzalloc(sizeof(*solo_enc), GFP_KERNEL);
@@ -1520,7 +1530,10 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	solo_enc->interval = 1;
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->motion_thresh = SOLO_DEF_MOT_THRESH;
+
+	spin_lock_irqsave(&solo_enc->lock, flags);
 	solo_update_mode(solo_enc);
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return solo_enc;
 }
