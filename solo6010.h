@@ -166,6 +166,7 @@ struct solo6010_dev {
 	struct pci_dev		*pdev;
 	u8 __iomem		*reg_base;
 	int			nr_chans;
+	int			nr_ext;
 	u32			irq_mask;
 	u32			motion_mask;
 	spinlock_t		reg_io_lock;

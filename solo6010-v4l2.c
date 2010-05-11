@@ -80,30 +80,160 @@ static int erase_off(struct solo6010_dev *solo_dev)
 	return 1;
 }
 
-static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
+static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
+			   int sx, int sy, int ex, int ey, int scale)
 {
-	if (ch >= solo_dev->nr_chans)
-		return -EINVAL;
+	if (ch >= 16) //solo_dev->nr_chans)
+		return;
 
 	/* Here, we just keep window/channel the same */
 	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL0(ch),
 		       SOLO_VI_WIN_CHANNEL(ch) |
-		       SOLO_VI_WIN_SX(on ? 0 : solo_dev->video_hsize) |
-		       SOLO_VI_WIN_EX(solo_dev->video_hsize) |
-		       SOLO_VI_WIN_SCALE(on ? 1 : 0));
+		       SOLO_VI_WIN_SX(sx) |
+		       SOLO_VI_WIN_EX(ex) |
+		       SOLO_VI_WIN_SCALE(scale));
 
-	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
-		       SOLO_VI_WIN_SY(on ? 0 : solo_vlines(solo_dev)) |
-		       SOLO_VI_WIN_EY(solo_vlines(solo_dev)));
+        solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
+		       SOLO_VI_WIN_SY(sy) |
+		       SOLO_VI_WIN_EY(ey));
 
-	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch), on ? 1 : 0);
+	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch), scale ? 1 : 0);
+}
+
+static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
+{
+	u8 ch = idx * 4;
+
+	if (ch >= solo_dev->nr_chans)
+		return -EINVAL;
+
+	if (!on) {
+		u8 i;
+		for (i = ch; i < ch + 4; i++)
+			solo_win_setup(solo_dev, i, solo_dev->video_hsize,
+				       solo_vlines(solo_dev),
+				       solo_dev->video_hsize,
+				       solo_vlines(solo_dev), 0);
+		return 0;
+	}
+
+	/* Row 1 */
+	solo_win_setup(solo_dev, ch, 0, 0, solo_dev->video_hsize / 2,
+		       solo_vlines(solo_dev) / 2, 3);
+	solo_win_setup(solo_dev, ch + 1, solo_dev->video_hsize / 2, 0,
+		       solo_dev->video_hsize, solo_vlines(solo_dev) / 2, 3);
+	/* Row 2 */
+	solo_win_setup(solo_dev, ch + 2, 0, solo_vlines(solo_dev) / 2,
+		       solo_dev->video_hsize / 2, solo_vlines(solo_dev), 3);
+	solo_win_setup(solo_dev, ch + 3, solo_dev->video_hsize / 2,
+		       solo_vlines(solo_dev) / 2, solo_dev->video_hsize,
+		       solo_vlines(solo_dev), 3);
 
 	return 0;
 }
 
-static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, unsigned int ch)
+/* For 9-up, we idx at 8 channels */
+static int solo_v4l2_ch_ext_9up(struct solo6010_dev *solo_dev, u8 idx, int on)
 {
+	u8 ch = idx * 8;
+	int sy, ysize, i;
+
 	if (ch >= solo_dev->nr_chans)
+		return -EINVAL;
+
+        if (!on) {
+		for (i = ch; i < ch + 9; i++)
+			solo_win_setup(solo_dev, i, solo_dev->video_hsize,
+				       solo_vlines(solo_dev),
+				       solo_dev->video_hsize,
+				       solo_vlines(solo_dev), 0);
+		return 0;
+	}
+
+	ysize = solo_vlines(solo_dev) / 3;
+
+	for (sy = 0, i = 0; i < 3; i++, sy += ysize) {
+		solo_win_setup(solo_dev, ch + (i * 3), 0, sy, 234,
+			       sy + ysize, 4);
+		solo_win_setup(solo_dev, ch + (i * 3) + 1, 236, sy,
+			       470, sy + ysize, 4);
+		solo_win_setup(solo_dev, ch + (i * 3) + 2, 472, sy,
+			       704, sy + ysize, 4);
+	}
+
+	return 0;
+}
+
+static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
+{
+	int sy, ysize, hsize, i;
+
+	if (!on) {
+		for (i = 0; i < 16; i++)
+			solo_win_setup(solo_dev, i, solo_dev->video_hsize,
+				       solo_vlines(solo_dev),
+				       solo_dev->video_hsize,
+				       solo_vlines(solo_dev), 0);
+		return 0;
+	}
+
+	ysize = solo_vlines(solo_dev) / 4;
+	hsize = solo_dev->video_hsize / 4;
+
+	for (sy = 0, i = 0; i < 4; i++, sy += ysize) {
+		solo_win_setup(solo_dev, i * 4, 0, sy, hsize,
+			       sy + ysize, 5);
+		solo_win_setup(solo_dev, (i * 4) + 1, hsize, sy,
+			       hsize * 2, sy + ysize, 5);
+		solo_win_setup(solo_dev, (i * 4) + 2, hsize * 2, sy,
+			       hsize * 3, sy + ysize, 5);
+		solo_win_setup(solo_dev, (i * 4) + 3, hsize * 3, sy,
+			       solo_dev->video_hsize, sy + ysize, 5);
+	}
+
+	return 0;
+}
+
+static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
+{
+	u8 ext_ch;
+
+	if (ch < solo_dev->nr_chans) {
+		solo_win_setup(solo_dev, ch, on ? 0 : solo_dev->video_hsize,
+			       on ? 0 : solo_vlines(solo_dev),
+			       solo_dev->video_hsize, solo_vlines(solo_dev),
+			       on ? 1 : 0);
+		return 0;
+	}
+
+	if (ch >= solo_dev->nr_chans + solo_dev->nr_ext)
+		return -EINVAL;
+
+	ext_ch = ch - solo_dev->nr_chans;
+
+	/* Take care of single 4up for 4-port first */
+	if (solo_dev->nr_ext == 1)
+		return solo_v4l2_ch_ext_4up(solo_dev, 0, on);
+
+	/* Remaining 4up's for 8 and 16 */
+	if (solo_dev->nr_ext == 3 && ext_ch < 2)
+		return solo_v4l2_ch_ext_4up(solo_dev, ext_ch, on);
+	if (solo_dev->nr_ext == 7 && ext_ch < 4)
+		return solo_v4l2_ch_ext_4up(solo_dev, ext_ch, on);
+
+	/* 9up's for 8 and 16 */
+	if (solo_dev->nr_ext == 3)
+		return solo_v4l2_ch_ext_9up(solo_dev, 0, on);
+	if (solo_dev->nr_ext == 7 && ext_ch < 6)
+		return solo_v4l2_ch_ext_9up(solo_dev, ext_ch - 4, on);
+
+	/* Remaining case is 16up for 16-port */
+	return solo_v4l2_ch_ext_16up(solo_dev, on);
+}
+
+static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
+{
+	if (ch >= solo_dev->nr_chans + solo_dev->nr_ext)
 		return -EINVAL;
 
 	erase_on(solo_dev);
@@ -407,17 +537,47 @@ static int solo_querycap(struct file *file, void  *priv,
 	return 0;
 }
 
+static int solo_enum_ext_input(struct solo6010_dev *solo_dev,
+			       struct v4l2_input *input)
+{
+	static const char *dispnames_1[] = { "4UP" };
+	static const char *dispnames_3[] = { "4UP-1", "4UP-2", "9UP" };
+	static const char *dispnames_7[] = {
+		"4UP-1", "4UP-2", "4UP-3", "4UP-4", "9UP-1", "9UP-2", "16UP"
+	};
+	const char **dispnames;
+
+	if (input->index >= (solo_dev->nr_chans + solo_dev->nr_ext))
+		return -EINVAL;
+
+	if (solo_dev->nr_ext == 7)
+		dispnames = dispnames_7;
+	else if (solo_dev->nr_ext == 3)
+		dispnames = dispnames_3;
+	else
+		dispnames = dispnames_1;
+
+	snprintf(input->name, sizeof(input->name), "Multi %s",
+		 dispnames[input->index - solo_dev->nr_chans]);
+
+	return 0;
+}
+
 static int solo_enum_input(struct file *file, void *priv,
 			   struct v4l2_input *input)
 {
 	struct solo_filehandle *fh  = priv;
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 
-	if (input->index >= solo_dev->nr_chans)
-		return -EINVAL;
+	if (input->index >= solo_dev->nr_chans) {
+		int ret = solo_enum_ext_input(solo_dev, input);
+		if (ret < 0)
+			return ret;
+	} else {
+		snprintf(input->name, sizeof(input->name), "Camera %d",
+			 input->index + 1);
+	}
 
-	snprintf(input->name, sizeof(input->name), "Camera %d",
-		 input->index + 1);
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
@@ -728,14 +888,17 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 		video_nr++;
 
 	dev_info(&solo_dev->pdev->dev, "Display as /dev/video%d with "
-		 "%d inputs\n", solo_dev->vfd->num, solo_dev->nr_chans);
+		 "%d inputs (%d extended)\n", solo_dev->vfd->num,
+		 solo_dev->nr_chans, solo_dev->nr_ext);
 
-	/* Set the default display channel */
+	/* Cycle all the channels and clear */
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_v4l2_set_ch(solo_dev, i);
 		while (erase_off(solo_dev))
 			;// Do nothing
 	}
+
+	/* Set the default display channel */
 	solo_v4l2_set_ch(solo_dev, SOLO_DEFAULT_CHAN);
 	while(erase_off(solo_dev))
 		;// Do nothing
