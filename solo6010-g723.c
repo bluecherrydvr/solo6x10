@@ -166,9 +166,8 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
 	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
 	int ret = 0;
-	unsigned long flags;
 
-	spin_lock_irqsave(&solo_pcm->lock, flags);
+	spin_lock(&solo_pcm->lock);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -191,7 +190,7 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 		ret = -EINVAL;
 	}
 
-	spin_unlock_irqrestore(&solo_pcm->lock, flags);
+	spin_unlock(&solo_pcm->lock);
 
 	return ret;
 }
