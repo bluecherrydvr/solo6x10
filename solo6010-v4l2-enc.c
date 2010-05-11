@@ -795,17 +795,11 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_fh *fh = file->private_data;
-	struct solo_enc_dev *solo_enc = fh->enc;
-	unsigned long flags;
-
-	spin_lock_irqsave(&solo_enc->lock, flags);
 
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
 	solo_enc_off(fh);
 	kfree(fh);
-
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
 
 	return 0;
 }
