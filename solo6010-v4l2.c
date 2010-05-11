@@ -83,7 +83,7 @@ static int erase_off(struct solo6010_dev *solo_dev)
 static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
 			   int sx, int sy, int ex, int ey, int scale)
 {
-	if (ch >= 16) //solo_dev->nr_chans)
+	if (ch >= solo_dev->nr_chans)
 		return;
 
 	/* Here, we just keep window/channel the same */
@@ -129,6 +129,8 @@ static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
 		       solo_vlines(solo_dev) / 2, solo_dev->video_hsize,
 		       solo_vlines(solo_dev), 3);
 
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xf << (idx * 4));
+
 	return 0;
 }
 
@@ -142,7 +144,7 @@ static int solo_v4l2_ch_ext_9up(struct solo6010_dev *solo_dev, u8 idx, int on)
 		return -EINVAL;
 
         if (!on) {
-		for (i = ch; i < ch + 9; i++)
+		for (i = ch; i < ch + 8; i++)
 			solo_win_setup(solo_dev, i, solo_dev->video_hsize,
 				       solo_vlines(solo_dev),
 				       solo_dev->video_hsize,
@@ -160,6 +162,8 @@ static int solo_v4l2_ch_ext_9up(struct solo6010_dev *solo_dev, u8 idx, int on)
 		solo_win_setup(solo_dev, ch + (i * 3) + 2, 472, sy,
 			       704, sy + ysize, 4);
 	}
+
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xff << (idx * 8));
 
 	return 0;
 }
@@ -191,6 +195,8 @@ static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
 			       solo_dev->video_hsize, sy + ysize, 5);
 	}
 
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
+
 	return 0;
 }
 
@@ -203,6 +209,8 @@ static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 			       on ? 0 : solo_vlines(solo_dev),
 			       solo_dev->video_hsize, solo_vlines(solo_dev),
 			       on ? 1 : 0);
+		if (on)
+			solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 1 << ch);
 		return 0;
 	}
 
@@ -235,6 +243,8 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 {
 	if (ch >= solo_dev->nr_chans + solo_dev->nr_ext)
 		return -EINVAL;
+
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
 
 	erase_on(solo_dev);
 

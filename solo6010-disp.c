@@ -76,7 +76,7 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 
 	/* TODO: Use this for stable check? */
 	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC) {
