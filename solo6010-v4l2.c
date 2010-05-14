@@ -134,40 +134,6 @@ static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
 	return 0;
 }
 
-/* For 9-up, we idx at 8 channels */
-static int solo_v4l2_ch_ext_9up(struct solo6010_dev *solo_dev, u8 idx, int on)
-{
-	u8 ch = idx * 8;
-	int sy, ysize, i;
-
-	if (ch >= solo_dev->nr_chans)
-		return -EINVAL;
-
-        if (!on) {
-		for (i = ch; i < ch + 8; i++)
-			solo_win_setup(solo_dev, i, solo_dev->video_hsize,
-				       solo_vlines(solo_dev),
-				       solo_dev->video_hsize,
-				       solo_vlines(solo_dev), 0);
-		return 0;
-	}
-
-	ysize = solo_vlines(solo_dev) / 3;
-
-	for (sy = 0, i = 0; i < 3; i++, sy += ysize) {
-		solo_win_setup(solo_dev, ch + (i * 3), 0, sy, 234,
-			       sy + ysize, 4);
-		solo_win_setup(solo_dev, ch + (i * 3) + 1, 236, sy,
-			       470, sy + ysize, 4);
-		solo_win_setup(solo_dev, ch + (i * 3) + 2, 472, sy,
-			       704, sy + ysize, 4);
-	}
-
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xff << (idx * 8));
-
-	return 0;
-}
-
 static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
 {
 	int sy, ysize, hsize, i;
@@ -219,21 +185,9 @@ static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 
 	ext_ch = ch - solo_dev->nr_chans;
 
-	/* Take care of single 4up for 4-port first */
-	if (solo_dev->nr_ext == 1)
-		return solo_v4l2_ch_ext_4up(solo_dev, 0, on);
-
-	/* Remaining 4up's for 8 and 16 */
-	if (solo_dev->nr_ext == 3 && ext_ch < 2)
+	/* 4up's first */
+	if (ext_ch < 4)
 		return solo_v4l2_ch_ext_4up(solo_dev, ext_ch, on);
-	if (solo_dev->nr_ext == 7 && ext_ch < 4)
-		return solo_v4l2_ch_ext_4up(solo_dev, ext_ch, on);
-
-	/* 9up's for 8 and 16 */
-	if (solo_dev->nr_ext == 3)
-		return solo_v4l2_ch_ext_9up(solo_dev, 0, on);
-	if (solo_dev->nr_ext == 7 && ext_ch < 6)
-		return solo_v4l2_ch_ext_9up(solo_dev, ext_ch - 4, on);
 
 	/* Remaining case is 16up for 16-port */
 	return solo_v4l2_ch_ext_16up(solo_dev, on);
@@ -244,9 +198,9 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 	if (ch >= solo_dev->nr_chans + solo_dev->nr_ext)
 		return -EINVAL;
 
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
-
 	erase_on(solo_dev);
+
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
 
 	solo_v4l2_ch(solo_dev, solo_dev->cur_disp_ch, 0);
 	solo_v4l2_ch(solo_dev, ch, 1);
@@ -551,19 +505,19 @@ static int solo_enum_ext_input(struct solo6010_dev *solo_dev,
 			       struct v4l2_input *input)
 {
 	static const char *dispnames_1[] = { "4UP" };
-	static const char *dispnames_3[] = { "4UP-1", "4UP-2", "9UP" };
-	static const char *dispnames_7[] = {
-		"4UP-1", "4UP-2", "4UP-3", "4UP-4", "9UP-1", "9UP-2", "16UP"
+	static const char *dispnames_2[] = { "4UP-1", "4UP-2" };
+	static const char *dispnames_5[] = {
+		"4UP-1", "4UP-2", "4UP-3", "4UP-4", "16UP"
 	};
 	const char **dispnames;
 
 	if (input->index >= (solo_dev->nr_chans + solo_dev->nr_ext))
 		return -EINVAL;
 
-	if (solo_dev->nr_ext == 7)
-		dispnames = dispnames_7;
-	else if (solo_dev->nr_ext == 3)
-		dispnames = dispnames_3;
+	if (solo_dev->nr_ext == 5)
+		dispnames = dispnames_5;
+	else if (solo_dev->nr_ext == 2)
+		dispnames = dispnames_2;
 	else
 		dispnames = dispnames_1;
 

@@ -158,11 +158,11 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	switch (chip_id) {
 		case 7:
 			solo_dev->nr_chans = 16;
-			solo_dev->nr_ext = 7;
+			solo_dev->nr_ext = 5;
 			break;
 		case 6:
 			solo_dev->nr_chans = 8;
-			solo_dev->nr_ext = 3;
+			solo_dev->nr_ext = 2;
 			break;
 		default:
 			dev_warn(&pdev->dev, "Invalid chip_id 0x%02x, "
