@@ -43,6 +43,7 @@ struct solo_enc_fh {
 	u32			fmt;
 	u16			rd_idx;
 	u8			enc_on;
+	enum solo_enc_types	type;
 	struct videobuf_queue	vidq;
 	struct list_head	vidq_active;
 	struct task_struct	*kthread;
@@ -142,30 +143,29 @@ static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 	return 0;
 }
 
-static void solo_motion_on(struct solo_enc_dev *solo_enc)
+static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 ch = solo_enc->ch;
+	unsigned long flags;
 
-	if (!solo_dev->motion_mask)
+	spin_lock_irqsave(&solo_enc->lock, flags);
+
+	if (on)
+		solo_dev->motion_mask |= (1 << ch);
+	else
+		solo_dev->motion_mask &= ~(1 << ch);
+
+	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
+		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
+		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
+
+	if (solo_dev->motion_mask)
 		solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
-	solo_dev->motion_mask |= (1 << ch);
-	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
-		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
-		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
-}
-
-static void solo_motion_off(struct solo_enc_dev *solo_enc)
-{
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	u8 ch = solo_enc->ch;
-
-	solo_dev->motion_mask &= ~(1 << ch);
-	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
-		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
-		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
-	if (!solo_dev->motion_mask)
+	else
 		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
+
+	spin_unlock_irqrestore(&solo_enc->lock, flags);
 }
 
 /* Should be called with solo_enc->lock held */
@@ -201,10 +201,10 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 interval;
 
+	assert_spin_locked(&solo_enc->lock);
+
 	if (fh->enc_on)
 		return 0;
-
-	assert_spin_locked(&solo_enc->lock);
 
 	solo_update_mode(solo_enc);
 
@@ -224,12 +224,14 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	fh->enc_on = 1;
 	fh->rd_idx = solo_enc->solo_dev->enc_wr_idx;
 
+	if (fh->type == SOLO_ENC_TYPE_EXT)
+		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
+
 	if (atomic_inc_return(&solo_enc->readers) > 1)
 		return 0;
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
-	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 0);
 
 	/* Common for both std and ext encoding */
 	solo_reg_write(solo_dev, SOLO_VE_CH_INTL(ch),
@@ -279,6 +281,7 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 		return;
 
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
+	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(solo_enc->ch), 0);
 }
 
 static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
@@ -469,6 +472,9 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	while (fh->rd_idx != solo_dev->enc_wr_idx) {
 		enc_buf = &solo_dev->enc_buf[fh->rd_idx];
 		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
+		if (fh->fmt == V4L2_PIX_FMT_MPEG &&
+		    fh->type != enc_buf->type)
+			continue;
 		if (enc_buf->ch == solo_enc->ch)
 			break;
 		enc_buf = NULL;
@@ -588,6 +594,7 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	u32 reg_mpeg_size;
 	u8 cur_q, vop_type;
 	u8 ch;
+	enum solo_enc_types enc_type;
 
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_ENCODER);
 
@@ -609,7 +616,12 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		jpeg_next = solo_reg_read(solo_dev,
 					SOLO_VE_JPEG_QUE(solo_dev->enc_idx));
 
-		ch = (mpeg_current >> 24) & 0x1f;
+		if ((ch = (mpeg_current >> 24) & 0x1f) >= SOLO_MAX_CHANNELS) {
+			ch -= SOLO_MAX_CHANNELS;
+			enc_type = SOLO_ENC_TYPE_EXT;
+		} else
+			enc_type = SOLO_ENC_TYPE_STD;
+
 		vop_type = (mpeg_current >> 29) & 3;
 
 		mpeg_current &= 0x00ffffff;
@@ -643,6 +655,7 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		enc_buf->size = mpeg_size;
 		enc_buf->jpeg_off = jpeg_current;
 		enc_buf->jpeg_size = jpeg_size;
+		enc_buf->type = enc_type;
 
 		do_gettimeofday(&enc_buf->ts);
 
@@ -753,6 +766,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	file->private_data = fh;
 	INIT_LIST_HEAD(&fh->vidq_active);
 	fh->fmt = V4L2_PIX_FMT_MPEG;
+	fh->type = SOLO_ENC_TYPE_STD;
 
 	videobuf_queue_dma_contig_init(&fh->vidq, &solo_enc_video_qops,
 				    &solo_enc->solo_dev->pdev->dev,
@@ -867,10 +881,6 @@ static int solo_enc_get_input(struct file *file, void *priv,
 static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 				 struct v4l2_fmtdesc *f)
 {
-	if (f->index > 1)
-		return -EINVAL;
-
-	f->flags = V4L2_FMT_FLAG_COMPRESSED;
 	switch (f->index) {
 	case 0:
 		f->pixelformat = V4L2_PIX_FMT_MPEG;
@@ -880,7 +890,11 @@ static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 		f->pixelformat = V4L2_PIX_FMT_MJPEG;
 		strcpy(f->description, "MJPEG");
 		break;
+	default:
+		return -EINVAL;
 	}
+
+	f->flags = V4L2_FMT_FLAG_COMPRESSED;
 
 	return 0;
 }
@@ -949,6 +963,8 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	/* This does not change the encoder at all */
 	fh->fmt = pix->pixelformat;
 
+	if (pix->priv)
+		fh->type = SOLO_ENC_TYPE_EXT;
 	ret = solo_enc_on(fh);
 
 	spin_unlock_irqrestore(&solo_enc->lock, flags);
@@ -1185,7 +1201,8 @@ static int solo_queryctrl(struct file *file, void *priv,
 			  struct v4l2_queryctrl *qc)
 {
 	struct solo_enc_fh *fh = priv;
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
+	struct solo_enc_dev *solo_enc = fh->enc;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
 	qc->id = v4l2_ctrl_next(solo_ctrl_classes, qc->id);
 	if (!qc->id)
@@ -1328,10 +1345,7 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		solo_set_motion_threshold(solo_dev, solo_enc->ch, ctrl->value);
 		break;
 	case V4L2_CID_MOTION_ENABLE:
-		if (ctrl->value)
-			solo_motion_on(solo_enc);
-		else
-			solo_motion_off(solo_enc);
+		solo_motion_toggle(solo_enc, ctrl->value);
 		break;
 	default:
 		return -EINVAL;

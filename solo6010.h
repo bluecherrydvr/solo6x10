@@ -129,6 +129,11 @@ struct solo_p2m_dev {
 
 #define OSD_TEXT_MAX		30
 
+enum solo_enc_types {
+	SOLO_ENC_TYPE_STD,
+	SOLO_ENC_TYPE_EXT,
+};
+
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
 	/* V4L2 Items */
@@ -152,7 +157,7 @@ struct solo_enc_dev {
 struct solo_enc_buf {
 	u8			vop;
 	u8			ch;
-	u8			in_use;
+	enum solo_enc_types	type;
 	u32			off;
 	u32			size;
 	u32			jpeg_off;
