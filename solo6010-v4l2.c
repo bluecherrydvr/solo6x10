@@ -129,8 +129,6 @@ static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
 		       solo_vlines(solo_dev) / 2, solo_dev->video_hsize,
 		       solo_vlines(solo_dev), 3);
 
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xf << (idx * 4));
-
 	return 0;
 }
 
@@ -161,8 +159,6 @@ static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
 			       solo_dev->video_hsize, sy + ysize, 5);
 	}
 
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0xffff);
-
 	return 0;
 }
 
@@ -175,8 +171,6 @@ static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 			       on ? 0 : solo_vlines(solo_dev),
 			       solo_dev->video_hsize, solo_vlines(solo_dev),
 			       on ? 1 : 0);
-		if (on)
-			solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 1 << ch);
 		return 0;
 	}
 
@@ -199,8 +193,6 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 		return -EINVAL;
 
 	erase_on(solo_dev);
-
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
 
 	solo_v4l2_ch(solo_dev, solo_dev->cur_disp_ch, 0);
 	solo_v4l2_ch(solo_dev, ch, 1);

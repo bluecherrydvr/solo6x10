@@ -76,7 +76,6 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 
 	/* TODO: Use this for stable check? */
 	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, 0);
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC) {
@@ -102,8 +101,6 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 
 static void solo_disp_config(struct solo6010_dev *solo_dev)
 {
-	int i;
-
 	solo_dev->vout_hstart = 6;
 	solo_dev->vout_vstart = 8;
 
@@ -143,12 +140,8 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
 
-	/* Mute channels we aren't supporting */
-	for (i = solo_dev->nr_chans; i < 16; i++) {
-		int val = ((~(1 << i) & 0xffff) &
-			solo_reg_read(solo_dev, SOLO_VI_CH_ENA));
-		solo_reg_write(solo_dev, SOLO_VI_CH_ENA, val);
-	}
+	/* Enable channels we support */
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, (1 << solo_dev->nr_chans) - 1);
 
 	/* Disable the watchdog */
 	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
