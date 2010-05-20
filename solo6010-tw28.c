@@ -451,36 +451,27 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-#if 0
 /* 
- * XXX: We accessed the video status signal in the Techwell chip through
+ * We accessed the video status signal in the Techwell chip through
  * iic/i2c because the video status reported by register REG_VI_STATUS1
  * (address 0x012C) of the SOLO6010 chip doesn't give the correct video
- * status signal values. But take note that there are 4 techwell chip in
- * solo6010. Each techwell chip handles 4 video channels. The base address
- * of the techwell chip is 0x28. We can access the 4 techwell chip through
- * the base address and an offset starting from 0 (i.e. 0-3 to access all 4,
- * that is 0x28+0, 0x28+1, ox28+2, 0x28+3). The 4-channel video status we
- * read in each techwell chip is set on the lower 4-bits. Also bit 0 means
- * signal loss for the corresponding channel, bit 1 means signal gain.
+ * status signal values.
  */
-u16 tw28_get_video_status(struct solo6010_dev *solo_dev)
+int tw28_get_video_status(struct solo6010_dev *solo_dev, u8 ch)
 {
-	un16 status = 0;
-	u8 val;
-	int i;
+	u8 val, chip_num;
 
-	/* Read the video signal status for the channels in the
-         * techwell chip(s) */
-	for (i = 0; i < solo_dev->tw28_cnt; i++) {
-		val = tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
-				   TW_AV_STAT_ADDR) & 0x0f;
-		status |= val << (i * 4);
-	}
+	/* Get the right chip and on-chip channel */
+	chip_num = ch / 4;
+	ch %= 4;
 
-	return status;
+	val = tw_readbyte(solo_dev, chip_num, TW286X_AV_STAT_ADDR,
+			  TW_AV_STAT_ADDR) & 0x0f;
+
+	return val & (1 << ch) ? 1 : 0;
 }
 
+#if 0
 /* Status of audio from up to 4 techwell chips are combined into 1 variable.
  * See techwell datasheet for details. */
 u16 tw28_get_audio_status(struct solo6010_dev *solo_dev)
@@ -498,6 +489,7 @@ u16 tw28_get_audio_status(struct solo6010_dev *solo_dev)
 	return status;
 }
 #endif
+
 int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		      s32 val)
 {

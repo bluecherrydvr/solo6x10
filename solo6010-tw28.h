@@ -54,9 +54,9 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 
 u8 tw28_get_audio_gain(struct solo6010_dev *solo_dev, u8 ch);
 void tw28_set_audio_gain(struct solo6010_dev *solo_dev, u8 ch, u8 val);
+int tw28_get_video_status(struct solo6010_dev *solo_dev, u8 ch);
 
 #if 0
-unsigned int tw2815_get_video_status(struct SOLO6010 *solo6010);
 unsigned int tw2815_get_audio_status(struct SOLO6010 *solo6010);
 void tw2815_Set_AudioOutVol(struct SOLO6010 *solo6010, unsigned int u_val);
 #endif

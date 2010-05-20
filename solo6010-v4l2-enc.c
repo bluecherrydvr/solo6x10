@@ -852,8 +852,8 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 	else
 		input->std = V4L2_STD_PAL_M;
 
-	/* TODO Should check for signal status on this camera */
-	input->status = 0;
+	if (!tw28_get_video_status(solo_dev, solo_enc->ch))
+		input->status = V4L2_IN_ST_NO_SIGNAL;
 
 	return 0;
 }

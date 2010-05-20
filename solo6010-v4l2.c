@@ -27,6 +27,7 @@
 #include <media/videobuf-dma-contig.h>
 
 #include "solo6010.h"
+#include "solo6010-tw28.h"
 
 #define SOLO_HW_BPL		2048
 #define SOLO_PAGE_SIZE		4
@@ -532,6 +533,10 @@ static int solo_enum_input(struct file *file, void *priv,
 	} else {
 		snprintf(input->name, sizeof(input->name), "Camera %d",
 			 input->index + 1);
+
+		/* We can only check this for normal inputs */
+		if (!tw28_get_video_status(solo_dev, input->index))
+			input->status = V4L2_IN_ST_NO_SIGNAL;
 	}
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
@@ -540,9 +545,6 @@ static int solo_enum_input(struct file *file, void *priv,
 		input->std = V4L2_STD_NTSC_M;
 	else
 		input->std = V4L2_STD_PAL_M;
-
-	/* XXX Should check for signal status on this camera */
-	input->status = 0;
 
 	return 0;
 }
