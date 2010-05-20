@@ -393,7 +393,6 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct vop_header vh;
-	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 	int ret;
 	int frame_size, frame_off;
 
@@ -412,26 +411,12 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	vb->height = vh.vsize << 4;
 	vb->size = vh.size;
 
-	if (!enc_buf->vop) {
-		vb->size += sizeof(vid_vop_header);
-		p += sizeof(vid_vop_header);
-		vbuf += sizeof(vid_vop_header);
-	}
-
-	/* Now get the actual mpeg payload */
-	frame_off = (enc_buf->off + sizeof(vh)) %
-			SOLO_MP4E_EXT_SIZE(solo_dev);
-	frame_size = enc_buf->size - sizeof(vh);
-	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
-	if (WARN_ON_ONCE(ret))
-		return -1;
-
 	/* If this is a key frame, add extra m4v header */
 	if (!enc_buf->vop) {
 		u16 fps = solo_dev->fps * 1000;
 		u16 interval = solo_enc->interval * 1000;
+		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 
-		p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
 
 		if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
@@ -453,7 +438,18 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 		/* Interlace */
 		if (vh.interlace)
 			p[29] |= 0x20;
+
+		/* Adjust the dma buffer past this header */
+		vb->size += sizeof(vid_vop_header);
+		vbuf += sizeof(vid_vop_header);
 	}
+
+	/* Now get the actual mpeg payload */
+	frame_off = (enc_buf->off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
+	frame_size = enc_buf->size - sizeof(vh);
+	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
+	if (WARN_ON_ONCE(ret))
+		return -1;
 
 	return 0;
 }
