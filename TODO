@@ -4,12 +4,11 @@
 - mpeg encode of user data
 - mpeg decode of user data
 - switch between 4 frames/irq to 1 when using mjpeg (and then back when not)
-
-- motion
- - implement a CID control for areas/thresholds
+- implement a CID control for motion areas/thresholds
+- implement CID controls for mozaic areas
+- allow for higher level of interval (for < 1 fps)
 
 - sound
  - implement playback via external sound jack
  - implement loopback of external sound jack with incoming audio?
- - mixer controls
  - implement pause/resume (make use of in bc-server)
