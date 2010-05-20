@@ -30,10 +30,7 @@
 #include "solo6010-tw28.h"
 
 #define SOLO_HW_BPL		2048
-#define SOLO_PAGE_SIZE		4
-#define SOLO_DISP_PIX_FORMAT	V4L2_PIX_FMT_UYVY
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
-#define SOLO_DEFAULT_CHAN	0
 #define SOLO_DISP_BUF_SIZE	(64 * 1024) // 64k
 
 /* Image size is two fields, SOLO_HW_BPL is one horizontal line */
@@ -571,9 +568,8 @@ static int solo_enum_fmt_cap(struct file *file, void *priv,
 	if (f->index)
 		return -EINVAL;
 
-	f->pixelformat = SOLO_DISP_PIX_FORMAT;
-	snprintf(f->description, sizeof(f->description),
-		 "%s", "UYUV 4:2:2 Packed");
+	f->pixelformat = V4L2_PIX_FMT_UYVY;
+	strlcpy(f->description, "UYUV 4:2:2 Packed", sizeof(f->description));
 
 	return 0;
 }
@@ -598,7 +594,7 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 	if (pix->field == V4L2_FIELD_ANY)
 		pix->field = SOLO_DISP_PIX_FIELD;
 
-	if (pix->pixelformat != SOLO_DISP_PIX_FORMAT ||
+	if (pix->pixelformat != V4L2_PIX_FMT_UYVY ||
 	    pix->field       != SOLO_DISP_PIX_FIELD ||
 	    pix->colorspace  != V4L2_COLORSPACE_SMPTE170M)
 		return -EINVAL;
@@ -628,7 +624,7 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 
 	pix->width = solo_dev->video_hsize;
 	pix->height = solo_vlines(solo_dev);
-	pix->pixelformat = SOLO_DISP_PIX_FORMAT;
+	pix->pixelformat = V4L2_PIX_FMT_UYVY;
 	pix->field = SOLO_DISP_PIX_FIELD;
 	pix->sizeimage = solo_image_size(solo_dev);
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
@@ -857,8 +853,8 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	}
 
 	/* Set the default display channel */
-	solo_v4l2_set_ch(solo_dev, SOLO_DEFAULT_CHAN);
-	while(erase_off(solo_dev))
+	solo_v4l2_set_ch(solo_dev, 0);
+	while (erase_off(solo_dev))
 		;// Do nothing
 
 	return 0;
