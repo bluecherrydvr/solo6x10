@@ -464,17 +464,25 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	struct solo_enc_buf *enc_buf = NULL;
 	dma_addr_t vbuf;
 	int ret;
+	u16 idx = fh->rd_idx;
 
-	while (fh->rd_idx != solo_dev->enc_wr_idx) {
-		enc_buf = &solo_dev->enc_buf[fh->rd_idx];
-		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
-		if (fh->fmt == V4L2_PIX_FMT_MPEG &&
-		    fh->type != enc_buf->type)
-			continue;
-		if (enc_buf->ch == solo_enc->ch)
-			break;
-		enc_buf = NULL;
+	while (idx != solo_dev->enc_wr_idx) {
+		struct solo_enc_buf *ebuf = &solo_dev->enc_buf[idx];
+		idx = (idx + 1) % SOLO_NR_RING_BUFS;
+		if (fh->fmt == V4L2_PIX_FMT_MPEG) {
+			if (fh->type != ebuf->type)
+				continue;
+			if (ebuf->ch == solo_enc->ch) {
+				enc_buf = ebuf;
+				break;
+			}
+		} else if (ebuf->ch == solo_enc->ch) {
+			/* For mjpeg, keep reading to the newest frame */
+			enc_buf = ebuf;
+		}
 	}
+
+	fh->rd_idx = idx;
 
 	if (!enc_buf)
 		return -1;
