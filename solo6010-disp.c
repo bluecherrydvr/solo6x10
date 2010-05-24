@@ -74,7 +74,6 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_CH_FORMAT,
 		       SOLO_VI_FD_SEL_MASK(0) | SOLO_VI_PROG_MASK(0));
 
-	/* TODO: Use this for stable check? */
 	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
