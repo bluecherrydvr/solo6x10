@@ -148,7 +148,6 @@ struct solo_enc_dev {
 	u8			bw_weight;
 	u8			motion_detected;
 	u16			motion_thresh;
-	u32			motion_sec, motion_usec;
 	u16			width;
 	u16			height;
 	char			osd_text[OSD_TEXT_MAX + 1];

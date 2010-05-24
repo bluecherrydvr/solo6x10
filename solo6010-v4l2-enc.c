@@ -560,24 +560,24 @@ static int solo_enc_thread(void *data)
 
 void solo_motion_isr(struct solo6010_dev *solo_dev)
 {
-	u32 status, sec, usec;
+	u32 status;
 	int i;
 
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_MOTION);
 
-	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
-	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
 	status = solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS);
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		struct solo_enc_dev *solo_enc = solo_dev->v4l2_enc[i];
-		if (!solo_enc)
+
+		BUG_ON(solo_enc == NULL);
+
+		if (solo_enc->motion_detected)
 			continue;
-		if (!(status & (1 << i)) || solo_enc->motion_detected)
+		if (!(status & (1 << i)))
 			continue;
+
 		solo_enc->motion_detected = 1;
-		solo_enc->motion_sec = sec;
-		solo_enc->motion_usec = usec;
 	}
 }
 
@@ -1335,6 +1335,8 @@ static int solo_s_ctrl(struct file *file, void *priv,
 			       solo_enc->gop);
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
+		/* TODO accept value on lower 16-bits and use high
+		 * 16-bits to assign the value to a specific block */
 		if (ctrl->value < 0 || ctrl->value > 0xffff)
 			return -ERANGE;
 		solo_enc->motion_thresh = ctrl->value;
