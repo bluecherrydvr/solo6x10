@@ -7,14 +7,13 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 DRIVER_NAME := solo6010
 VERSION := $(shell dpkg-parsechangelog | grep '^Version:' | cut -d' ' -f2 | cut -d- -f1 | cut -d\: -f2)
 PKG  := $(DRIVER_NAME)-dkms
+GEN_FILES := dkms.conf $(PKG).install
 
 configure/$(PKG)::
-	for i in dkms.conf				\
-		$(PKG).install; do			\
+	for i in $(addprefix debian/,$(GEN_FILES)); do	\
 		sed -e "s|#VERSION#|$(VERSION)|"	\
-			debian/$$i.in > debian/$$i;	\
+			$$i.in > $$i;	\
 	done
 
 clean::
-	rm -f debian/dkms.conf debian/$(PKG).install
-	rm -rf $(CURDIR)/$(PKG)
+	rm -f $(addprefix  debian/,$(GEN_FILES))
