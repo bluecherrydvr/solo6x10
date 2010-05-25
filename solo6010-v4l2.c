@@ -94,8 +94,6 @@ static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
         solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
 		       SOLO_VI_WIN_SY(sy) |
 		       SOLO_VI_WIN_EY(ey));
-
-	solo_reg_write(solo_dev, SOLO_VI_WIN_ON(ch), scale ? 1 : 0);
 }
 
 static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)

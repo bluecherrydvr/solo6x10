@@ -212,6 +212,8 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 
 int solo_disp_init(struct solo6010_dev *solo_dev)
 {
+	int i;
+
 	solo_dev->video_hsize = 704;
 	if (video_type == 0) {
 		solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
@@ -226,6 +228,9 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 	solo_vin_config(solo_dev);
 	solo_motion_config(solo_dev);
 	solo_disp_config(solo_dev);
+
+	for (i = 0; i < solo_dev->nr_chans; i++)
+		solo_reg_write(solo_dev, SOLO_VI_WIN_ON(i), 1);
 
 	return 0;
 }
