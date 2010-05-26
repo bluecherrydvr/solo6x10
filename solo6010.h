@@ -197,6 +197,7 @@ struct solo6010_dev {
 	unsigned int		erasing;
 	unsigned int		frame_blank;
 	u8			cur_disp_ch;
+	wait_queue_head_t	disp_thread_wait;
 
 	/* V4L2 Encoder items */
 	struct solo_enc_dev	*v4l2_enc[SOLO_MAX_CHANNELS];
@@ -290,6 +291,7 @@ void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
 void solo_g723_isr(struct solo6010_dev *solo_dev);
 void solo_motion_isr(struct solo6010_dev *solo_dev);
+void solo_video_in_isr(struct solo6010_dev *solo_dev);
 
 /* i2c read/write */
 u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off);
