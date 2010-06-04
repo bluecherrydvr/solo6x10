@@ -147,9 +147,8 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 ch = solo_enc->ch;
-	unsigned long flags;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	spin_lock(&solo_enc->lock);
 
 	if (on)
 		solo_dev->motion_mask |= (1 << ch);
@@ -165,7 +164,7 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 	else
 		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 }
 
 /* Should be called with solo_enc->lock held */
@@ -456,8 +455,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 
 /* On successful return (0), leaves solo_enc->lock unlocked */
 static int solo_enc_fillbuf(struct solo_enc_fh *fh,
-			    struct videobuf_buffer *vb,
-			    unsigned long flags)
+			    struct videobuf_buffer *vb)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -498,7 +496,7 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 		return -1;
 
 	/* Is it ok that we mess with this buffer out of lock? */
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
 		ret = solo_fill_mpeg(fh, enc_buf, vb, vbuf);
@@ -522,10 +520,9 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct videobuf_buffer *vb;
-	unsigned long flags;
 
 	for (;;) {
-		spin_lock_irqsave(&solo_enc->lock, flags);
+		spin_lock(&solo_enc->lock);
 
 		if (list_empty(&fh->vidq_active))
 			break;
@@ -537,11 +534,12 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 			break;
 
 		/* On success, returns with solo_enc->lock unlocked */
-		if (solo_enc_fillbuf(fh, vb, flags))
+		if (solo_enc_fillbuf(fh, vb))
 			break;
 	}
 
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	assert_spin_locked(&solo_enc->lock);
+	spin_unlock(&solo_enc->lock);
 }
 
 static int solo_enc_thread(void *data)
@@ -758,13 +756,12 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_dev *solo_enc = video_drvdata(file);
-	unsigned long flags;
 	struct solo_enc_fh *fh;
 
 	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	spin_lock(&solo_enc->lock);
 
 	fh->enc = solo_enc;
 	file->private_data = fh;
@@ -779,7 +776,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), fh);
 
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 
 	return 0;
 }
@@ -792,12 +789,11 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 
 	/* Make sure the encoder is on */
 	if (!fh->enc_on) {
-		unsigned long flags;
 		int ret;
 
-		spin_lock_irqsave(&solo_enc->lock, flags);
+		spin_lock(&solo_enc->lock);
 		ret = solo_enc_on(fh);
-	        spin_unlock_irqrestore(&solo_enc->lock, flags);
+	        spin_unlock(&solo_enc->lock);
 		if (ret)
 			return ret;
 	}
@@ -949,13 +945,12 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
-	unsigned long flags;
 	int ret;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	spin_lock(&solo_enc->lock);
 
 	if ((ret = solo_enc_try_fmt_cap(file, priv, f))) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		spin_unlock(&solo_enc->lock);
 		return ret;
 	}
 
@@ -971,7 +966,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 		fh->type = SOLO_ENC_TYPE_EXT;
 	ret = solo_enc_on(fh);
 
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 
 	return ret;
 }
@@ -1026,11 +1021,9 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 
 	/* Make sure the encoder is on */
 	if (!fh->enc_on) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&solo_enc->lock, flags);
+		spin_lock(&solo_enc->lock);
 		ret = solo_enc_on(fh);
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		spin_unlock(&solo_enc->lock);
 		if (ret)
 			return ret;
 	}
@@ -1166,13 +1159,12 @@ static int solo_s_parm(struct file *file, void *priv,
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	unsigned long flags;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	spin_lock(&solo_enc->lock);
 
 	if (atomic_read(&solo_enc->readers) > 0) {
-		spin_unlock_irqrestore(&solo_enc->lock, flags);
+		spin_unlock(&solo_enc->lock);
 		return -EBUSY;
 	}
 
@@ -1196,7 +1188,7 @@ static int solo_s_parm(struct file *file, void *priv,
 	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_update_mode(solo_enc);
 
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 
         return 0;
 }
@@ -1500,7 +1492,6 @@ static struct video_device solo_enc_template = {
 static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 {
 	struct solo_enc_dev *solo_enc;
-	unsigned long flags;
 	int ret;
 
 	solo_enc = kzalloc(sizeof(*solo_enc), GFP_KERNEL);
@@ -1545,9 +1536,9 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->motion_thresh = SOLO_DEF_MOT_THRESH;
 
-	spin_lock_irqsave(&solo_enc->lock, flags);
+	spin_lock(&solo_enc->lock);
 	solo_update_mode(solo_enc);
-	spin_unlock_irqrestore(&solo_enc->lock, flags);
+	spin_unlock(&solo_enc->lock);
 
 	return solo_enc;
 }

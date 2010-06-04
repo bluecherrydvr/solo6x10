@@ -260,11 +260,10 @@ finish_buf:
 static void solo_thread_try(struct solo_filehandle *fh)
 {
 	struct videobuf_buffer *vb;
-	unsigned long flags;
 	unsigned int cur_write;
 
 	for (;;) {
-		spin_lock_irqsave(&fh->slock, flags);
+		spin_lock(&fh->slock);
 
 		if (list_empty(&fh->vidq_active))
 			break;
@@ -283,14 +282,13 @@ static void solo_thread_try(struct solo_filehandle *fh)
 		fh->old_write = cur_write;
 		list_del(&vb->queue);
 
-		spin_unlock_irqrestore(&fh->slock, flags);
+		spin_unlock(&fh->slock);
 
 		solo_fillbuf(fh, vb);
 	}
 
 	assert_spin_locked(&fh->slock);
-
-	spin_unlock_irqrestore(&fh->slock, flags);
+	spin_unlock(&fh->slock);
 }
 
 static int solo_thread(void *data)
