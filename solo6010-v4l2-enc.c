@@ -1554,6 +1554,9 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 
 static void solo_enc_free(struct solo_enc_dev *solo_enc)
 {
+	if (solo_enc == NULL)
+		return;
+
 	video_unregister_device(solo_enc->vfd);
 	kfree(solo_enc);
 }

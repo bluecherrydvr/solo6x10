@@ -866,6 +866,8 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 void solo_v4l2_exit(struct solo6010_dev *solo_dev)
 {
 	solo6010_irq_off(solo_dev, SOLO_IRQ_VIDEO_IN);
-	video_unregister_device(solo_dev->vfd);
-	solo_dev->vfd = NULL;
+	if (solo_dev->vfd) {
+		video_unregister_device(solo_dev->vfd);
+		solo_dev->vfd = NULL;
+	}
 }
