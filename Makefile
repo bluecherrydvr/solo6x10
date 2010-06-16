@@ -5,6 +5,7 @@ solo6010-objs	:= solo6010-core.o solo6010-i2c.o solo6010-p2m.o \
 		   solo6010-disp.o solo6010-enc.o solo6010-v4l2-enc.o \
 		   solo6010-g723.o
 
+# For when the kernel isn't compiled with it
 ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)
 solo6010-objs += videobuf-dma-contig.o
 endif
