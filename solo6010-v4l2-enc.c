@@ -18,7 +18,6 @@
  */
 
 #include <linux/kernel.h>
-#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>

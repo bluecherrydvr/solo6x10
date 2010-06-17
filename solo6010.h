@@ -20,6 +20,7 @@
 #ifndef __SOLO6010_H
 #define __SOLO6010_H
 
+#include <linux/version.h>
 #include <linux/pci.h>
 #include <linux/i2c.h>
 #include <linux/semaphore.h>
@@ -34,6 +35,10 @@
 #include <media/videobuf-core.h>
 
 #include "solo6010-registers.h"
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
+#define videobuf_queue_to_vmalloc videobuf_queue_to_vaddr
+#endif
 
 #ifndef PCI_VENDOR_ID_SOFTLOGIC
 #define PCI_VENDOR_ID_SOFTLOGIC		0x9413

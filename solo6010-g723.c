@@ -22,7 +22,6 @@
 #include <linux/poll.h>
 #include <linux/kthread.h>
 #include <linux/freezer.h>
-#include <linux/version.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
