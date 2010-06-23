@@ -58,7 +58,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 
 	p2m_dev = &solo_dev->p2m_dev[id];
 
-	down(&p2m_dev->sem);
+	mutex_lock(&p2m_dev->mutex);
 
 start_dma:
 	INIT_COMPLETION(p2m_dev->completion);
@@ -80,7 +80,7 @@ start_dma:
 	if (p2m_dev->error)
 		goto start_dma;
 
-	up(&p2m_dev->sem);
+	mutex_unlock(&p2m_dev->mutex);
 
 	return (timeout == 0) ? -EAGAIN : 0;
 }
@@ -188,7 +188,7 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	for (i = 0; i < SOLO_NR_P2M; i++) {
 		p2m_dev = &solo_dev->p2m_dev[i];
 
-		init_MUTEX(&p2m_dev->sem);
+		mutex_init(&p2m_dev->mutex);
 		init_completion(&p2m_dev->completion);
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(i),

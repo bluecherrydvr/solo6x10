@@ -227,7 +227,7 @@ static int solo_i2c_master_xfer(struct i2c_adapter *adap,
 	if (i == SOLO_I2C_ADAPTERS)
 		return num; // XXX Right return value for failure?
 
-	down(&solo_dev->i2c_sem);
+	mutex_lock(&solo_dev->i2c_mutex);
 	solo_dev->i2c_id = i;
 	solo_dev->i2c_msg = msgs;
 	solo_dev->i2c_msg_num = num;
@@ -258,7 +258,7 @@ static int solo_i2c_master_xfer(struct i2c_adapter *adap,
 	solo_dev->i2c_state = IIC_STATE_IDLE;
 	solo_dev->i2c_id = -1;
 
-	up(&solo_dev->i2c_sem);
+	mutex_unlock(&solo_dev->i2c_mutex);
 
 	return ret;
 }
@@ -284,7 +284,7 @@ int solo_i2c_init(struct solo6010_dev *solo_dev)
 	solo_dev->i2c_id = -1;
 	solo_dev->i2c_state = IIC_STATE_IDLE;
 	init_waitqueue_head(&solo_dev->i2c_wait);
-	init_MUTEX(&solo_dev->i2c_sem);
+	mutex_init(&solo_dev->i2c_mutex);
 
 	for (i = 0; i < SOLO_I2C_ADAPTERS; i++) {
 		struct i2c_adapter *adap = &solo_dev->i2c_adap[i];

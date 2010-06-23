@@ -127,7 +127,7 @@ enum SOLO_I2C_STATE {
 };
 
 struct solo_p2m_dev {
-	struct semaphore	sem;
+	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
 	u8			desc[SOLO_P2M_DESC_SIZE];
@@ -188,7 +188,7 @@ struct solo6010_dev {
 	/* i2c related items */
 	struct i2c_adapter	i2c_adap[SOLO_I2C_ADAPTERS];
 	enum SOLO_I2C_STATE	i2c_state;
-	struct semaphore	i2c_sem;
+	struct mutex		i2c_mutex;
 	int			i2c_id;
 	wait_queue_head_t	i2c_wait;
 	struct i2c_msg		*i2c_msg;
