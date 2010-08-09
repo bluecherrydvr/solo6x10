@@ -538,7 +538,7 @@ static int solo_enum_input(struct file *file, void *priv,
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
 		input->std = V4L2_STD_NTSC_M;
 	else
-		input->std = V4L2_STD_PAL_M;
+		input->std = V4L2_STD_PAL_B;
 
 	return 0;
 }
@@ -807,7 +807,7 @@ static struct video_device solo_v4l2_template = {
 	.minor			= -1,
 	.release		= video_device_release,
 
-	.tvnorms		= V4L2_STD_NTSC_M | V4L2_STD_PAL_M,
+	.tvnorms		= V4L2_STD_NTSC_M | V4L2_STD_PAL_B,
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
