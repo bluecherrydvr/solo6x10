@@ -51,14 +51,14 @@
 #define PCI_DEVICE_ID_NEUSOLO_4		0x4304
 #define PCI_DEVICE_ID_NEUSOLO_9		0x4309
 #define PCI_DEVICE_ID_NEUSOLO_16	0x4310
-/* Commell Softlogic 6010 based cards */
-#define PCI_DEVICE_ID_COMMSOLO_4	0x4E04
-#define PCI_DEVICE_ID_COMMSOLO_9	0x4E09
-#define PCI_DEVICE_ID_COMMSOLO_16	0x4E10
-/* Commell Softlogic 6110 based cards */
-#define PCI_DEVICE_ID_C6110_4		0x5304
-#define PCI_DEVICE_ID_C6110_8		0x5308
-#define PCI_DEVICE_ID_C6110_16		0x5310
+/* Bluecherry Softlogic 6010 based cards */
+#define PCI_DEVICE_ID_BC_SOLO_4		0x4E04
+#define PCI_DEVICE_ID_BC_SOLO_9		0x4E09
+#define PCI_DEVICE_ID_BC_SOLO_16	0x4E10
+/* Bluecherry Softlogic 6110 based cards */
+#define PCI_DEVICE_ID_BC_6110_4		0x5304
+#define PCI_DEVICE_ID_BC_6110_8		0x5308
+#define PCI_DEVICE_ID_BC_6110_16	0x5310
 #endif /* Bluecherry */
 
 #define SOLO6010_NAME			"solo6010"
