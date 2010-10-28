@@ -766,8 +766,6 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
 		return -ENOMEM;
 
-	spin_lock(&solo_enc->lock);
-
 	fh->enc = solo_enc;
 	file->private_data = fh;
 	INIT_LIST_HEAD(&fh->vidq_active);
@@ -780,8 +778,6 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct videobuf_buffer), fh);
-
-	spin_unlock(&solo_enc->lock);
 
 	return 0;
 }
