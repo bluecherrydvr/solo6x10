@@ -155,6 +155,11 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 	else
 		solo_dev->motion_mask &= ~(1 << ch);
 
+	/* Do this regardless of if we are turning on or off */
+	solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
+		       1 << solo_enc->ch);
+	solo_enc->motion_detected = 0;
+
 	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
 		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
 		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
