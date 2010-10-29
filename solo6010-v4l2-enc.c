@@ -220,11 +220,6 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 			solo_dev->enc_bw_remain -= solo_enc->bw_weight;
 	}
 
-	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
-
-	if (IS_ERR(fh->kthread))
-		return PTR_ERR(fh->kthread);
-
 	fh->enc_on = 1;
 	fh->rd_idx = solo_enc->solo_dev->enc_wr_idx;
 
@@ -286,6 +281,24 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(solo_enc->ch), 0);
+}
+
+static int solo_start_fh_thread(struct solo_enc_fh *fh)
+{
+	struct solo_enc_dev *solo_enc = fh->enc;
+
+	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
+
+	/* Oops, we had a problem */
+	if (IS_ERR(fh->kthread)) {
+		spin_lock(&solo_enc->lock);
+		solo_enc_off(fh);
+		spin_unlock(&solo_enc->lock);
+
+		return PTR_ERR(fh->kthread);
+	}
+
+	return 0;
 }
 
 static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
@@ -797,6 +810,10 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 	        spin_unlock(&solo_enc->lock);
 		if (ret)
 			return ret;
+
+		ret = solo_start_fh_thread(fh);
+		if (ret)
+			return ret;
 	}
 
 	return videobuf_read_stream(&fh->vidq, data, count, ppos, 0,
@@ -810,10 +827,15 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_fh *fh = file->private_data;
+	struct solo_enc_dev *solo_enc = fh->enc;
 
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
+
+	spin_lock(&solo_enc->lock);
 	solo_enc_off(fh);
+	spin_unlock(&solo_enc->lock);
+
 	kfree(fh);
 
 	return 0;
@@ -969,7 +991,10 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 
 	spin_unlock(&solo_enc->lock);
 
-	return ret;
+	if (ret)
+		return ret;
+
+	return solo_start_fh_thread(fh);
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
@@ -1025,6 +1050,10 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 		spin_lock(&solo_enc->lock);
 		ret = solo_enc_on(fh);
 		spin_unlock(&solo_enc->lock);
+		if (ret)
+			return ret;
+
+		ret = solo_start_fh_thread(fh);
 		if (ret)
 			return ret;
 	}
