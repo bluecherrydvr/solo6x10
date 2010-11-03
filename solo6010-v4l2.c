@@ -24,7 +24,7 @@
 
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-common.h>
-#include <media/videobuf-dma-contig.h>
+#include <media/videobuf-dma-sg.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
@@ -207,40 +207,79 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 			 struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
-	dma_addr_t vbuf;
+	struct videobuf_dmabuf* vbuf;
 	unsigned int fdma_addr;
 	int frame_size;
 	int error = 1;
 	int i;
+	struct scatterlist* sg;
+	dma_addr_t sg_dma;
+	size_t sg_size_left;
 
-	if (!(vbuf = videobuf_to_dma_contig(vb)))
+	if (!(vbuf = videobuf_to_dma(vb)))
 		goto finish_buf;
 
 	if (erase_off(solo_dev)) {
-		void *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
-		int image_size = solo_image_size(solo_dev);
-		for (i = 0; i < image_size; i += 2) {
-			((u8 *)p)[i] = 0x80;
-			((u8 *)p)[i + 1] = 0x00;
+		int i;
+
+		/* Just blit to the entire sg list, ignoring size */
+		for_each_sg(vbuf->sglist, sg, vbuf->sglen, i) {
+			void *p = sg_virt(sg);
+			size_t len = sg_dma_len(sg);
+
+			for (i = 0; i < len; i += 2) {
+				((u8 *)p)[i] = 0x80;
+				((u8 *)p)[i + 1] = 0x00;
+			}
 		}
+
 		error = 0;
 		goto finish_buf;
 	}
+
+	sg = vbuf->sglist;
+	sg_dma = sg_dma_address(sg);
+	sg_size_left = sg_dma_len(sg);
 
 	frame_size = SOLO_HW_BPL * solo_vlines(solo_dev);
 	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write * frame_size);
 
 	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
 		int j;
+
 		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_HW_BPL); j++) {
-			if (solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
-					   vbuf, fdma_addr + (j * SOLO_HW_BPL),
-					   solo_bytesperline(solo_dev)))
-				goto finish_buf;
-			vbuf += solo_bytesperline(solo_dev);
+			size_t this_copy = solo_bytesperline(solo_dev);
+			size_t this_base = fdma_addr + (j * SOLO_HW_BPL);
+
+			while (this_copy > 0) {
+				size_t copy_size = min(sg_size_left, this_copy);
+
+				if (solo_p2m_dma_t(solo_dev,
+						SOLO_P2M_DMA_ID_DISP, 0, sg_dma,
+						this_base, copy_size))
+					goto finish_buf;
+
+				this_base += copy_size;
+				sg_dma += copy_size;
+				sg_size_left -= copy_size;
+				this_copy -= copy_size;
+
+				/* This sg has space left, so continue on */
+				if (sg_size_left > 0)
+					continue;
+
+				/* Get a new sg */
+				sg = sg_next(sg);
+				/* This better mean we are done */
+				if (!sg)
+					break;
+				sg_dma = sg_dma_address(sg);
+				sg_size_left = sg_dma_len(sg);
+			}
 		}
 		fdma_addr += SOLO_DISP_BUF_SIZE;
 	}
+
 	error = 0;
 
 finish_buf:
@@ -275,7 +314,7 @@ static void solo_thread_try(struct solo_filehandle *fh)
 			break;
 
 		cur_write = SOLO_VI_STATUS0_PAGE(solo_reg_read(fh->solo_dev,
-							SOLO_VI_STATUS0));
+						 SOLO_VI_STATUS0));
 		if (cur_write == fh->old_write)
 			break;
 
@@ -364,14 +403,16 @@ static int solo_buf_prepare(struct videobuf_queue *vq,
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 		int rc = videobuf_iolock(vq, vb, NULL);
 		if (rc < 0) {
-			videobuf_dma_contig_free(vq, vb);
+			struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
+			videobuf_dma_unmap(vq, dma);
+			videobuf_dma_free(dma);
 			vb->state = VIDEOBUF_NEEDS_INIT;
 			return rc;
 		}
 	}
 	vb->state = VIDEOBUF_PREPARED;
 
-	return 0;
+        return 0;
 }
 
 static void solo_buf_queue(struct videobuf_queue *vq,
@@ -388,7 +429,10 @@ static void solo_buf_queue(struct videobuf_queue *vq,
 static void solo_buf_release(struct videobuf_queue *vq,
 			     struct videobuf_buffer *vb)
 {
-	videobuf_dma_contig_free(vq, vb);
+	struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
+
+	videobuf_dma_unmap(vq, dma);
+	videobuf_dma_free(dma);
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
@@ -437,11 +481,11 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 		return ret;
 	}
 
-	videobuf_queue_dma_contig_init(&fh->vidq, &solo_video_qops,
-				    &solo_dev->pdev->dev, &fh->slock,
-				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
-				    SOLO_DISP_PIX_FIELD,
-				    sizeof(struct videobuf_buffer), fh);
+	videobuf_queue_sg_init(&fh->vidq, &solo_video_qops,
+			       &solo_dev->pdev->dev, &fh->slock,
+			       V4L2_BUF_TYPE_VIDEO_CAPTURE,
+			       SOLO_DISP_PIX_FIELD,
+			       sizeof(struct videobuf_buffer), fh);
 
 	return 0;
 }

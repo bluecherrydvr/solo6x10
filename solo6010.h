@@ -85,7 +85,6 @@
 /* DMA Engine setup */
 #define SOLO_NR_P2M			4
 #define SOLO_NR_P2M_DESC		256
-#define SOLO_P2M_DESC_SIZE		(SOLO_NR_P2M_DESC * 16)
 /* MPEG and JPEG share the same interrupt and locks so they must be together
  * in the same dma channel. */
 #define SOLO_P2M_DMA_ID_MP4E		0
@@ -130,11 +129,20 @@ enum SOLO_I2C_STATE {
 	IIC_STATE_STOP
 };
 
+struct p2m_desc {
+	u32 ctrl;
+	u32 ext;
+	u32 ta;
+	u32 fa;
+};
+
 struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
-	u8			desc[SOLO_P2M_DESC_SIZE];
+	int			num_descs;
+	int			desc_idx;
+	struct p2m_desc		*descs;
 };
 
 #define OSD_TEXT_MAX		30
@@ -313,6 +321,14 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
 int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size);
+int solo_p2m_dma_sg(struct solo6010_dev *solo_dev, u8 id,
+		    struct p2m_desc *pdesc, int wr,
+		    struct scatterlist *sglist, u32 sg_off,
+		    u32 ext_addr, u32 size);
+void solo_p2m_push_desc(struct p2m_desc *desc, int wr, dma_addr_t dma_addr,
+			u32 ext_addr, u32 size, int repeat, u32 ext_size);
+int solo_p2m_dma_desc(struct solo6010_dev *solo_dev, u8 id,
+		      struct p2m_desc *desc, u8 desc_count);
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
