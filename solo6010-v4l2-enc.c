@@ -559,7 +559,6 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	return ret;
 }
 
-/* On successful return (0), leaves solo_enc->lock unlocked */
 static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 			    struct videobuf_buffer *vb)
 {

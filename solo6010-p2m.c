@@ -67,6 +67,7 @@ void solo_p2m_push_desc(struct p2m_desc *desc, int wr, dma_addr_t dma_addr,
 	desc->ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
 		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
 
+	/* Ext size only matters when we're repeating */
 	if (repeat) {
 		desc->ext |= SOLO_P2M_EXT_INC(ext_size >> 2);
 		desc->ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
