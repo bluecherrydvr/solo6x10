@@ -76,7 +76,7 @@ void solo_p2m_push_desc(struct p2m_desc *desc, int wr, dma_addr_t dma_addr,
 }
 
 int solo_p2m_dma_desc(struct solo6010_dev *solo_dev, u8 id,
-		      struct p2m_desc *desc, u8 desc_count)
+		      struct p2m_desc *desc, int desc_count)
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout;

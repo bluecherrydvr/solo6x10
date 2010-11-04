@@ -328,7 +328,7 @@ int solo_p2m_dma_sg(struct solo6010_dev *solo_dev, u8 id,
 void solo_p2m_push_desc(struct p2m_desc *desc, int wr, dma_addr_t dma_addr,
 			u32 ext_addr, u32 size, int repeat, u32 ext_size);
 int solo_p2m_dma_desc(struct solo6010_dev *solo_dev, u8 id,
-		      struct p2m_desc *desc, u8 desc_count);
+		      struct p2m_desc *desc, int desc_count);
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
