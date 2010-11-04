@@ -31,7 +31,6 @@
 
 #define SOLO_HW_BPL		2048
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
-#define SOLO_DISP_BUF_SIZE	(64 * 1024) // 64k
 
 /* Image size is two fields, SOLO_HW_BPL is one horizontal line */
 #define solo_vlines(__solo)	(__solo->video_vsize * 2)
@@ -49,6 +48,8 @@ struct solo_filehandle {
 	spinlock_t		slock;
 	int			old_write;
 	struct list_head	vidq_active;
+	struct p2m_desc         desc[SOLO_NR_P2M_DESC];
+	int			desc_idx;
 };
 
 unsigned video_nr = -1;
@@ -203,18 +204,52 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 	return 0;
 }
 
+static void disp_reset_desc(struct solo_filehandle *fh)
+{
+	fh->desc_idx = 0;
+}
+
+static int disp_flush_descs(struct solo_filehandle *fh)
+{
+	int ret;
+
+	if (!fh->desc_idx)
+		return 0;
+
+	ret = solo_p2m_dma_desc(fh->solo_dev, SOLO_P2M_DMA_ID_DISP,
+				fh->desc, fh->desc_idx);
+	disp_reset_desc(fh);
+
+	return ret;
+}
+
+static int disp_push_desc(struct solo_filehandle *fh, dma_addr_t dma_addr,
+		      u32 ext_addr, int size, int repeat, int ext_size)
+{
+	if (fh->desc_idx >= SOLO_NR_P2M_DESC) {
+		int ret = disp_flush_descs(fh);
+		if (ret)
+			return ret;
+	}
+
+	solo_p2m_push_desc(&fh->desc[fh->desc_idx], 0, dma_addr, ext_addr,
+			   size, repeat, ext_size);
+	fh->desc_idx++;
+
+	return 0;
+}
+
 static void solo_fillbuf(struct solo_filehandle *fh,
 			 struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 	struct videobuf_dmabuf* vbuf;
 	unsigned int fdma_addr;
-	int frame_size;
 	int error = 1;
 	int i;
 	struct scatterlist* sg;
 	dma_addr_t sg_dma;
-	size_t sg_size_left;
+	int sg_size_left;
 
 	if (!(vbuf = videobuf_to_dma(vb)))
 		goto finish_buf;
@@ -237,55 +272,78 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 		goto finish_buf;
 	}
 
+	disp_reset_desc(fh);
 	sg = vbuf->sglist;
 	sg_dma = sg_dma_address(sg);
 	sg_size_left = sg_dma_len(sg);
 
-	frame_size = SOLO_HW_BPL * solo_vlines(solo_dev);
-	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write * frame_size);
+	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
+			(SOLO_HW_BPL * solo_vlines(solo_dev)));
 
-	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
-		int j;
+	for (i = 0; i < solo_vlines(solo_dev); i++) {
+		int line_len = solo_bytesperline(solo_dev);
+		int lines;
 
-		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_HW_BPL); j++) {
-			size_t this_copy = solo_bytesperline(solo_dev);
-			size_t this_base = fdma_addr + (j * SOLO_HW_BPL);
+		if (!sg_size_left) {
+			sg = sg_next(sg);
+			if (sg == NULL)
+				goto finish_buf;
+			sg_dma = sg_dma_address(sg);
+			sg_size_left = sg_dma_len(sg);
+		}
 
-			while (this_copy > 0) {
-				size_t copy_size = min(sg_size_left, this_copy);
+		/* No room for an entire line, so chunk it up */
+		if (sg_size_left < line_len) {
+			int this_addr = fdma_addr;
 
-				if (solo_p2m_dma_t(solo_dev,
-						SOLO_P2M_DMA_ID_DISP, 0, sg_dma,
-						this_base, copy_size))
+			while (line_len > 0) {
+				int this_write;
+
+				if (!sg_size_left) {
+					sg = sg_next(sg);
+					if (sg == NULL)
+						goto finish_buf;
+					sg_dma = sg_dma_address(sg);
+					sg_size_left = sg_dma_len(sg);
+				}
+
+				this_write = min(sg_size_left, line_len);
+
+				if (disp_push_desc(fh, sg_dma, this_addr,
+						   this_write, 0, 0))
 					goto finish_buf;
 
-				this_base += copy_size;
-				sg_dma += copy_size;
-				sg_size_left -= copy_size;
-				this_copy -= copy_size;
-
-				/* This sg has space left, so continue on */
-				if (sg_size_left > 0)
-					continue;
-
-				/* Get a new sg */
-				sg = sg_next(sg);
-				/* This better mean we are done */
-				if (!sg)
-					break;
-				sg_dma = sg_dma_address(sg);
-				sg_size_left = sg_dma_len(sg);
+				line_len -= this_write;
+				sg_size_left -= this_write;
+				sg_dma += this_write;
+				this_addr += this_write;
 			}
+
+			fdma_addr += SOLO_HW_BPL;
+			continue;
 		}
-		fdma_addr += SOLO_DISP_BUF_SIZE;
+
+		/* Shove as many lines into a repeating descriptor as possible */
+		lines = min(sg_size_left / line_len,
+			    solo_vlines(solo_dev) - i);
+
+		if (disp_push_desc(fh, sg_dma, fdma_addr, line_len,
+				   lines - 1, SOLO_HW_BPL))
+			goto finish_buf;
+
+		i += lines - 1;
+		fdma_addr += SOLO_HW_BPL * lines;
+		sg_dma += lines * line_len;
+		sg_size_left -= lines * line_len;
 	}
 
-	error = 0;
+	error = disp_flush_descs(fh);
 
 finish_buf:
 	if (error) {
 		vb->state = VIDEOBUF_ERROR;
 	} else {
+		vb->size = solo_vlines(solo_dev) * solo_bytesperline(solo_dev);
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
 		do_gettimeofday(&vb->ts);
