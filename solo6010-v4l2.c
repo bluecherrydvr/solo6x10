@@ -48,7 +48,7 @@ struct solo_filehandle {
 	spinlock_t		slock;
 	int			old_write;
 	struct list_head	vidq_active;
-	struct p2m_desc         desc[SOLO_NR_P2M_DESC];
+	struct p2m_desc		desc[SOLO_NR_P2M_DESC];
 	int			desc_idx;
 };
 
@@ -97,7 +97,7 @@ static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
 		       SOLO_VI_WIN_EX(ex) |
 		       SOLO_VI_WIN_SCALE(scale));
 
-        solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
+	solo_reg_write(solo_dev, SOLO_VI_WIN_CTRL1(ch),
 		       SOLO_VI_WIN_SY(sy) |
 		       SOLO_VI_WIN_EY(ey));
 }
@@ -407,7 +407,7 @@ static int solo_thread(void *data)
 
 	remove_wait_queue(&solo_dev->disp_thread_wait, &wait);
 
-        return 0;
+	return 0;
 }
 
 static int solo_start_thread(struct solo_filehandle *fh)
@@ -434,12 +434,12 @@ static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,
 	struct solo_filehandle *fh = vq->priv_data;
 	struct solo6010_dev *solo_dev  = fh->solo_dev;
 
-        *size = solo_image_size(solo_dev);
+	*size = solo_image_size(solo_dev);
 
-        if (*count < MIN_VID_BUFFERS)
+	if (*count < MIN_VID_BUFFERS)
 		*count = MIN_VID_BUFFERS;
 
-        return 0;
+	return 0;
 }
 
 static int solo_buf_prepare(struct videobuf_queue *vq,
@@ -470,7 +470,7 @@ static int solo_buf_prepare(struct videobuf_queue *vq,
 	}
 	vb->state = VIDEOBUF_PREPARED;
 
-        return 0;
+	return 0;
 }
 
 static void solo_buf_queue(struct videobuf_queue *vq,
@@ -506,7 +506,7 @@ static unsigned int solo_v4l2_poll(struct file *file,
 {
 	struct solo_filehandle *fh = file->private_data;
 
-        return videobuf_poll_stream(file, &fh->vidq, wait);
+	return videobuf_poll_stream(file, &fh->vidq, wait);
 }
 
 static int solo_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
@@ -895,11 +895,11 @@ static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 	.vidioc_qbuf			= solo_qbuf,
 	.vidioc_dqbuf			= solo_dqbuf,
 	.vidioc_streamon		= solo_streamon,
-        .vidioc_streamoff		= solo_streamoff,
+	.vidioc_streamoff		= solo_streamoff,
 	/* Controls */
 	.vidioc_queryctrl		= solo_disp_queryctrl,
-        .vidioc_g_ctrl			= solo_disp_g_ctrl,
-        .vidioc_s_ctrl			= solo_disp_s_ctrl,
+	.vidioc_g_ctrl			= solo_disp_g_ctrl,
+	.vidioc_s_ctrl			= solo_disp_s_ctrl,
 };
 
 static struct video_device solo_v4l2_template = {
@@ -939,7 +939,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	snprintf(solo_dev->vfd->name, sizeof(solo_dev->vfd->name), "%s (%i)",
 		 SOLO6010_NAME, solo_dev->vfd->num);
 
-	if (video_nr >= 0)
+	if (video_nr != -1)
 		video_nr++;
 
 	dev_info(&solo_dev->pdev->dev, "Display as /dev/video%d with "

@@ -194,7 +194,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 		solo_enc->bw_weight <<= 2;
 		break;
 	default:
-		WARN(1, "mode is unknown");
+		WARN(1, "mode is unknown\n");
 	}
 }
 
@@ -367,7 +367,7 @@ static int enc_get_mpeg_dma_sg(struct solo6010_dev *solo_dev,
 }
 
 static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev,
-                              dma_addr_t buf, unsigned int off,
+			      dma_addr_t buf, unsigned int off,
 			      unsigned int size)
 {
 	int ret;
@@ -423,7 +423,7 @@ static int enc_get_jpeg_dma_sg(struct solo6010_dev *solo_dev,
 	}
 
 	/* Buffer wrap */
-        ret = solo_p2m_dma_sg(solo_dev, SOLO_P2M_DMA_ID_JPEG, desc, 0,
+	ret = solo_p2m_dma_sg(solo_dev, SOLO_P2M_DMA_ID_JPEG, desc, 0,
 			      sglist, skip, SOLO_JPEG_EXT_ADDR(solo_dev) + off,
 			      SOLO_JPEG_EXT_SIZE(solo_dev) - off);
 
@@ -678,7 +678,7 @@ static int solo_enc_thread(void *data)
 
 	remove_wait_queue(&solo_enc->thread_wait, &wait);
 
-        return 0;
+	return 0;
 }
 
 void solo_motion_isr(struct solo6010_dev *solo_dev)
@@ -790,12 +790,12 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 static int solo_enc_buf_setup(struct videobuf_queue *vq, unsigned int *count,
 			      unsigned int *size)
 {
-        *size = FRAME_BUF_SIZE;
+	*size = FRAME_BUF_SIZE;
 
-        if (*count < MIN_VID_BUFFERS)
+	if (*count < MIN_VID_BUFFERS)
 		*count = MIN_VID_BUFFERS;
 
-        return 0;
+	return 0;
 }
 
 static int solo_enc_buf_prepare(struct videobuf_queue *vq,
@@ -911,7 +911,7 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 
 		spin_lock(&solo_enc->lock);
 		ret = solo_enc_on(fh);
-	        spin_unlock(&solo_enc->lock);
+		spin_unlock(&solo_enc->lock);
 		if (ret)
 			return ret;
 
@@ -1288,7 +1288,7 @@ static int solo_g_parm(struct file *file, void *priv,
 	/* XXX: Shouldn't we be able to get/set this from videobuf? */
 	cp->readbuffers = 2;
 
-        return 0;
+	return 0;
 }
 
 static int solo_s_parm(struct file *file, void *priv,
@@ -1328,7 +1328,7 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	spin_unlock(&solo_enc->lock);
 
-        return 0;
+	return 0;
 }
 
 static int solo_queryctrl(struct file *file, void *priv,
@@ -1394,7 +1394,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 #endif
 	}
 
-        return -EINVAL;
+	return -EINVAL;
 }
 
 static int solo_querymenu(struct file *file, void *priv,
@@ -1505,9 +1505,9 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 		case V4L2_CID_RDS_TX_RADIO_TEXT:
 			if (ctrl->size - 1 > OSD_TEXT_MAX)
-                                err = -ERANGE;
+				err = -ERANGE;
 			else {
-                        	err = copy_from_user(solo_enc->osd_text,
+				err = copy_from_user(solo_enc->osd_text,
 						     ctrl->string,
 						     OSD_TEXT_MAX);
 				solo_enc->osd_text[OSD_TEXT_MAX] = '\0';
@@ -1661,7 +1661,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 		 "%s-enc (%i/%i)", SOLO6010_NAME, solo_dev->vfd->num,
 		 solo_enc->vfd->num);
 
-	if (video_nr >= 0)
+	if (video_nr != -1)
 		video_nr++;
 
 	spin_lock_init(&solo_enc->lock);
@@ -1669,7 +1669,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	atomic_set(&solo_enc->readers, 0);
 
 	solo_enc->qp = SOLO_DEFAULT_QP;
-        solo_enc->gop = solo_dev->fps;
+	solo_enc->gop = solo_dev->fps;
 	solo_enc->interval = 1;
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->motion_thresh = SOLO_DEF_MOT_THRESH;

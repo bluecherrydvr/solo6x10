@@ -53,7 +53,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 
 	solo_p2m_push_desc(&desc, wr, dma_addr, ext_addr, size, 0, 0);
 
-        return solo_p2m_dma_desc(solo_dev, id, &desc, 1);
+	return solo_p2m_dma_desc(solo_dev, id, &desc, 1);
 }
 
 void solo_p2m_push_desc(struct p2m_desc *desc, int wr, dma_addr_t dma_addr,
@@ -99,9 +99,9 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev, u8 id,
 	/* We plug in the first descriptor here. The isr will take
 	 * over from desc[1] after this. */
 	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), desc[0].ta);
-        solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), desc[0].fa);
-        solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), desc[0].ext);
-        solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc[0].ctrl);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), desc[0].fa);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), desc[0].ext);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc[0].ctrl);
 
 	/* Should have all descriptors completed from one interrupt */
 	timeout = wait_for_completion_timeout(&p2m_dev->completion, HZ);

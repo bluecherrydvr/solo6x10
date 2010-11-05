@@ -27,6 +27,7 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/delay.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
 
@@ -35,10 +36,6 @@
 #include <media/videobuf-core.h>
 
 #include "solo6010-registers.h"
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
-#define videobuf_queue_to_vmalloc videobuf_queue_to_vaddr
-#endif
 
 #ifndef PCI_VENDOR_ID_SOFTLOGIC
 #define PCI_VENDOR_ID_SOFTLOGIC		0x9413
