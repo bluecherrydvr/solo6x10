@@ -187,8 +187,8 @@ static void tw_write_and_verify(struct solo6010_dev *solo_dev, u8 addr, u8 off,
 
 static int tw2865_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 {
-        u8 tbl_tw2865_common[256];
-        int i;
+	u8 tbl_tw2865_common[256];
+	int i;
 
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_PAL)
 		memcpy(tbl_tw2865_common, tbl_tw2865_pal_template,
@@ -229,8 +229,8 @@ static int tw2865_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 			continue;
 
 		tw_write_and_verify(solo_dev, dev_addr, i,
-                                    tbl_tw2865_common[i]);
-        }
+				    tbl_tw2865_common[i]);
+	}
 
 	return 0;
 }
@@ -311,8 +311,8 @@ static int tw2864_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 		if (i == 0x74 || i == 0x77 || i == 0x78 ||
 		    i == 0x79 || i == 0x7a)
 			continue;
-                if (i == 0xfd)
-                        continue;
+		if (i == 0xfd)
+			continue;
 
 		tw_write_and_verify(solo_dev, dev_addr, i,
 				    tbl_tw2864_common[i]);
@@ -722,7 +722,7 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 	case V4L2_CID_SHARPNESS:
 		/* Only 286x has sharpness */
 		if (is_tw286x(solo_dev, chip_num)) {
-                        rval = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
+			rval = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 						 TW_CHIP_OFFSET_ADDR(chip_num),
 						 TW286x_SHARPNESS(chip_num));
 			*val = rval & 0x0f;
