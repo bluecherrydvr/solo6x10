@@ -27,6 +27,7 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/delay.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
 
