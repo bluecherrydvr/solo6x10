@@ -119,21 +119,20 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	char *str = solo_enc->osd_text;
-	u8 *buf;
+	u8 *buf = solo_enc->osd_buf;
 	u32 reg = solo_reg_read(solo_dev, SOLO_VE_OSD_CH);
 	int len = strlen(str);
 	int i, j;
 	int x = 1, y = 1;
 
+	mutex_lock(&solo_enc->osd_mutex);
+
 	if (len == 0) {
 		reg &= ~(1 << solo_enc->ch);
 		solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
+		mutex_unlock(&solo_enc->osd_mutex);
 		return 0;
 	}
-
-	buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
 
 	for (i = 0; i < len; i++) {
 		for (j = 0; j < 16; j++) {
@@ -148,7 +147,7 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 	reg |= (1 << solo_enc->ch);
 	solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
 
-	kfree(buf);
+	mutex_unlock(&solo_enc->osd_mutex);
 
 	return 0;
 }

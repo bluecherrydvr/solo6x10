@@ -139,7 +139,7 @@ struct solo_p2m_dev {
 	int			error;
 };
 
-#define OSD_TEXT_MAX		30
+#define OSD_TEXT_MAX		36
 
 enum solo_enc_types {
 	SOLO_ENC_TYPE_STD,
@@ -163,6 +163,8 @@ struct solo_enc_dev {
 	u16			width;
 	u16			height;
 	char			osd_text[OSD_TEXT_MAX + 1];
+	u8			osd_buf[SOLO_EOSD_EXT_SIZE];
+	struct mutex		osd_mutex;
 };
 
 struct solo_enc_buf {

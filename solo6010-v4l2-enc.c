@@ -1664,6 +1664,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	if (video_nr != -1)
 		video_nr++;
 
+	mutex_init(&solo_enc->osd_mutex);
 	spin_lock_init(&solo_enc->lock);
 	init_waitqueue_head(&solo_enc->thread_wait);
 	atomic_set(&solo_enc->readers, 0);
