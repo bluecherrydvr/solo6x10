@@ -23,17 +23,16 @@
 #include "solo6010-osd-font.h"
 
 #define CAPTURE_MAX_BANDWIDTH		32	// D1 4channel (D1 == 4)
-#define OSG_BUFFER_SIZE			1024
 
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
 
 static void solo_capture_config(struct solo6010_dev *solo_dev)
 {
-	int i, j;
 	unsigned long height;
 	unsigned long width;
-	unsigned char *buf;
+	void *buf;
+	int i;
 
 	solo_reg_write(solo_dev, SOLO_CAP_BASE,
 		       SOLO_CAP_MAX_PAGE(SOLO_CAP_EXT_MAX_PAGE *
@@ -100,17 +99,15 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, 0);
 
 	/* Clear OSG buffer */
-	buf = kzalloc(OSG_BUFFER_SIZE, GFP_KERNEL);
+	buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);
 	if (!buf)
 		return;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
-		for (j = 0; j < SOLO_EOSD_EXT_SIZE; j += OSG_BUFFER_SIZE) {
-			solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 1, buf,
-				     SOLO_EOSD_EXT_ADDR(solo_dev) +
-				     (i * SOLO_EOSD_EXT_SIZE) + j,
-				     OSG_BUFFER_SIZE, 0, 0);
-		}
+		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 1, buf,
+			     SOLO_EOSD_EXT_ADDR(solo_dev) +
+			     (SOLO_EOSD_EXT_SIZE * i),
+			     SOLO_EOSD_EXT_SIZE, 0, 0);
 	}
 	kfree(buf);
 }
