@@ -43,7 +43,6 @@ void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask)
 	solo_reg_write(solo_dev, SOLO_IRQ_ENABLE, solo_dev->irq_mask);
 }
 
-/* XXX We should check the return value of the sub-device ISR's */
 static irqreturn_t solo6010_isr(int irq, void *data)
 {
 	struct solo6010_dev *solo_dev = data;
@@ -63,7 +62,6 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 	if (status & SOLO_IRQ_PCI_ERR) {
 		u32 err = solo_reg_read(solo_dev, SOLO_PCI_ERR);
 		solo_p2m_error_isr(solo_dev, err);
-		solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_PCI_ERR);
 	}
 
 	for (i = 0; i < SOLO_NR_P2M; i++)
@@ -85,6 +83,9 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 
 	if (status & SOLO_IRQ_G723)
 		solo_g723_isr(solo_dev);
+
+	/* Clear all interrupts handled */
+	solo_reg_write(solo_dev, SOLO_IRQ_STAT, status);
 
 	return IRQ_HANDLED;
 }

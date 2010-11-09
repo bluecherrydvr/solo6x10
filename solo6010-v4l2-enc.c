@@ -587,8 +587,6 @@ void solo_motion_isr(struct solo6010_dev *solo_dev)
 	u32 status;
 	int i;
 
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_MOTION);
-
 	status = solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS);
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
@@ -615,8 +613,6 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 	u8 cur_q, vop_type;
 	u8 ch;
 	enum solo_enc_types enc_type;
-
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_ENCODER);
 
 	vstatus.status11 = solo_reg_read(solo_dev, SOLO_VE_STATE(11));
 	cur_q = (vstatus.status11_st.last_queue + 1) % MP4_QS;

@@ -152,7 +152,6 @@ static void run_p2m_test(struct solo6010_dev *solo_dev)
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
 	complete(&solo_dev->p2m_dev[id].completion);
 }
 

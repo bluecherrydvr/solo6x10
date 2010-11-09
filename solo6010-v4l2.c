@@ -79,7 +79,6 @@ static int erase_off(struct solo6010_dev *solo_dev)
 
 void solo_video_in_isr(struct solo6010_dev *solo_dev)
 {
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_VIDEO_IN);
 	wake_up_interruptible(&solo_dev->disp_thread_wait);
 }
 

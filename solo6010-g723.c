@@ -85,8 +85,6 @@ void solo_g723_isr(struct solo6010_dev *solo_dev)
 	struct snd_pcm_substream *ss;
 	struct solo_snd_pcm *solo_pcm;
 
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_G723);
-
 	for (ss = pstr->substream; ss != NULL; ss = ss->next) {
 		if (snd_pcm_substream_chip(ss) == NULL)
 			continue;
