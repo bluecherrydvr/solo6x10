@@ -208,8 +208,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 	dma_addr_t vbuf;
 	unsigned int fdma_addr;
-	int frame_size;
-	int error = 1;
+	int error = 0;
 	int i;
 
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
@@ -222,25 +221,14 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 			((u8 *)p)[i] = 0x80;
 			((u8 *)p)[i + 1] = 0x00;
 		}
-		error = 0;
-		goto finish_buf;
-	}
+	} else {
+		fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
+				(SOLO_HW_BPL * solo_vlines(solo_dev)));
 
-	frame_size = SOLO_HW_BPL * solo_vlines(solo_dev);
-	fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write * frame_size);
-
-	for (i = 0; i < frame_size / SOLO_DISP_BUF_SIZE; i++) {
-		int j;
-		for (j = 0; j < (SOLO_DISP_BUF_SIZE / SOLO_HW_BPL); j++) {
-			if (solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_DISP, 0,
-					   vbuf, fdma_addr + (j * SOLO_HW_BPL),
-					   solo_bytesperline(solo_dev)))
-				goto finish_buf;
-			vbuf += solo_bytesperline(solo_dev);
-		}
-		fdma_addr += SOLO_DISP_BUF_SIZE;
+		error = solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_DISP, 0, vbuf,
+				       fdma_addr, solo_bytesperline(solo_dev),
+				       solo_vlines(solo_dev), SOLO_HW_BPL);
 	}
-	error = 0;
 
 finish_buf:
 	if (error) {

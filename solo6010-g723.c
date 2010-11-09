@@ -223,7 +223,7 @@ static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
 				   SOLO_G723_EXT_ADDR(solo_dev) +
 				   (page * G723_PERIOD_BLOCK) +
 				   (ss->number * G723_PERIOD_BYTES),
-				   G723_PERIOD_BYTES);
+				   G723_PERIOD_BYTES, 0, 0);
 		if (err)
 			return err;
 

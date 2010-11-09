@@ -310,9 +310,11 @@ void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
 
 /* P2M DMA */
 int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
-		   dma_addr_t dma_addr, u32 ext_addr, u32 size);
+		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
+		   int repeat, u32 ext_size);
 int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
-		 void *sys_addr, u32 ext_addr, u32 size);
+		 void *sys_addr, u32 ext_addr, u32 size,
+		 int repeat, u32 ext_size);
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);

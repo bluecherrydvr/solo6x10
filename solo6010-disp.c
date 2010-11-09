@@ -159,7 +159,7 @@ static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,
 	for (i = 0; i < reg_size; i += sizeof(buf))
 		ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1, buf,
 				    SOLO_MOTION_EXT_ADDR(solo_dev) + off + i,
-				    sizeof(buf));
+				    sizeof(buf), 0, 0);
 
 	return ret;
 }

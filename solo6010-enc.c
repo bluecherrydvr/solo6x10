@@ -109,7 +109,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 			solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 1, buf,
 				     SOLO_EOSD_EXT_ADDR(solo_dev) +
 				     (i * SOLO_EOSD_EXT_SIZE) + j,
-				     OSG_BUFFER_SIZE);
+				     OSG_BUFFER_SIZE, 0, 0);
 		}
 	}
 	kfree(buf);
@@ -144,7 +144,8 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 	}
 
 	solo_p2m_dma(solo_dev, 0, 1, buf, SOLO_EOSD_EXT_ADDR(solo_dev) +
-		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE), SOLO_EOSD_EXT_SIZE);
+		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE), SOLO_EOSD_EXT_SIZE,
+		     0, 0);
         reg |= (1 << solo_enc->ch);
         solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
 

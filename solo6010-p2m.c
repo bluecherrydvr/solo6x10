@@ -21,23 +21,18 @@
 
 #include "solo6010.h"
 
-// #define SOLO_TEST_P2M
-
 int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
-		 void *sys_addr, u32 ext_addr, u32 size)
+		 void *sys_addr, u32 ext_addr, u32 size,
+		 int repeat, u32 ext_size)
 {
 	dma_addr_t dma_addr;
 	int ret;
 
-	WARN_ON(!size);
-	WARN_ON(id >= SOLO_NR_P2M);
-	if (!size || id >= SOLO_NR_P2M)
-		return -EINVAL;
-
 	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
 				  wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
-	ret = solo_p2m_dma_t(solo_dev, id, wr, dma_addr, ext_addr, size);
+	ret = solo_p2m_dma_t(solo_dev, id, wr, dma_addr, ext_addr, size,
+			     repeat, ext_size);
 
 	pci_unmap_single(solo_dev->pdev, dma_addr, size,
 			 wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
@@ -46,30 +41,39 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 }
 
 int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
-		   dma_addr_t dma_addr, u32 ext_addr, u32 size)
+		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
+		   int repeat, u32 ext_size)
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
+	u32 cfg, ctrl;
+	int ret = 0;
 
-	WARN_ON(!size);
-	WARN_ON(id >= SOLO_NR_P2M);
-	if (!size || id >= SOLO_NR_P2M)
+	if (WARN_ON_ONCE(!size))
+		return -EINVAL;
+	if (WARN_ON_ONCE(id >= SOLO_NR_P2M))
 		return -EINVAL;
 
 	p2m_dev = &solo_dev->p2m_dev[id];
 
 	mutex_lock(&p2m_dev->mutex);
 
-start_dma:
+	cfg = SOLO_P2M_COPY_SIZE(size >> 2);
+	ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
+		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
+
+	if (repeat) {
+		cfg |= SOLO_P2M_EXT_INC(ext_size >> 2);
+		ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
+			 SOLO_P2M_REPEAT(repeat);
+	}
+
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
 	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), dma_addr);
 	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), ext_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id),
-		       SOLO_P2M_COPY_SIZE(size >> 2));
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id),
-		       SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
-		       (wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), cfg);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), ctrl);
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion, HZ);
 
@@ -77,78 +81,15 @@ start_dma:
 
 	/* XXX Really looks to me like we will get stuck here if a
 	 * real PCI P2M error occurs */
-	if (p2m_dev->error)
-		goto start_dma;
+	if (WARN_ON_ONCE(p2m_dev->error))
+		ret = -EIO;
+	else if (WARN_ON_ONCE(timeout == 0))
+		ret = -EAGAIN;
 
 	mutex_unlock(&p2m_dev->mutex);
 
-	return (timeout == 0) ? -EAGAIN : 0;
+	return ret;
 }
-
-#ifdef SOLO_TEST_P2M
-
-#define P2M_TEST_CHAR		0xbe
-
-static unsigned long long p2m_test(struct solo6010_dev *solo_dev, u8 id,
-				   u32 base, int size)
-{
-	u8 *wr_buf;
-	u8 *rd_buf;
-	int i;
-	unsigned long long err_cnt = 0;
-
-	wr_buf = kmalloc(size, GFP_KERNEL);
-	if (!wr_buf) {
-		printk(SOLO6010_NAME ": Failed to malloc for p2m_test\n");
-		return size;
-	}
-
-	rd_buf = kmalloc(size, GFP_KERNEL);
-	if (!rd_buf) {
-		printk(SOLO6010_NAME ": Failed to malloc for p2m_test\n");
-		kfree(wr_buf);
-		return size;
-	}
-
-	memset(wr_buf, P2M_TEST_CHAR, size);
-	memset(rd_buf, P2M_TEST_CHAR + 1, size);
-
-	solo_p2m_dma(solo_dev, id, 1, wr_buf, base, size);
-	solo_p2m_dma(solo_dev, id, 0, rd_buf, base, size);
-
-	for (i = 0; i < size; i++)
-		if (wr_buf[i] != rd_buf[i])
-			err_cnt++;
-
-	kfree(wr_buf);
-	kfree(rd_buf);
-
-	return err_cnt;
-}
-
-#define TEST_CHUNK_SIZE		(8 * 1024)
-
-static void run_p2m_test(struct solo6010_dev *solo_dev)
-{
-	unsigned long long errs = 0;
-	u32 size = SOLO_JPEG_EXT_ADDR(solo_dev) + SOLO_JPEG_EXT_SIZE(solo_dev);
-	int i, d;
-
-	printk(KERN_WARNING "%s: Testing %u bytes of external ram\n",
-	       SOLO6010_NAME, size);
-
-	for (i = 0; i < size; i += TEST_CHUNK_SIZE)
-		for (d = 0; d < 4; d++)
-			errs += p2m_test(solo_dev, d, i, TEST_CHUNK_SIZE);
-
-	printk(KERN_WARNING "%s: Found %llu errors during p2m test\n",
-	       SOLO6010_NAME, errs);
-
-	return;
-}
-#else
-#define run_p2m_test(__solo)	do{}while(0)
-#endif
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
@@ -200,8 +141,6 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_P2M_PCI_MASTER_MODE);
 		solo6010_irq_on(solo_dev, SOLO_IRQ_P2M(i));
 	}
-
-	run_p2m_test(solo_dev);
 
 	return 0;
 }

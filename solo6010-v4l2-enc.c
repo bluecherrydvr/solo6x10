@@ -331,17 +331,18 @@ static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 
 	if (off + size <= SOLO_MP4E_EXT_SIZE(solo_dev))
 		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
-				      SOLO_MP4E_EXT_ADDR(solo_dev) + off, size);
+				      SOLO_MP4E_EXT_ADDR(solo_dev) + off, size,
+				      0, 0);
 
 	/* Buffer wrap */
 	ret = solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
 			    SOLO_MP4E_EXT_ADDR(solo_dev) + off,
-			    SOLO_MP4E_EXT_SIZE(solo_dev) - off);
+			    SOLO_MP4E_EXT_SIZE(solo_dev) - off, 0, 0);
 
 	ret |= solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0,
 			      buf + SOLO_MP4E_EXT_SIZE(solo_dev) - off,
 			      SOLO_MP4E_EXT_ADDR(solo_dev),
-			      size + off - SOLO_MP4E_EXT_SIZE(solo_dev));
+			      size + off - SOLO_MP4E_EXT_SIZE(solo_dev), 0, 0);
 
 	return ret;
 }
@@ -369,17 +370,19 @@ static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t buf,
 
 	if (off + size <= SOLO_JPEG_EXT_SIZE(solo_dev))
 		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
-				      SOLO_JPEG_EXT_ADDR(solo_dev) + off, size);
+				      SOLO_JPEG_EXT_ADDR(solo_dev) + off, size,
+				      0, 0);
 
 	/* Buffer wrap */
 	ret = solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
 			     SOLO_JPEG_EXT_ADDR(solo_dev) + off,
-			     SOLO_JPEG_EXT_SIZE(solo_dev) - off);
+			     SOLO_JPEG_EXT_SIZE(solo_dev) - off, 0, 0);
 
 	ret |= solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0,
 			      buf + SOLO_JPEG_EXT_SIZE(solo_dev) - off,
 			      SOLO_JPEG_EXT_ADDR(solo_dev),
-			      size + off - SOLO_JPEG_EXT_SIZE(solo_dev));
+			      size + off - SOLO_JPEG_EXT_SIZE(solo_dev),
+			      0, 0);
 
 	return ret;
 }
