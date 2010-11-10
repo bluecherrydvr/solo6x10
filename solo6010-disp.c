@@ -177,7 +177,7 @@ void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
 void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 			   u16 block)
 {
-	if (WARN_ON_ONCE(block > 1024))
+	if (WARN_ON_ONCE(block > 4096))
 		return;
 
 	if (WARN_ON_ONCE(ch > solo_dev->nr_chans))
