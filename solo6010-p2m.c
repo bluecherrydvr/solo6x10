@@ -79,8 +79,6 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
 
-	/* XXX Really looks to me like we will get stuck here if a
-	 * real PCI P2M error occurs */
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
 	else if (WARN_ON_ONCE(timeout == 0))
