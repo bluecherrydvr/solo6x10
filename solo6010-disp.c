@@ -174,9 +174,24 @@ void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
 			    val, SOLO_MOT_THRESH_REAL);
 }
 
+void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
+			   u16 block)
+{
+	if (WARN_ON_ONCE(block > 1024))
+		return;
+
+	if (WARN_ON_ONCE(ch > solo_dev->nr_chans))
+		return;
+
+	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1, &val,
+		     SOLO_MOTION_EXT_ADDR(solo_dev) +
+		     (ch * SOLO_MOT_THRESH_SIZE * 2) +
+		     (block * 2), 2, 0, 0);
+}
+
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
  * threshold and working table for each channel. Atleast that's what the
- * spec says. However, this code (take from rdk) has some mystery 8k
+ * spec says. However, this code (taken from rdk) has some mystery 8k
  * block right after the flag area, before the first thresh table. */
 static void solo_motion_config(struct solo6010_dev *solo_dev)
 {

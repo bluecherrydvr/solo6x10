@@ -1370,13 +1370,23 @@ static int solo_s_ctrl(struct file *file, void *priv,
 			       solo_enc->gop);
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
-		/* TODO accept value on lower 16-bits and use high
-		 * 16-bits to assign the value to a specific block */
-		if (ctrl->value < 0 || ctrl->value > 0xffff)
+	{
+		u16 block = (ctrl->value >> 16) & 0xffff;
+		u16 value = ctrl->value & 0xffff;
+
+		/* Block value > 0 means a specific block, else global */
+		if (block > 1024)
 			return -ERANGE;
-		solo_enc->motion_thresh = ctrl->value;
-		solo_set_motion_threshold(solo_dev, solo_enc->ch, ctrl->value);
+
+		if (block == 0) {
+			solo_enc->motion_thresh = value;
+			solo_set_motion_threshold(solo_dev, solo_enc->ch, value);
+		} else {
+			solo_set_motion_block(solo_dev, solo_enc->ch, value,
+					      block - 1);
+		}
 		break;
+	}
 	case V4L2_CID_MOTION_ENABLE:
 		solo_motion_toggle(solo_enc, ctrl->value);
 		break;

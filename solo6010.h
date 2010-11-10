@@ -319,6 +319,8 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
+void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
+			   u16 block);
 #define SOLO_DEF_MOT_THRESH		0x0300
 
 /* Write text on OSD */
