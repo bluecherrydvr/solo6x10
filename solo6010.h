@@ -183,6 +183,7 @@ struct solo6010_dev {
 	int			nr_ext;
 	u32			irq_mask;
 	u32			motion_mask;
+	spinlock_t		reg_io_lock;
 
 	/* tw28xx accounting */
 	u8			tw2865, tw2864, tw2815;
@@ -233,17 +234,36 @@ struct solo6010_dev {
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
 {
-	return readl(solo_dev->reg_base + reg);
+	unsigned long flags;
+	u32 ret;
+	u16 val;
+
+	spin_lock_irqsave(&solo_dev->reg_io_lock, flags);
+
+	ret = readl(solo_dev->reg_base + reg);
+	rmb();
+	pci_read_config_word(solo_dev->pdev, PCI_STATUS, &val);
+	rmb();
+
+	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
+
+	return ret;
 }
 
-/* No effing clue why we need to read the pci status, but if we don't,
- * we get some nasty hangs on module load. -- BenC */
 static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
 				      u32 data)
 {
+	unsigned long flags;
 	u16 val;
+
+	spin_lock_irqsave(&solo_dev->reg_io_lock, flags);
+
 	writel(data, solo_dev->reg_base + reg);
+	wmb();
 	pci_read_config_word(solo_dev->pdev, PCI_STATUS, &val);
+	rmb();
+
+	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
 }
 
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask);
