@@ -142,7 +142,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		return -ENOMEM;
 
 	solo_dev->pdev = pdev;
-	spin_lock_init(&solo_dev->reg_io_lock);
+	rwlock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
 
 	if ((ret = pci_enable_device(pdev)))
