@@ -152,6 +152,7 @@ struct solo_enc_dev {
 	wait_queue_head_t	thread_wait;
 	spinlock_t		lock;
 	atomic_t		readers;
+	atomic_t		mpeg_readers;
 	u8			ch;
 	u8			mode, gop, qp, interlaced, interval;
 	u8			reset_gop;

@@ -226,6 +226,9 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	if (fh->type == SOLO_ENC_TYPE_EXT)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
 
+	if (fh->fmt == V4L2_PIX_FMT_MPEG)
+		atomic_inc(&solo_enc->mpeg_readers);
+
 	if (atomic_inc_return(&solo_enc->readers) > 1)
 		return 0;
 
@@ -255,7 +258,7 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
 
 	/* Settle down Beavis... */
-	mdelay(10);
+//	mdelay(10);
 
 	return 0;
 }
@@ -275,6 +278,9 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 
 	solo_dev->enc_bw_remain += solo_enc->bw_weight;
 	fh->enc_on = 0;
+
+	if (fh->fmt == V4L2_PIX_FMT_MPEG)
+		atomic_dec(&solo_enc->mpeg_readers);
 
 	if (atomic_dec_return(&solo_enc->readers) > 0)
 		return;
@@ -933,8 +939,8 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	    pix->pixelformat != V4L2_PIX_FMT_MJPEG)
 		return -EINVAL;
 
-	/* We cannot change width/height in mid read */
-	if (atomic_read(&solo_enc->readers) > 0) {
+	/* We cannot change width/height in mid mpeg */
+	if (atomic_read(&solo_enc->mpeg_readers) > 0) {
 		if (pix->width != solo_enc->width ||
 		    pix->height != solo_enc->height)
 			return -EBUSY;
@@ -1192,7 +1198,7 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	spin_lock(&solo_enc->lock);
 
-	if (atomic_read(&solo_enc->readers) > 0) {
+	if (atomic_read(&solo_enc->mpeg_readers) > 0) {
 		spin_unlock(&solo_enc->lock);
 		return -EBUSY;
 	}
@@ -1558,6 +1564,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	spin_lock_init(&solo_enc->lock);
 	init_waitqueue_head(&solo_enc->thread_wait);
 	atomic_set(&solo_enc->readers, 0);
+	atomic_set(&solo_enc->mpeg_readers, 0);
 
 	solo_enc->qp = SOLO_DEFAULT_QP;
         solo_enc->gop = solo_dev->fps;
