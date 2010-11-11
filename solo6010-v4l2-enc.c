@@ -43,6 +43,7 @@ struct solo_enc_fh {
 	u32			fmt;
 	u16			rd_idx;
 	u8			enc_on;
+	u8			jpeg_skip;
 	enum solo_enc_types	type;
 	struct videobuf_queue	vidq;
 	struct list_head	vidq_active;
@@ -400,6 +401,9 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 
+	if (WARN_ON_ONCE(vb->bsize < (enc_buf->jpeg_size + sizeof(jpeg_header))))
+		return -1;
+
 	memcpy(p, jpeg_header, sizeof(jpeg_header));
 	p[SOF0_START + 5] = 0xff & (solo_enc->height >> 8);
 	p[SOF0_START + 6] = 0xff & solo_enc->height;
@@ -421,6 +425,9 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct vop_header vh;
 	int ret;
 	int frame_size, frame_off;
+
+	if (WARN_ON_ONCE(vb->bsize < enc_buf->size))
+		return -1;
 
 	if (WARN_ON_ONCE(enc_buf->size <= sizeof(vh)))
 		return -1;
@@ -489,35 +496,31 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	struct solo_enc_buf *enc_buf = NULL;
 	dma_addr_t vbuf;
 	int ret;
-	u16 idx = fh->rd_idx;
 
-	while (idx != solo_dev->enc_wr_idx) {
-		struct solo_enc_buf *ebuf = &solo_dev->enc_buf[idx];
-		idx = (idx + 1) % SOLO_NR_RING_BUFS;
-		if (fh->fmt == V4L2_PIX_FMT_MPEG) {
-			if (fh->type != ebuf->type)
-				continue;
-			if (ebuf->ch == solo_enc->ch) {
-				enc_buf = ebuf;
-				break;
-			}
-		} else if (ebuf->ch == solo_enc->ch) {
-			/* For mjpeg, keep reading to the newest frame */
-			enc_buf = ebuf;
-		}
+	while (fh->rd_idx != solo_dev->enc_wr_idx) {
+		struct solo_enc_buf *ebuf = &solo_dev->enc_buf[fh->rd_idx];
+		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
+
+		if (ebuf->ch != solo_enc->ch)
+			continue;
+
+		if (fh->fmt == V4L2_PIX_FMT_MPEG && fh->type != ebuf->type)
+			continue;
+
+		enc_buf = ebuf;
+
+		/* For mjpeg, we never skip a frame */
+		if (fh->fmt == V4L2_PIX_FMT_MPEG)
+			break;
+
+		/* If we're here, then we are mjpeg. Skip if client is slow */
+		if (!fh->jpeg_skip)
+			break;
+		fh->jpeg_skip--;
 	}
-
-	fh->rd_idx = idx;
 
 	if (!enc_buf)
 		return -1;
-
-	if ((fh->fmt == V4L2_PIX_FMT_MPEG &&
-	     vb->bsize < enc_buf->size) ||
-	    (fh->fmt == V4L2_PIX_FMT_MJPEG &&
-	     vb->bsize < (enc_buf->jpeg_size + sizeof(jpeg_header)))) {
-		return -1;
-	}
 
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
 		return -1;
@@ -557,8 +560,11 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 		vb = list_first_entry(&fh->vidq_active,
 				      struct videobuf_buffer, queue);
 
-		if (!waitqueue_active(&vb->done))
+		/* If this happens, enable skipping mjpeg frames */
+		if (!waitqueue_active(&vb->done)) {
+			fh->jpeg_skip++;
 			break;
+		}
 
 		/* On success, returns with solo_enc->lock unlocked */
 		if (solo_enc_fillbuf(fh, vb))
