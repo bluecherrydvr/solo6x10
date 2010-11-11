@@ -538,7 +538,6 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 
 	list_del(&vb->queue);
 	vb->field_count++;
-	vb->ts = enc_buf->ts;
 	vb->state = VIDEOBUF_DONE;
 
 	wake_up(&vb->done);
@@ -688,7 +687,7 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		enc_buf->jpeg_size = jpeg_size;
 		enc_buf->type = enc_type;
 
-		do_gettimeofday(&enc_buf->ts);
+		/* XXX Need to find a way to get sec/usec info from ring */
 
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
 					SOLO_NR_RING_BUFS;

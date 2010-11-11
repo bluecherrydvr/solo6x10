@@ -172,7 +172,6 @@ struct solo_enc_buf {
 	u32			size;
 	u32			jpeg_off;
 	u32			jpeg_size;
-	struct timeval		ts;
 };
 
 /* The SOLO6010 PCI Device */

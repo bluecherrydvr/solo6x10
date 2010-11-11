@@ -167,7 +167,6 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 {
 	int i;
 
-	/* We can only use VE_INTR_CTRL(0) if we want to support mjpeg */
 	solo_reg_write(solo_dev, SOLO_VE_CFG0,
 		       SOLO_VE_INTR_CTRL(1) |
 		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE(solo_dev) >> 16) |
