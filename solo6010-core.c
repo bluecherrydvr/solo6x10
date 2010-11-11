@@ -150,6 +150,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 
 	pci_set_master(pdev);
 
+	/* RETRY/TRDY Timeout disabled */
+	pci_write_config_byte(pdev, 0x40, 0x00);
+	pci_write_config_byte(pdev, 0x41, 0x00);
+
 	if ((ret = pci_request_regions(pdev, SOLO6010_NAME)))
 		goto fail_probe;
 
@@ -159,7 +163,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	}
 
 	chip_id = solo_reg_read(solo_dev, SOLO_CHIP_OPTION) &
-					SOLO_CHIP_ID_MASK;
+				SOLO_CHIP_ID_MASK;
 	switch (chip_id) {
 		case 7:
 			solo_dev->nr_chans = 16;
