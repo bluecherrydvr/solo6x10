@@ -474,7 +474,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	frame_off = (enc_buf->off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
 	frame_size = enc_buf->size - sizeof(vh);
 	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
-	if (WARN_ON_ONCE(ret))
+	if (ret)
 		return -1;
 
 	return 0;
