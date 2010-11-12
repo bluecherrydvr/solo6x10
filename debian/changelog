@@ -1,4 +1,4 @@
-solo6010 (2.0.0-2) lucid; urgency=low
+solo6010 (2.0.1-1) lucid; urgency=low
 
   * v4l2: Set min buffers to 2 and m(j)peg buffer size down to 48k (from 128k)
 
