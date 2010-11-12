@@ -29,17 +29,16 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
-#define SOLO_HW_BPL		2048
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
-#define SOLO_DISP_BUF_SIZE	(64 * 1024) // 64k
 
-/* Image size is two fields, SOLO_HW_BPL is one horizontal line */
+/* Image size is two fields, SOLO_HW_BPL is one horizontal line in hardware */
+#define SOLO_HW_BPL		2048
 #define solo_vlines(__solo)	(__solo->video_vsize * 2)
 #define solo_image_size(__solo) (solo_bytesperline(__solo) * \
 				 solo_vlines(__solo))
 #define solo_bytesperline(__solo) (__solo->video_hsize * 2)
 
-#define MIN_VID_BUFFERS		4
+#define MIN_VID_BUFFERS		2
 
 /* Simple file handle */
 struct solo_filehandle {

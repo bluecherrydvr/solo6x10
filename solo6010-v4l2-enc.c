@@ -30,8 +30,8 @@
 #include "solo6010-tw28.h"
 #include "solo6010-jpeg.h"
 
-#define MIN_VID_BUFFERS		4
-#define FRAME_BUF_SIZE		(128 * 1024)
+#define MIN_VID_BUFFERS		2
+#define FRAME_BUF_SIZE		(48 * 1024)
 #define MP4_QS			16
 
 static int solo_enc_thread(void *data);
