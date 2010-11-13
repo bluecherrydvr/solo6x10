@@ -240,7 +240,7 @@ static int __videobuf_iolock(struct videobuf_queue *q,
 		/* allocate memory for the read() method */
 		mem->size = PAGE_ALIGN(vb->size);
 		mem->vaddr = dma_alloc_coherent(q->dev, mem->size,
-						&mem->dma_handle, GFP_KERNEL);
+						&mem->dma_handle, GFP_ATOMIC);
 		if (!mem->vaddr) {
 			dev_err(q->dev, "dma_alloc_coherent %ld failed\n",
 					 mem->size);
@@ -320,7 +320,7 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q,
 
 	mem->size = PAGE_ALIGN(q->bufs[first]->bsize);
 	mem->vaddr = dma_alloc_coherent(q->dev, mem->size,
-					&mem->dma_handle, GFP_KERNEL);
+					&mem->dma_handle, GFP_ATOMIC);
 	if (!mem->vaddr) {
 		dev_err(q->dev, "dma_alloc_coherent size %ld failed\n",
 			mem->size);
@@ -334,7 +334,6 @@ static int __videobuf_mmap_mapper(struct videobuf_queue *q,
 	size = vma->vm_end - vma->vm_start;
 	size = (size < mem->size) ? size : mem->size;
 
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	retval = remap_pfn_range(vma, vma->vm_start,
 				 mem->dma_handle >> PAGE_SHIFT,
 				 size, vma->vm_page_prot);
