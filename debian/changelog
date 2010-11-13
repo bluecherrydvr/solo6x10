@@ -1,6 +1,16 @@
+solo6010 (2.0.1-2) lucid; urgency=low
+
+  * Revert back to 64k buffers
+  * Allocate osd buffer on startup instead of every write to the buffer
+  * Create mutex to use for osd_text and osd_buffer
+  * Split enc->lock into av_lock (used when accessing vb's and for vb buf
+    layer) and enable_lock (used when enabling or disabling the encoder).
+
+ -- Ben Collins <bcollins@bluecherry.net>  Fri, 12 Nov 2010 15:45:05 -0500
+
 solo6010 (2.0.1-1) lucid; urgency=low
 
-  * v4l2: Set min buffers to 2 and m(j)peg buffer size down to 48k (from 128k)
+  * v4l2: Set min buffers to 2 and m(j)peg buffer size down to 32k (from 128k)
 
  -- Ben Collins <bcollins@bluecherry.net>  Fri, 12 Nov 2010 11:32:04 -0500
 

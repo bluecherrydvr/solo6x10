@@ -150,7 +150,8 @@ struct solo_enc_dev {
 	struct video_device	*vfd;
 	/* General accounting */
 	wait_queue_head_t	thread_wait;
-	spinlock_t		lock;
+	spinlock_t		av_lock;
+	spinlock_t		enable_lock;
 	atomic_t		readers;
 	atomic_t		mpeg_readers;
 	u8			ch;
@@ -162,6 +163,8 @@ struct solo_enc_dev {
 	u16			width;
 	u16			height;
 	char			osd_text[OSD_TEXT_MAX + 1];
+	u8			osd_buf[SOLO_EOSD_EXT_SIZE];
+	struct mutex		osd_mutex;
 };
 
 struct solo_enc_buf {
