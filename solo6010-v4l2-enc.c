@@ -410,6 +410,9 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	p[SOF0_START + 7] = 0xff & (solo_enc->width >> 8);
 	p[SOF0_START + 8] = 0xff & solo_enc->width;
 
+	vb->width = solo_enc->width;
+        vb->height = solo_enc->height;
+
 	vbuf += sizeof(jpeg_header);
 	vb->size = enc_buf->jpeg_size + sizeof(jpeg_header);
 
@@ -539,6 +542,8 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	list_del(&vb->queue);
 	vb->field_count++;
 	vb->state = VIDEOBUF_DONE;
+	vb->width = solo_enc->width;
+	vb->height = solo_enc->height;
 
 	wake_up(&vb->done);
 
@@ -720,10 +725,8 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 	if (vb->baddr != 0 && vb->bsize < vb->size)
 		return -EINVAL;
 
-	/* These properties only change when queue is idle */
-	vb->width = solo_enc->width;
-	vb->height = solo_enc->height;
-	vb->field  = field;
+	/* This property only change when queue is idle */
+	vb->field = field;
 
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 		int rc = videobuf_iolock(vq, vb, NULL);
@@ -1111,11 +1114,16 @@ static int solo_enc_streamoff(struct file *file, void *priv,
 			      enum v4l2_buf_type i)
 {
 	struct solo_enc_fh *fh = priv;
+	int ret;
 
 	if (i != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	return videobuf_streamoff(&fh->vidq);
+	ret = videobuf_streamoff(&fh->vidq);
+	if (!ret)
+		solo_enc_off(fh);
+
+	return ret;
 }
 
 static int solo_enc_s_std(struct file *file, void *priv, v4l2_std_id *i)
