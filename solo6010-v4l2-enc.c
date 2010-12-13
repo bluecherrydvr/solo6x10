@@ -111,27 +111,26 @@ static const u32 *solo_ctrl_classes[] = {
 };
 
 struct vop_header {
-	/* VD_IDX0 */
-	u32 size:20, sync_start:1, page_stop:1, vop_type:2, channel:4,
-		nop0:1, source_fl:1, interlace:1, progressive:1;
+	/* VE_STATUS0 */
+	u32 mpeg_size:20, sad_motion_flags:1, video_motion_flag:1, vop_type:2,
+		channel:5, source_fl:1, interlace:1, progressive:1;
 
-	/* VD_IDX1 */
-	u32 vsize:8, hsize:8, frame_interop:1, nop1:7, win_id:4, scale:4;
+	/* VE_STATUS1 */
+	u32 vsize:8, hsize:8, last_queue:4, nop0:8, scale:4;
 
-	/* VD_IDX2 */
-	u32 base_addr:16, nop2:15, hoff:1;
+	/* VE_STATUS2 */
+	u32 mpeg_off;
 
-	/* VD_IDX3 - User set macros */
-	u32 sy:12, sx:12, nop3:1, hzoom:1, read_interop:1, write_interlace:1,
-		scale_mode:4;
+	/* VE_STATUS3 */
+	u32 jpeg_off;
 
-	/* VD_IDX4 - User set macros continued */
-	u32 write_page:8, nop4:24;
+	/* VE_STATUS4 */
+	u32 jpeg_size:20, interval:10, nop1:2;
 
-	/* VD_IDX5 */
-	u32 next_code_addr;
+	/* VE_STATUS5/6 */
+	u32 sec, usec;
 
-	u32 end_nops[10];
+	u32 end_nops[9];
 } __attribute__((packed));
 
 static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
@@ -429,26 +428,25 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	int ret;
 	int frame_size, frame_off;
 
-	if (WARN_ON_ONCE(vb->bsize < enc_buf->size))
-		return -1;
-
-	if (WARN_ON_ONCE(enc_buf->size <= sizeof(vh)))
-		return -1;
-
 	/* First get the hardware vop header (not real mpeg) */
 	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
 	if (ret)
 		return -1;
 
-	if (WARN_ON_ONCE(vh.size > enc_buf->size))
+	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
+
+	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off) ||
+	    WARN_ON_ONCE(vb->bsize < vh.mpeg_size))
 		return -1;
 
 	vb->width = vh.hsize << 4;
 	vb->height = vh.vsize << 4;
-	vb->size = vh.size;
+	vb->size = vh.mpeg_size;
+	vb->ts.tv_sec = vh.sec;
+	vb->ts.tv_usec = vh.usec;
 
 	/* If this is a key frame, add extra m4v header */
-	if (!enc_buf->vop) {
+	if (!vh.vop_type) {
 		u16 fps = solo_dev->fps * 1000;
 		u16 interval = solo_enc->interval * 1000;
 		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
@@ -481,8 +479,8 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	}
 
 	/* Now get the actual mpeg payload */
-	frame_off = (enc_buf->off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
-	frame_size = enc_buf->size - sizeof(vh);
+	frame_off = (vh.mpeg_off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
+	frame_size = vh.mpeg_size - sizeof(vh);
 	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
 	if (ret)
 		return -1;
@@ -684,10 +682,8 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 
 		enc_buf = &solo_dev->enc_buf[solo_dev->enc_wr_idx];
 
-		enc_buf->vop = vop_type;
 		enc_buf->ch = ch;
 		enc_buf->off = mpeg_current;
-		enc_buf->size = mpeg_size;
 		enc_buf->jpeg_off = jpeg_current;
 		enc_buf->jpeg_size = jpeg_size;
 		enc_buf->type = enc_type;
@@ -718,9 +714,6 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 				struct videobuf_buffer *vb,
 				enum v4l2_field field)
 {
-	struct solo_enc_fh *fh = vq->priv_data;
-	struct solo_enc_dev *solo_enc = fh->enc;
-
 	vb->size = FRAME_BUF_SIZE;
 	if (vb->baddr != 0 && vb->bsize < vb->size)
 		return -EINVAL;

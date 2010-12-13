@@ -168,11 +168,9 @@ struct solo_enc_dev {
 };
 
 struct solo_enc_buf {
-	u8			vop;
 	u8			ch;
 	enum solo_enc_types	type;
 	u32			off;
-	u32			size;
 	u32			jpeg_off;
 	u32			jpeg_size;
 };
