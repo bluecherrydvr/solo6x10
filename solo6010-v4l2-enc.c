@@ -31,7 +31,7 @@
 #include "solo6010-jpeg.h"
 
 #define MIN_VID_BUFFERS		2
-#define FRAME_BUF_SIZE		(96 * 1024)
+#define FRAME_BUF_SIZE		(128 * 1024)
 #define MP4_QS			16
 
 static int solo_enc_thread(void *data);
@@ -130,7 +130,13 @@ struct vop_header {
 	/* VE_STATUS5/6 */
 	u32 sec, usec;
 
-	u32 end_nops[9];
+	/* VE_STATUS7/8/9 */
+	u32 nop2[3];
+
+	/* VE_STATUS10 */
+	u32 mpeg_size_alt:20, nop3:12;
+
+	u32 end_nops[5];
 } __attribute__((packed));
 
 static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
@@ -307,26 +313,6 @@ static int solo_start_fh_thread(struct solo_enc_fh *fh)
 	return 0;
 }
 
-static void enc_reset_gop(struct solo6010_dev *solo_dev, u8 ch)
-{
-	BUG_ON(ch >= solo_dev->nr_chans);
-	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch), 1);
-	solo_dev->v4l2_enc[ch]->reset_gop = 1;
-}
-
-static int enc_gop_reset(struct solo6010_dev *solo_dev, u8 ch, u8 vop)
-{
-	BUG_ON(ch >= solo_dev->nr_chans);
-	if (!solo_dev->v4l2_enc[ch]->reset_gop)
-		return 0;
-	if (vop)
-		return 1;
-	solo_dev->v4l2_enc[ch]->reset_gop = 0;
-	solo_reg_write(solo_dev, SOLO_VE_CH_GOP(ch),
-		       solo_dev->v4l2_enc[ch]->gop);
-	return 0;
-}
-
 static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 			      unsigned int off, unsigned int size)
 {
@@ -399,8 +385,19 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
+	struct vop_header vh;
+	int ret;
 
-	if (WARN_ON_ONCE(vb->bsize < (enc_buf->jpeg_size + sizeof(jpeg_header))))
+	/* First get the hardware vop header (not real mpeg) */
+	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
+	if (ret)
+		return -1;
+
+	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
+	vh.jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
+
+	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off) ||
+	    WARN_ON_ONCE(vb->bsize < (vh.jpeg_size + sizeof(jpeg_header))))
 		return -1;
 
 	memcpy(p, jpeg_header, sizeof(jpeg_header));
@@ -413,10 +410,9 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
         vb->height = solo_enc->height;
 
 	vbuf += sizeof(jpeg_header);
-	vb->size = enc_buf->jpeg_size + sizeof(jpeg_header);
+	vb->size = vh.jpeg_size + sizeof(jpeg_header);
 
-	return enc_get_jpeg_dma(solo_dev, vbuf, enc_buf->jpeg_off,
-				enc_buf->jpeg_size);
+	return enc_get_jpeg_dma(solo_dev, vbuf, vh.jpeg_off, vh.jpeg_size);
 }
 
 static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
@@ -624,71 +620,33 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
 	struct solo_enc_buf *enc_buf;
 	struct videnc_status vstatus;
-	u32 mpeg_current, mpeg_next, mpeg_size;
-	u32 jpeg_current, jpeg_next, jpeg_size;
-	u32 reg_mpeg_size;
-	u8 cur_q, vop_type;
-	u8 ch;
+	u32 mpeg_current;
+	u8 cur_q, ch;
 	enum solo_enc_types enc_type;
 
 	vstatus.status11 = solo_reg_read(solo_dev, SOLO_VE_STATE(11));
 	cur_q = (vstatus.status11_st.last_queue + 1) % MP4_QS;
 
-	vstatus.status0 = solo_reg_read(solo_dev, SOLO_VE_STATE(0));
-	reg_mpeg_size = (vstatus.status0_st.mp4_enc_code_size + 64 + 32) &
-			(~31);
-
 	while (solo_dev->enc_idx != cur_q) {
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
-		jpeg_current = solo_reg_read(solo_dev,
-					SOLO_VE_JPEG_QUE(solo_dev->enc_idx));
 		solo_dev->enc_idx = (solo_dev->enc_idx + 1) % MP4_QS;
-		mpeg_next = solo_reg_read(solo_dev,
-					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
-		jpeg_next = solo_reg_read(solo_dev,
-					SOLO_VE_JPEG_QUE(solo_dev->enc_idx));
 
-		if ((ch = (mpeg_current >> 24) & 0x1f) >= SOLO_MAX_CHANNELS) {
+		ch = (mpeg_current >> 24) & 0x1f;
+
+		if (ch >= SOLO_MAX_CHANNELS) {
 			ch -= SOLO_MAX_CHANNELS;
 			enc_type = SOLO_ENC_TYPE_EXT;
 		} else
 			enc_type = SOLO_ENC_TYPE_STD;
 
-		vop_type = (mpeg_current >> 29) & 3;
-
 		mpeg_current &= 0x00ffffff;
-		mpeg_next    &= 0x00ffffff;
-		jpeg_current &= 0x00ffffff;
-		jpeg_next    &= 0x00ffffff;
-
-		mpeg_size = (SOLO_MP4E_EXT_SIZE(solo_dev) +
-			     mpeg_next - mpeg_current) %
-			    SOLO_MP4E_EXT_SIZE(solo_dev);
-
-		jpeg_size = (SOLO_JPEG_EXT_SIZE(solo_dev) +
-			     jpeg_next - jpeg_current) %
-			    SOLO_JPEG_EXT_SIZE(solo_dev);
-
-		/* XXX I think this means we had a ring overflow? */
-		if (mpeg_current > mpeg_next && mpeg_size != reg_mpeg_size) {
-			enc_reset_gop(solo_dev, ch);
-			continue;
-		}
-
-		/* When resetting the GOP, skip frames until I-frame */
-		if (enc_gop_reset(solo_dev, ch, vop_type))
-			continue;
 
 		enc_buf = &solo_dev->enc_buf[solo_dev->enc_wr_idx];
 
 		enc_buf->ch = ch;
 		enc_buf->off = mpeg_current;
-		enc_buf->jpeg_off = jpeg_current;
-		enc_buf->jpeg_size = jpeg_size;
 		enc_buf->type = enc_type;
-
-		/* XXX Need to find a way to get sec/usec info from ring */
 
 		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
 					SOLO_NR_RING_BUFS;

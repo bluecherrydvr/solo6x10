@@ -156,7 +156,6 @@ struct solo_enc_dev {
 	atomic_t		mpeg_readers;
 	u8			ch;
 	u8			mode, gop, qp, interlaced, interval;
-	u8			reset_gop;
 	u8			bw_weight;
 	u8			motion_detected;
 	u16			motion_thresh;
