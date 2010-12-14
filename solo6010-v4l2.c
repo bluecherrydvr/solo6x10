@@ -261,7 +261,7 @@ static void solo_thread_try(struct solo_filehandle *fh)
 			break;
 
 		cur_write = SOLO_VI_STATUS0_PAGE(solo_reg_read(fh->solo_dev,
-							SOLO_VI_STATUS0));
+							       SOLO_VI_STATUS0));
 		if (cur_write == fh->old_write)
 			break;
 

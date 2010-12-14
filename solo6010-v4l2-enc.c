@@ -33,6 +33,7 @@
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(128 * 1024)
 #define MP4_QS			16
+#define DMA_ALIGN		128
 
 static int solo_enc_thread(void *data);
 
@@ -380,24 +381,16 @@ static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t buf,
 }
 
 static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
-			  struct videobuf_buffer *vb, dma_addr_t vbuf)
+			  struct videobuf_buffer *vb, dma_addr_t vbuf,
+			  struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
-	struct vop_header vh;
-	int ret;
 
-	/* First get the hardware vop header (not real mpeg) */
-	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
-	if (ret)
-		return -1;
+	vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
 
-	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-	vh.jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
-
-	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off) ||
-	    WARN_ON_ONCE(vb->bsize < (vh.jpeg_size + sizeof(jpeg_header))))
+	if (WARN_ON_ONCE(vb->bsize < (vh->jpeg_size + sizeof(jpeg_header))))
 		return -1;
 
 	memcpy(p, jpeg_header, sizeof(jpeg_header));
@@ -410,39 +403,30 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
         vb->height = solo_enc->height;
 
 	vbuf += sizeof(jpeg_header);
-	vb->size = vh.jpeg_size + sizeof(jpeg_header);
+	vb->size = vh->jpeg_size + sizeof(jpeg_header);
 
-	return enc_get_jpeg_dma(solo_dev, vbuf, vh.jpeg_off, vh.jpeg_size);
+	return enc_get_jpeg_dma(solo_dev, vbuf, vh->jpeg_off, vh->jpeg_size);
 }
 
 static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
-			  struct videobuf_buffer *vb, dma_addr_t vbuf)
+			  struct videobuf_buffer *vb, dma_addr_t vbuf,
+			  struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	struct vop_header vh;
-	int ret;
-	int frame_size, frame_off;
+	int frame_off, frame_size;
 
-	/* First get the hardware vop header (not real mpeg) */
-	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
-	if (ret)
+	if (WARN_ON_ONCE(vb->bsize < vh->mpeg_size))
 		return -1;
 
-	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-
-	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off) ||
-	    WARN_ON_ONCE(vb->bsize < vh.mpeg_size))
-		return -1;
-
-	vb->width = vh.hsize << 4;
-	vb->height = vh.vsize << 4;
-	vb->size = vh.mpeg_size;
-	vb->ts.tv_sec = vh.sec;
-	vb->ts.tv_usec = vh.usec;
+	vb->width = vh->hsize << 4;
+	vb->height = vh->vsize << 4;
+	vb->size = vh->mpeg_size;
+	vb->ts.tv_sec = vh->sec;
+	vb->ts.tv_usec = vh->usec;
 
 	/* If this is a key frame, add extra m4v header */
-	if (!vh.vop_type) {
+	if (!vh->vop_type) {
 		u16 fps = solo_dev->fps * 1000;
 		u16 interval = solo_enc->interval * 1000;
 		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
@@ -466,7 +450,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 		p[28] = (vb->height >> 1) & 0xff;
 
 		/* Interlace */
-		if (vh.interlace)
+		if (vh->interlace)
 			p[29] |= 0x20;
 
 		/* Adjust the dma buffer past this header */
@@ -475,24 +459,24 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	}
 
 	/* Now get the actual mpeg payload */
-	frame_off = (vh.mpeg_off + sizeof(vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
-	frame_size = vh.mpeg_size - sizeof(vh);
-	ret = enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
-	if (ret)
+	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
+	frame_size = (vh->mpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
+
+	if (enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size))
 		return -1;
 
 	return 0;
 }
 
-/* On successful return (0), leaves solo_enc->av_lock unlocked */
-static int solo_enc_fillbuf(struct solo_enc_fh *fh,
-			    struct videobuf_buffer *vb)
+static void solo_enc_fillbuf(struct solo_enc_fh *fh,
+			     struct videobuf_buffer *vb)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_buf *enc_buf = NULL;
+	struct vop_header vh;
 	dma_addr_t vbuf;
-	int ret;
+	int ret = -EIO;
 
 	while (fh->rd_idx != solo_dev->enc_wr_idx) {
 		struct solo_enc_buf *ebuf = &solo_dev->enc_buf[fh->rd_idx];
@@ -516,43 +500,57 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 		fh->jpeg_skip--;
 	}
 
+	/* Should not happen */
 	if (!enc_buf)
-		return -1;
+		goto vbuf_error;
 
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
-		return -1;
+		goto vbuf_error;
 
-	/* Is it ok that we mess with this buffer out of lock? */
-	spin_unlock(&solo_enc->av_lock);
+	/* We need this for mpeg and jpeg */
+	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
+	if (ret)
+		goto vbuf_error;
+
+	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
+	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off)) {
+		ret = -EIO;
+		goto vbuf_error;
+	}
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
-		ret = solo_fill_mpeg(fh, enc_buf, vb, vbuf);
+		ret = solo_fill_mpeg(fh, enc_buf, vb, vbuf, &vh);
 	else
-		ret = solo_fill_jpeg(fh, enc_buf, vb, vbuf);
+		ret = solo_fill_jpeg(fh, enc_buf, vb, vbuf, &vh);
 
-	if (ret) // Ignore failures
-		return 0;
-
-	list_del(&vb->queue);
-	vb->field_count++;
-	vb->state = VIDEOBUF_DONE;
-	vb->width = solo_enc->width;
-	vb->height = solo_enc->height;
+vbuf_error:
+	if (ret) {
+		vb->state = VIDEOBUF_ERROR;
+	} else {
+		vb->state = VIDEOBUF_DONE;
+		vb->field_count++;
+		vb->width = solo_enc->width;
+		vb->height = solo_enc->height;
+	}
 
 	wake_up(&vb->done);
 
-	return 0;
+	return;
 }
 
 static void solo_enc_thread_try(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct videobuf_buffer *vb;
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	unsigned long flags;
 
 	for (;;) {
-		spin_lock(&solo_enc->av_lock);
+		struct videobuf_buffer *vb;
 
-		if (list_empty(&fh->vidq_active))
+		spin_lock_irqsave(&solo_enc->av_lock, flags);
+
+		if (list_empty(&fh->vidq_active) ||
+		    fh->rd_idx == solo_dev->enc_wr_idx)
 			break;
 
 		vb = list_first_entry(&fh->vidq_active,
@@ -564,9 +562,11 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 			break;
 		}
 
-		/* On success, returns with solo_enc->av_lock unlocked */
-		if (solo_enc_fillbuf(fh, vb))
-			break;
+		/* From here, the video buf is in our care... */
+		list_del(&vb->queue);
+		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+
+		solo_enc_fillbuf(fh, vb);
 	}
 
 	assert_spin_locked(&solo_enc->av_lock);
