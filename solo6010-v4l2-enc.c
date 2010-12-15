@@ -471,8 +471,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 }
 
 static void solo_enc_fillbuf(struct solo_enc_fh *fh,
-			     struct videobuf_buffer *vb,
-			     struct solo_enc_buf *enc_buf)
+			     struct videobuf_buffer *vb, u32 off)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -484,11 +483,11 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 		goto vbuf_error;
 
 	/* We need this for mpeg and jpeg */
-	if (enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh)))
+	if (enc_get_mpeg_dma(solo_dev, &vh, off, sizeof(vh)))
 		goto vbuf_error;
 
 	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off))
+	if (WARN_ON_ONCE(vh.mpeg_off != off))
 		goto vbuf_error;
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
@@ -565,7 +564,7 @@ next_ebuf:
 		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		solo_enc_fillbuf(fh, vb, enc_buf);
+		solo_enc_fillbuf(fh, vb, enc_buf->off);
 	}
 
 	assert_spin_locked(&solo_enc->av_lock);
