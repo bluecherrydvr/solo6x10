@@ -144,18 +144,23 @@ static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 ch = solo_enc->ch;
+	unsigned long flags;
+	int res;
 
-	if (solo_dev->motion_mask & (1 << ch))
-		return 1;
-	return 0;
+	spin_lock_irqsave(&solo_enc->motion_lock, flags);
+	res = (solo_dev->motion_mask & (1 << ch)) ? 1 : 0;
+	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
+
+	return res;
 }
 
 static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 ch = solo_enc->ch;
+	unsigned long flags;
 
-	spin_lock(&solo_enc->enable_lock);
+	spin_lock_irqsave(&solo_enc->motion_lock, flags);
 
 	if (on)
 		solo_dev->motion_mask |= (1 << ch);
@@ -163,8 +168,7 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 		solo_dev->motion_mask &= ~(1 << ch);
 
 	/* Do this regardless of if we are turning on or off */
-	solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
-		       1 << solo_enc->ch);
+	solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR, 1 << ch);
 	solo_enc->motion_detected = 0;
 
 	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
@@ -176,7 +180,7 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 	else
 		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
-	spin_unlock(&solo_enc->enable_lock);
+	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
 }
 
 /* Should be called with solo_enc->enable_lock held */
@@ -228,7 +232,7 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	}
 
 	fh->enc_on = 1;
-	fh->rd_idx = solo_enc->solo_dev->enc_wr_idx;
+	fh->rd_idx = solo_enc->enc_wr_idx;
 
 	if (fh->type == SOLO_ENC_TYPE_EXT)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
@@ -380,9 +384,8 @@ static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t buf,
 	return ret;
 }
 
-static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
-			  struct videobuf_buffer *vb, dma_addr_t vbuf,
-			  struct vop_header *vh)
+static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
+			  dma_addr_t vbuf, struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -408,9 +411,8 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 	return enc_get_jpeg_dma(solo_dev, vbuf, vh->jpeg_off, vh->jpeg_size);
 }
 
-static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
-			  struct videobuf_buffer *vb, dma_addr_t vbuf,
-			  struct vop_header *vh)
+static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
+			  dma_addr_t vbuf, struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -469,59 +471,30 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct solo_enc_buf *enc_buf,
 }
 
 static void solo_enc_fillbuf(struct solo_enc_fh *fh,
-			     struct videobuf_buffer *vb)
+			     struct videobuf_buffer *vb,
+			     struct solo_enc_buf *enc_buf)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	struct solo_enc_buf *enc_buf = NULL;
 	struct vop_header vh;
 	dma_addr_t vbuf;
 	int ret = -EIO;
 
-	while (fh->rd_idx != solo_dev->enc_wr_idx) {
-		struct solo_enc_buf *ebuf = &solo_dev->enc_buf[fh->rd_idx];
-		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
-
-		if (ebuf->ch != solo_enc->ch)
-			continue;
-
-		if (fh->fmt == V4L2_PIX_FMT_MPEG && fh->type != ebuf->type)
-			continue;
-
-		enc_buf = ebuf;
-
-		/* For mjpeg, we never skip a frame */
-		if (fh->fmt == V4L2_PIX_FMT_MPEG)
-			break;
-
-		/* If we're here, then we are mjpeg. Skip if client is slow */
-		if (!fh->jpeg_skip)
-			break;
-		fh->jpeg_skip--;
-	}
-
-	/* Should not happen */
-	if (!enc_buf)
-		goto vbuf_error;
-
-	if (!(vbuf = videobuf_to_dma_contig(vb)))
+	if (WARN_ON_ONCE(!(vbuf = videobuf_to_dma_contig(vb))))
 		goto vbuf_error;
 
 	/* We need this for mpeg and jpeg */
-	ret = enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh));
-	if (ret)
+	if (enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh)))
 		goto vbuf_error;
 
 	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off)) {
-		ret = -EIO;
+	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off))
 		goto vbuf_error;
-	}
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
-		ret = solo_fill_mpeg(fh, enc_buf, vb, vbuf, &vh);
+		ret = solo_fill_mpeg(fh, vb, vbuf, &vh);
 	else
-		ret = solo_fill_jpeg(fh, enc_buf, vb, vbuf, &vh);
+		ret = solo_fill_jpeg(fh, vb, vbuf, &vh);
 
 vbuf_error:
 	if (ret) {
@@ -541,16 +514,41 @@ vbuf_error:
 static void solo_enc_thread_try(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	unsigned long flags;
 
 	for (;;) {
 		struct videobuf_buffer *vb;
+		struct solo_enc_buf *enc_buf = NULL;
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
 
-		if (list_empty(&fh->vidq_active) ||
-		    fh->rd_idx == solo_dev->enc_wr_idx)
+		/* First check if the encoder has given us anything to use */
+		while (fh->rd_idx != solo_enc->enc_wr_idx) {
+			struct solo_enc_buf *ebuf =
+				&solo_enc->enc_buf[fh->rd_idx];
+
+			if (fh->fmt == V4L2_PIX_FMT_MPEG &&
+			    fh->type != ebuf->type)
+				goto next_ebuf;
+
+			enc_buf = ebuf;
+
+			/* For mjpeg, we never skip a frame */
+			if (fh->fmt == V4L2_PIX_FMT_MPEG)
+				break;
+
+			/* If we're here, then we are mjpeg. Skip if client is slow */
+			if (!fh->jpeg_skip)
+				break;
+			fh->jpeg_skip--;
+next_ebuf:
+			fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
+		}
+
+		if (!enc_buf)
+			break;
+
+		if (list_empty(&fh->vidq_active))
 			break;
 
 		vb = list_first_entry(&fh->vidq_active,
@@ -564,9 +562,10 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 
 		/* From here, the video buf is in our care... */
 		list_del(&vb->queue);
+		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		solo_enc_fillbuf(fh, vb);
+		solo_enc_fillbuf(fh, vb, enc_buf);
 	}
 
 	assert_spin_locked(&solo_enc->av_lock);
@@ -604,20 +603,20 @@ void solo_motion_isr(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		struct solo_enc_dev *solo_enc = solo_dev->v4l2_enc[i];
+		unsigned long flags;
 
 		BUG_ON(solo_enc == NULL);
 
-		if (solo_enc->motion_detected)
-			continue;
-		if (!(status & (1 << i)))
-			continue;
-
-		solo_enc->motion_detected = 1;
+		spin_lock_irqsave(&solo_enc->motion_lock, flags);
+		if (status & (1 << i))
+			solo_enc->motion_detected = 1;
+		spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
 	}
 }
 
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
+	struct solo_enc_dev *solo_enc;
 	struct solo_enc_buf *enc_buf;
 	struct videnc_status vstatus;
 	u32 mpeg_current;
@@ -642,16 +641,17 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 
 		mpeg_current &= 0x00ffffff;
 
-		enc_buf = &solo_dev->enc_buf[solo_dev->enc_wr_idx];
+		solo_enc = solo_dev->v4l2_enc[ch];
+		BUG_ON(solo_enc == NULL);
+		enc_buf = &solo_enc->enc_buf[solo_enc->enc_wr_idx];
 
-		enc_buf->ch = ch;
 		enc_buf->off = mpeg_current;
 		enc_buf->type = enc_type;
 
-		solo_dev->enc_wr_idx = (solo_dev->enc_wr_idx + 1) %
+		solo_enc->enc_wr_idx = (solo_enc->enc_wr_idx + 1) %
 					SOLO_NR_RING_BUFS;
 
-		wake_up_interruptible(&solo_dev->v4l2_enc[ch]->thread_wait);
+		wake_up_interruptible_all(&solo_enc->thread_wait);
 	}
 
 	return;
@@ -1028,6 +1028,10 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 
 	/* Signal motion detection */
 	if (solo_is_motion_on(solo_enc)) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&solo_enc->motion_lock, flags);
+
 		buf->flags |= V4L2_BUF_FLAG_MOTION_ON;
 		if (solo_enc->motion_detected) {
 			buf->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
@@ -1035,6 +1039,8 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 				       1 << solo_enc->ch);
 			solo_enc->motion_detected = 0;
 		}
+
+		spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
 	}
 
 	/* Check for key frame on mpeg data */
@@ -1541,6 +1547,8 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 
 	spin_lock_init(&solo_enc->enable_lock);
 	spin_lock_init(&solo_enc->av_lock);
+	spin_lock_init(&solo_enc->motion_lock);
+
 	init_waitqueue_head(&solo_enc->thread_wait);
 	atomic_set(&solo_enc->readers, 0);
 	atomic_set(&solo_enc->mpeg_readers, 0);

@@ -1,6 +1,15 @@
+solo6010 (2.0.1-4) lucid; urgency=low
+
+  * Fixes for mpeg frame size (gets rid fo artifacts)
+  * Extra locking around motion detection
+  * Refactor loop for video buffers to avoid false failures
+
+ -- Ben Collins <bcollins@bluecherry.net>  Tue, 14 Dec 2010 14:52:00 -0500
+
 solo6010 (2.0.1-3) lucid; urgency=low
 
-  * Bumped version number to 2.0.1-3.  Note to self: always pull before you release a new DKMS package.  Changes from -2 were actually from -1
+  * Bumped version number to 2.0.1-3.  Note to self: always pull before you
+    release a new DKMS package.  Changes from -2 were actually from -1.
 
  -- Curtis Hall <curt@bluecherry.net>  Thu, 18 Nov 2010 08:29:30 -0600
 

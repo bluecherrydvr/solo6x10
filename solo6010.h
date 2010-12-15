@@ -107,7 +107,7 @@
 
 /* There is 8MB memory available for solo to buffer MPEG4 frames.
  * This gives us 512 * 16kbyte queues. */
-#define SOLO_NR_RING_BUFS		512
+#define SOLO_NR_RING_BUFS		64
 
 #define SOLO_CLOCK_MHZ			108
 
@@ -144,6 +144,11 @@ enum solo_enc_types {
 	SOLO_ENC_TYPE_EXT,
 };
 
+struct solo_enc_buf {
+	enum solo_enc_types	type;
+	u32			off;
+};
+
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
 	/* V4L2 Items */
@@ -152,6 +157,7 @@ struct solo_enc_dev {
 	wait_queue_head_t	thread_wait;
 	spinlock_t		av_lock;
 	spinlock_t		enable_lock;
+	spinlock_t		motion_lock;
 	atomic_t		readers;
 	atomic_t		mpeg_readers;
 	u8			ch;
@@ -164,14 +170,9 @@ struct solo_enc_dev {
 	char			osd_text[OSD_TEXT_MAX + 1];
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE];
 	struct mutex		osd_mutex;
-};
-
-struct solo_enc_buf {
-	u8			ch;
-	enum solo_enc_types	type;
-	u32			off;
-	u32			jpeg_off;
-	u32			jpeg_size;
+	/* Our software ring of enc buf references */
+	u16			enc_wr_idx;
+	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 };
 
 /* The SOLO6010 PCI Device */
@@ -214,9 +215,6 @@ struct solo6010_dev {
 	u16			enc_bw_remain;
 	/* IDX into hw mp4 encoder */
 	u8			enc_idx;
-	/* Our software ring of enc buf references */
-	u16			enc_wr_idx;
-	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 
 	/* Current video settings */
 	u32 			video_type;
