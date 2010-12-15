@@ -1,8 +1,9 @@
-solo6010 (2.0.1-4) lucid; urgency=low
+solo6010 (2.0.2-1) lucid; urgency=low
 
   * Fixes for mpeg frame size (gets rid fo artifacts)
   * Extra locking around motion detection
   * Refactor loop for video buffers to avoid false failures
+  * Consolidate motion detection out of ISR
 
  -- Ben Collins <bcollins@bluecherry.net>  Tue, 14 Dec 2010 14:52:00 -0500
 

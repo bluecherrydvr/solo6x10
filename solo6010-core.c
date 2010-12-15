@@ -74,10 +74,6 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 	if (status & SOLO_IRQ_VIDEO_IN)
 		solo_video_in_isr(solo_dev);
 
-	/* Call this first so enc gets detected flag set */
-	if (status & SOLO_IRQ_MOTION)
-		solo_motion_isr(solo_dev);
-
 	if (status & SOLO_IRQ_ENCODER)
 		solo_enc_v4l2_isr(solo_dev);
 

@@ -254,8 +254,6 @@ void solo_disp_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
 
-	solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
-
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_ZOOM_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_FREEZE_CTRL, 0);

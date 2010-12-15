@@ -51,6 +51,11 @@ struct solo_enc_fh {
 	struct task_struct	*kthread;
 };
 
+struct solo_videobuf {
+	struct videobuf_buffer	vb;
+	unsigned int		flags;
+};
+
 static unsigned char vid_vop_header[] = {
 	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x20,
 	0x02, 0x48, 0x05, 0xc0, 0x00, 0x40, 0x00, 0x40,
@@ -113,7 +118,7 @@ static const u32 *solo_ctrl_classes[] = {
 
 struct vop_header {
 	/* VE_STATUS0 */
-	u32 mpeg_size:20, sad_motion_flags:1, video_motion_flag:1, vop_type:2,
+	u32 mpeg_size:20, sad_motion_flag:1, video_motion_flag:1, vop_type:2,
 		channel:5, source_fl:1, interlace:1, progressive:1;
 
 	/* VE_STATUS1 */
@@ -157,28 +162,21 @@ static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	u8 ch = solo_enc->ch;
+	u32 mask = 1 << solo_enc->ch;
 	unsigned long flags;
 
 	spin_lock_irqsave(&solo_enc->motion_lock, flags);
 
 	if (on)
-		solo_dev->motion_mask |= (1 << ch);
+		solo_dev->motion_mask |= mask;
 	else
-		solo_dev->motion_mask &= ~(1 << ch);
+		solo_dev->motion_mask &= ~mask;
 
-	/* Do this regardless of if we are turning on or off */
-	solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR, 1 << ch);
-	solo_enc->motion_detected = 0;
+	solo_reg_write(solo_dev, SOLO_VI_MOT_CLEAR, mask);
 
 	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR,
 		       SOLO_VI_MOTION_EN(solo_dev->motion_mask) |
 		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
-
-	if (solo_dev->motion_mask)
-		solo6010_irq_on(solo_dev, SOLO_IRQ_MOTION);
-	else
-		solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
 	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
 }
@@ -471,10 +469,12 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 }
 
 static void solo_enc_fillbuf(struct solo_enc_fh *fh,
-			     struct videobuf_buffer *vb, u32 off)
+			     struct videobuf_buffer *vb,
+			     struct solo_enc_buf *enc_buf)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	struct vop_header vh;
 	dma_addr_t vbuf;
 	int ret = -EIO;
@@ -483,11 +483,11 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 		goto vbuf_error;
 
 	/* We need this for mpeg and jpeg */
-	if (enc_get_mpeg_dma(solo_dev, &vh, off, sizeof(vh)))
+	if (enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh)))
 		goto vbuf_error;
 
 	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-	if (WARN_ON_ONCE(vh.mpeg_off != off))
+	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off))
 		goto vbuf_error;
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
@@ -496,6 +496,7 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 		ret = solo_fill_jpeg(fh, vb, vbuf, &vh);
 
 vbuf_error:
+	svb->flags = 0;
 	if (ret) {
 		vb->state = VIDEOBUF_ERROR;
 	} else {
@@ -503,6 +504,23 @@ vbuf_error:
 		vb->field_count++;
 		vb->width = solo_enc->width;
 		vb->height = solo_enc->height;
+
+		/* Check for motion flags */
+		if (solo_is_motion_on(solo_enc)) {
+			svb->flags |= V4L2_BUF_FLAG_MOTION_ON;
+			if (solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS) &
+			    (1 << solo_enc->ch)) {
+				solo_reg_write(solo_dev, SOLO_VI_MOT_CLEAR,
+					       (1 << solo_enc->ch));
+				svb->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
+			}
+		}
+
+		/* Set P/I frame */
+		if (!vh.vop_type)
+			svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
+		else
+			svb->flags |= V4L2_BUF_FLAG_PFRAME;
 	}
 
 	wake_up(&vb->done);
@@ -564,7 +582,7 @@ next_ebuf:
 		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		solo_enc_fillbuf(fh, vb, enc_buf->off);
+		solo_enc_fillbuf(fh, vb, enc_buf);
 	}
 
 	assert_spin_locked(&solo_enc->av_lock);
@@ -593,26 +611,6 @@ static int solo_enc_thread(void *data)
         return 0;
 }
 
-void solo_motion_isr(struct solo6010_dev *solo_dev)
-{
-	u32 status;
-	int i;
-
-	status = solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS);
-
-	for (i = 0; i < solo_dev->nr_chans; i++) {
-		struct solo_enc_dev *solo_enc = solo_dev->v4l2_enc[i];
-		unsigned long flags;
-
-		BUG_ON(solo_enc == NULL);
-
-		spin_lock_irqsave(&solo_enc->motion_lock, flags);
-		if (status & (1 << i))
-			solo_enc->motion_detected = 1;
-		spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
-	}
-}
-
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
 	struct solo_enc_dev *solo_enc;
@@ -638,13 +636,11 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 		} else
 			enc_type = SOLO_ENC_TYPE_STD;
 
-		mpeg_current &= 0x00ffffff;
-
 		solo_enc = solo_dev->v4l2_enc[ch];
 		BUG_ON(solo_enc == NULL);
 		enc_buf = &solo_enc->enc_buf[solo_enc->enc_wr_idx];
 
-		enc_buf->off = mpeg_current;
+		enc_buf->off = mpeg_current & 0x00ffffff;
 		enc_buf->type = enc_type;
 
 		solo_enc->enc_wr_idx = (solo_enc->enc_wr_idx + 1) %
@@ -753,7 +749,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 				    &solo_enc->av_lock,
 				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				    V4L2_FIELD_INTERLACED,
-				    sizeof(struct videobuf_buffer), fh);
+				    sizeof(struct solo_videobuf), fh);
 
 	return 0;
 }
@@ -1006,6 +1002,7 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
+	struct solo_videobuf *svb;
 	int ret;
 
 	/* Make sure the encoder is on */
@@ -1025,32 +1022,9 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 	if (ret)
 		return ret;
 
-	/* Signal motion detection */
-	if (solo_is_motion_on(solo_enc)) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&solo_enc->motion_lock, flags);
-
-		buf->flags |= V4L2_BUF_FLAG_MOTION_ON;
-		if (solo_enc->motion_detected) {
-			buf->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
-			solo_reg_write(solo_enc->solo_dev, SOLO_VI_MOT_CLEAR,
-				       1 << solo_enc->ch);
-			solo_enc->motion_detected = 0;
-		}
-
-		spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
-	}
-
-	/* Check for key frame on mpeg data */
-	if (fh->fmt == V4L2_PIX_FMT_MPEG) {
-		struct videobuf_buffer *vb = fh->vidq.bufs[buf->index];
-		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
-		if (p[3] == 0x00)
-			buf->flags |= V4L2_BUF_FLAG_KEYFRAME;
-		else
-			buf->flags |= V4L2_BUF_FLAG_PFRAME;
-	}
+	/* Copy over the flags */
+	svb = (struct solo_videobuf *)fh->vidq.bufs[buf->index];
+	buf->flags |= svb->flags;
 
 	return 0;
 }
@@ -1605,8 +1579,6 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
-
-	solo6010_irq_off(solo_dev, SOLO_IRQ_MOTION);
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_enc_free(solo_dev->v4l2_enc[i]);

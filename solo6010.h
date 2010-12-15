@@ -66,10 +66,10 @@
 #define SOLO_MAX_CHANNELS		16
 
 /* Make sure these two match */
-#define SOLO6010_VERSION		"2.0.1"
+#define SOLO6010_VERSION		"2.0.2"
 #define SOLO6010_VER_MAJOR		2
 #define SOLO6010_VER_MINOR		0
-#define SOLO6010_VER_SUB		1
+#define SOLO6010_VER_SUB		2
 #define SOLO6010_VER_NUM \
     KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
 
@@ -163,7 +163,6 @@ struct solo_enc_dev {
 	u8			ch;
 	u8			mode, gop, qp, interlaced, interval;
 	u8			bw_weight;
-	u8			motion_detected;
 	u16			motion_thresh;
 	u16			width;
 	u16			height;
