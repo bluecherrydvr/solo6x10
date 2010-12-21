@@ -388,6 +388,7 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
+	int frame_size;
 
 	vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
 
@@ -405,8 +406,9 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	vbuf += sizeof(jpeg_header);
 	vb->size = vh->jpeg_size + sizeof(jpeg_header);
+	frame_size = (vh->jpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	return enc_get_jpeg_dma(solo_dev, vbuf, vh->jpeg_off, vh->jpeg_size);
+	return enc_get_jpeg_dma(solo_dev, vbuf, vh->jpeg_off, frame_size);
 }
 
 static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
