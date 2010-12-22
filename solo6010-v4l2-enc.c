@@ -235,11 +235,15 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	if (fh->type == SOLO_ENC_TYPE_EXT)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
 
-	if (fh->fmt == V4L2_PIX_FMT_MPEG)
-		atomic_inc(&solo_enc->mpeg_readers);
-
-	if (atomic_inc_return(&solo_enc->readers) > 1)
+	/* Reset the encoder if we are the first mpeg reader, else only reset
+	 * on the first mjpeg reader. */
+	if (fh->fmt == V4L2_PIX_FMT_MPEG) {
+		atomic_inc(&solo_enc->readers);
+		if (atomic_inc_return(&solo_enc->mpeg_readers) > 1)
+			return 0;
+	} else if (atomic_inc_return(&solo_enc->readers) > 1) {
 		return 0;
+	}
 
 	/* Disable all encoding for this channel */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), 0);
@@ -277,6 +281,8 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 
+	assert_spin_locked(&solo_enc->enable_lock);
+
 	if (!fh->enc_on)
 		return;
 
@@ -285,7 +291,6 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 		fh->kthread = NULL;
 	}
 
-	solo_dev->enc_bw_remain += solo_enc->bw_weight;
 	fh->enc_on = 0;
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
@@ -293,6 +298,8 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 
 	if (atomic_dec_return(&solo_enc->readers) > 0)
 		return;
+
+	solo_dev->enc_bw_remain += solo_enc->bw_weight;
 
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(solo_enc->ch), 0);
 	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(solo_enc->ch), 0);
@@ -306,11 +313,14 @@ static int solo_start_fh_thread(struct solo_enc_fh *fh)
 
 	/* Oops, we had a problem */
 	if (IS_ERR(fh->kthread)) {
+		int err = PTR_ERR(fh->kthread);
+
 		spin_lock(&solo_enc->enable_lock);
+		fh->kthread = NULL;
 		solo_enc_off(fh);
 		spin_unlock(&solo_enc->enable_lock);
 
-		return PTR_ERR(fh->kthread);
+		return err;
 	}
 
 	return 0;
