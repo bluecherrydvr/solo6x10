@@ -1062,8 +1062,13 @@ static int solo_enc_streamoff(struct file *file, void *priv,
 		return -EINVAL;
 
 	ret = videobuf_streamoff(&fh->vidq);
-	if (!ret)
+	if (!ret) {
+		struct solo_enc_dev *solo_enc = fh->enc;
+
+		spin_lock(&solo_enc->enable_lock);
 		solo_enc_off(fh);
+		spin_unlock(&solo_enc->enable_lock);
+	}
 
 	return ret;
 }
