@@ -1,3 +1,10 @@
+solo6010 (2.0.3-1) lucid; urgency=low
+
+  * Rework motion detection to be per-frame (no ISR)
+  * Rework locking in mpeg/jpeg encoder streams
+
+ -- Ben Collins <bcollins@bluecherry.net>  Wed, 29 Dec 2010 12:55:33 -0500
+
 solo6010 (2.0.2-1) lucid; urgency=low
 
   * Fixes for mpeg frame size (gets rid fo artifacts)
