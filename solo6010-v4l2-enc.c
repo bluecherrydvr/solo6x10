@@ -207,7 +207,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 }
 
 /* Should be called with solo_enc->enable_lock held */
-static int __solo_enc_on(struct solo_enc_fh *fh)
+static int solo_enc_on(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	u8 ch = solo_enc->ch;
@@ -276,19 +276,7 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	return 0;
 }
 
-static int solo_enc_on(struct solo_enc_fh *fh)
-{
-	struct solo_enc_dev *solo_enc = fh->enc;
-	int ret;
-
-	spin_lock(&solo_enc->enable_lock);
-	ret = __solo_enc_on(fh);
-	spin_unlock(&solo_enc->enable_lock);
-
-	return ret;
-}
-
-static void __solo_enc_off(struct solo_enc_fh *fh)
+static void solo_enc_off(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -317,46 +305,23 @@ static void __solo_enc_off(struct solo_enc_fh *fh)
 	solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(solo_enc->ch), 0);
 }
 
-static void solo_enc_off(struct solo_enc_fh *fh)
+static int solo_start_fh_thread(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 
-	spin_lock(&solo_enc->enable_lock);
-	__solo_enc_off(fh);
-	spin_unlock(&solo_enc->enable_lock);
-}
-
-static int solo_start_fh_thread(struct solo_enc_fh *fh)
-{
 	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
 
 	/* Oops, we had a problem */
 	if (IS_ERR(fh->kthread)) {
 		int err = PTR_ERR(fh->kthread);
 
+		spin_lock(&solo_enc->enable_lock);
 		fh->kthread = NULL;
 		solo_enc_off(fh);
+		spin_unlock(&solo_enc->enable_lock);
 
 		return err;
 	}
-
-	return 0;
-}
-
-static int solo_enc_start(struct solo_enc_fh *fh)
-{
-	int ret;
-
-	if (!fh->enc_on)
-		return 0;
-
-	ret = solo_enc_on(fh);
-	if (ret)
-		return ret;
-
-	ret = solo_start_fh_thread(fh);
-	if (ret)
-		return ret;
 
 	return 0;
 }
@@ -587,14 +552,13 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
 
 		/* First check if the encoder has given us anything to use */
-		for (;fh->rd_idx != solo_enc->enc_wr_idx;
-		     fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS) {
+		while (fh->rd_idx != solo_enc->enc_wr_idx) {
 			struct solo_enc_buf *ebuf =
 				&solo_enc->enc_buf[fh->rd_idx];
 
 			if (fh->fmt == V4L2_PIX_FMT_MPEG &&
 			    fh->type != ebuf->type)
-				continue;
+				goto next_ebuf;
 
 			enc_buf = ebuf;
 
@@ -606,6 +570,8 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 			if (!fh->jpeg_skip)
 				break;
 			fh->jpeg_skip--;
+next_ebuf:
+			fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		}
 
 		if (!enc_buf)
@@ -804,12 +770,22 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 			     size_t count, loff_t *ppos)
 {
 	struct solo_enc_fh *fh = file->private_data;
-	int ret;
+	struct solo_enc_dev *solo_enc = fh->enc;
 
 	/* Make sure the encoder is on */
-	ret = solo_enc_start(fh);
-	if (ret)
-		return ret;
+	if (!fh->enc_on) {
+		int ret;
+
+		spin_lock(&solo_enc->enable_lock);
+		ret = solo_enc_on(fh);
+	        spin_unlock(&solo_enc->enable_lock);
+		if (ret)
+			return ret;
+
+		ret = solo_start_fh_thread(fh);
+		if (ret)
+			return ret;
+	}
 
 	return videobuf_read_stream(&fh->vidq, data, count, ppos, 0,
 				    file->f_flags & O_NONBLOCK);
@@ -822,11 +798,14 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_fh *fh = file->private_data;
+	struct solo_enc_dev *solo_enc = fh->enc;
 
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
 
+	spin_lock(&solo_enc->enable_lock);
 	solo_enc_off(fh);
+	spin_unlock(&solo_enc->enable_lock);
 
 	kfree(fh);
 
@@ -964,8 +943,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 
 	spin_lock(&solo_enc->enable_lock);
 
-	ret = solo_enc_try_fmt_cap(file, priv, f);
-	if (ret) {
+	if ((ret = solo_enc_try_fmt_cap(file, priv, f))) {
 		spin_unlock(&solo_enc->enable_lock);
 		return ret;
 	}
@@ -980,10 +958,14 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 
 	if (pix->priv)
 		fh->type = SOLO_ENC_TYPE_EXT;
+	ret = solo_enc_on(fh);
 
 	spin_unlock(&solo_enc->enable_lock);
 
-	return 0;
+	if (ret)
+		return ret;
+
+	return solo_start_fh_thread(fh);
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
@@ -1031,13 +1013,22 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 			  struct v4l2_buffer *buf)
 {
 	struct solo_enc_fh *fh = priv;
+	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo_videobuf *svb;
 	int ret;
 
 	/* Make sure the encoder is on */
-	ret = solo_enc_start(fh);
-	if (ret)
-		return ret;
+	if (!fh->enc_on) {
+		spin_lock(&solo_enc->enable_lock);
+		ret = solo_enc_on(fh);
+		spin_unlock(&solo_enc->enable_lock);
+		if (ret)
+			return ret;
+
+		ret = solo_start_fh_thread(fh);
+		if (ret)
+			return ret;
+	}
 
 	ret = videobuf_dqbuf(&fh->vidq, buf, file->f_flags & O_NONBLOCK);
 	if (ret)
@@ -1071,8 +1062,13 @@ static int solo_enc_streamoff(struct file *file, void *priv,
 		return -EINVAL;
 
 	ret = videobuf_streamoff(&fh->vidq);
-	if (!ret)
+	if (!ret) {
+		struct solo_enc_dev *solo_enc = fh->enc;
+
+		spin_lock(&solo_enc->enable_lock);
 		solo_enc_off(fh);
+		spin_unlock(&solo_enc->enable_lock);
+	}
 
 	return ret;
 }
