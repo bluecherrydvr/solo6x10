@@ -981,9 +981,14 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	if (pix->priv)
 		fh->type = SOLO_ENC_TYPE_EXT;
 
+	ret = __solo_enc_on(fh);
+
 	spin_unlock(&solo_enc->enable_lock);
 
-	return 0;
+	if (ret)
+		return ret;
+
+	return solo_start_fh_thread(fh);
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
