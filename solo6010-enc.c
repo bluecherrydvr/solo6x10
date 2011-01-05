@@ -18,9 +18,10 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/font.h>
+#include <linux/bitrev.h>
 
 #include "solo6010.h"
-#include "solo6010-osd-font.h"
 
 #define CAPTURE_MAX_BANDWIDTH		32	// D1 4channel (D1 == 4)
 
@@ -116,34 +117,42 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 int solo_osd_print(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	char *str = solo_enc->osd_text;
+	unsigned char *str = solo_enc->osd_text;
 	u8 *buf = solo_enc->osd_buf;
 	u32 reg = solo_reg_read(solo_dev, SOLO_VE_OSD_CH);
+	const struct font_desc *vga = find_font("VGA8x16");
+	const unsigned char *vga_data;
 	int len;
 	int i, j;
-	int x = 1, y = 1;
+
+	if (WARN_ON_ONCE(!vga))
+		return -ENODEV;
 
 	len = strlen(str);
 
 	if (len == 0) {
+		/* Disable OSD on this channel */
 		reg &= ~(1 << solo_enc->ch);
 		solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
 		return 0;
 	}
 
 	memset(buf, 0, SOLO_EOSD_EXT_SIZE);
+	vga_data = (const unsigned char *)vga->data;
 
 	for (i = 0; i < len; i++) {
 		for (j = 0; j < 16; j++) {
-			buf[(j*2) + (i%2) + ((x + (i/2)) * 32) + (y * 2048)] =
-				(solo_osd_font[(str[i] * 4) + (j / 4)]
-					>> ((3 - (j % 4)) * 8)) & 0xff;
+			buf[(j * 2) + (i % 2) + (i / 2 * 32)] =
+				bitrev8(vga_data[(str[i] * 16) + j]);
 		}
 	}
 
-	solo_p2m_dma(solo_dev, 0, 1, buf, SOLO_EOSD_EXT_ADDR(solo_dev) +
-		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE), SOLO_EOSD_EXT_SIZE,
-		     0, 0);
+	solo_p2m_dma(solo_dev, 0, 1, buf,
+		     SOLO_EOSD_EXT_ADDR(solo_dev) +
+		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE),
+		     SOLO_EOSD_EXT_SIZE, 0, 0);
+
+	/* Enable OSD on this channel */
         reg |= (1 << solo_enc->ch);
         solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
 
