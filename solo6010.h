@@ -167,7 +167,7 @@ struct solo_enc_dev {
 	u16			width;
 	u16			height;
 	char			osd_text[OSD_TEXT_MAX + 1];
-	u8			osd_buf[SOLO_EOSD_EXT_SIZE];
+	u8			*osd_buf;
 	struct mutex		osd_mutex;
 	/* Our software ring of enc buf references */
 	u16			enc_wr_idx;

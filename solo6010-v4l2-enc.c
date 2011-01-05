@@ -1516,8 +1516,15 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	if (!solo_enc)
 		return ERR_PTR(-ENOMEM);
 
+	solo_enc->osd_buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);
+	if (!solo_enc->osd_buf) {
+		kfree(solo_enc);
+		return ERR_PTR(-ENOMEM);
+	}
+
 	solo_enc->vfd = video_device_alloc();
 	if (!solo_enc->vfd) {
+		kfree(solo_enc->osd_buf);
 		kfree(solo_enc);
 		return ERR_PTR(-ENOMEM);
 	}
@@ -1531,6 +1538,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 				    video_nr);
 	if (ret < 0) {
 		video_device_release(solo_enc->vfd);
+		kfree(solo_enc->osd_buf);
 		kfree(solo_enc);
 		return ERR_PTR(ret);
 	}
@@ -1572,6 +1580,7 @@ static void solo_enc_free(struct solo_enc_dev *solo_enc)
 		return;
 
 	video_unregister_device(solo_enc->vfd);
+	kfree(solo_enc->osd_buf);
 	kfree(solo_enc);
 }
 
