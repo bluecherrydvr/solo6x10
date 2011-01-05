@@ -347,7 +347,7 @@ static int solo_enc_start(struct solo_enc_fh *fh)
 {
 	int ret;
 
-	if (!fh->enc_on)
+	if (fh->enc_on)
 		return 0;
 
 	ret = solo_enc_on(fh);
