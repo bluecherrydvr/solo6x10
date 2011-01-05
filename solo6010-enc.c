@@ -105,7 +105,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 		return;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
-		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_MP4E, 1, buf,
+		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_OSG, 1, buf,
 			     SOLO_EOSD_EXT_ADDR(solo_dev) +
 			     (SOLO_EOSD_EXT_SIZE * i),
 			     SOLO_EOSD_EXT_SIZE, 0, 0);
@@ -141,13 +141,15 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 	vga_data = (const unsigned char *)vga->data;
 
 	for (i = 0; i < len; i++) {
+		unsigned char c = str[i];
+
 		for (j = 0; j < 16; j++) {
 			buf[(j * 2) + (i % 2) + (i / 2 * 32)] =
-				bitrev8(vga_data[(str[i] * 16) + j]);
+				bitrev8(vga_data[(c * 16) + j]);
 		}
 	}
 
-	solo_p2m_dma(solo_dev, 0, 1, buf,
+	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_OSG, 1, buf,
 		     SOLO_EOSD_EXT_ADDR(solo_dev) +
 		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE),
 		     SOLO_EOSD_EXT_SIZE, 0, 0);
