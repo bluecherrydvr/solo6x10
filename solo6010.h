@@ -147,6 +147,7 @@ enum solo_enc_types {
 struct solo_enc_buf {
 	enum solo_enc_types	type;
 	u32			off;
+	int			motion;
 };
 
 struct solo_enc_dev {

@@ -159,6 +159,23 @@ static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 	return res;
 }
 
+static int solo_motion_detected(struct solo_enc_dev *solo_enc)
+{
+	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	unsigned long flags;
+	u32 ch_mask = 1 << solo_enc->ch;
+	int ret = 0;
+
+	spin_lock_irqsave(&solo_enc->motion_lock, flags);
+	if (solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS) & ch_mask) {
+		solo_reg_write(solo_dev, SOLO_VI_MOT_CLEAR, ch_mask);
+		ret = 1;
+	}
+	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
+
+	return ret;
+}
+
 static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -432,8 +449,11 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 	int frame_size;
+
+	svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
 
 	vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
 
@@ -461,6 +481,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	int frame_off, frame_size;
 
 	if (WARN_ON_ONCE(vb->bsize < vh->mpeg_size))
@@ -469,8 +490,6 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	vb->width = vh->hsize << 4;
 	vb->height = vh->vsize << 4;
 	vb->size = vh->mpeg_size;
-	vb->ts.tv_sec = vh->sec;
-	vb->ts.tv_usec = vh->usec;
 
 	/* If this is a key frame, add extra m4v header */
 	if (!vh->vop_type) {
@@ -503,7 +522,9 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 		/* Adjust the dma buffer past this header */
 		vb->size += sizeof(vid_vop_header);
 		vbuf += sizeof(vid_vop_header);
-	}
+		svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
+	} else
+		svb->flags |= V4L2_BUF_FLAG_PFRAME;
 
 	/* Now get the actual mpeg payload */
 	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
@@ -524,7 +545,7 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	struct vop_header vh;
 	dma_addr_t vbuf;
-	int ret = -EIO;
+	int ret = -1;
 
 	if (WARN_ON_ONCE(!(vbuf = videobuf_to_dma_contig(vb))))
 		goto vbuf_error;
@@ -537,13 +558,25 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off))
 		goto vbuf_error;
 
+	/* Setup some common flags for both types */
+	svb->flags = 0;
+	vb->ts.tv_sec = vh.sec;
+	vb->ts.tv_usec = vh.usec;
+	svb->flags |= V4L2_BUF_FLAG_TIMECODE;
+
+	/* Check for motion flags */
+	if (solo_is_motion_on(solo_enc)) {
+		svb->flags |= V4L2_BUF_FLAG_MOTION_ON;
+		if (enc_buf->motion)
+			svb->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
+	}
+
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
 		ret = solo_fill_mpeg(fh, vb, vbuf, &vh);
 	else
 		ret = solo_fill_jpeg(fh, vb, vbuf, &vh);
 
 vbuf_error:
-	svb->flags = 0;
 	if (ret) {
 		vb->state = VIDEOBUF_ERROR;
 	} else {
@@ -551,23 +584,6 @@ vbuf_error:
 		vb->field_count++;
 		vb->width = solo_enc->width;
 		vb->height = solo_enc->height;
-
-		/* Check for motion flags */
-		if (solo_is_motion_on(solo_enc)) {
-			svb->flags |= V4L2_BUF_FLAG_MOTION_ON;
-			if (solo_reg_read(solo_dev, SOLO_VI_MOT_STATUS) &
-			    (1 << solo_enc->ch)) {
-				solo_reg_write(solo_dev, SOLO_VI_MOT_CLEAR,
-					       (1 << solo_enc->ch));
-				svb->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
-			}
-		}
-
-		/* Set P/I frame */
-		if (!vh.vop_type)
-			svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
-		else
-			svb->flags |= V4L2_BUF_FLAG_PFRAME;
 	}
 
 	wake_up(&vb->done);
@@ -688,6 +704,10 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 
 		enc_buf->off = mpeg_current & 0x00ffffff;
 		enc_buf->type = enc_type;
+		if (solo_motion_detected(solo_enc))
+			enc_buf->motion = 1;
+		else
+			enc_buf->motion = 0;
 
 		solo_enc->enc_wr_idx = (solo_enc->enc_wr_idx + 1) %
 					SOLO_NR_RING_BUFS;
