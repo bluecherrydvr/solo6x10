@@ -1,3 +1,9 @@
+solo6010 (2.0.3-2) lucid; urgency=low
+
+  * Rework motion detection to avoid mjpeg or mpeg hogging the event
+
+ -- Ben Collins <bcollins@bluecherry.net>  Fri, 07 Jan 2011 20:45:47 -0600
+
 solo6010 (2.0.3-1) lucid; urgency=low
 
   * Rework motion detection to be per-frame (no ISR)
