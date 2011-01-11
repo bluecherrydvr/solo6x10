@@ -1364,7 +1364,7 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		u16 value = ctrl->value & 0xffff;
 
 		/* Block value > 0 means a specific block, else global */
-		if (block > 4096)
+		if (block > 1024)
 			return -ERANGE;
 
 		if (block == 0) {

@@ -177,16 +177,33 @@ void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
 void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 			   u16 block)
 {
-	if (WARN_ON_ONCE(block > 4096))
+	u32 addr, real_val;
+
+	if (WARN_ON_ONCE(block >= 1024))
 		return;
 
-	if (WARN_ON_ONCE(ch > solo_dev->nr_chans))
+	if (WARN_ON_ONCE(ch >= solo_dev->nr_chans))
 		return;
 
-	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1, &val,
-		     SOLO_MOTION_EXT_ADDR(solo_dev) +
-		     (ch * SOLO_MOT_THRESH_SIZE * 2) +
-		     (block * 2), 2, 0, 0);
+	addr = SOLO_MOTION_EXT_ADDR(solo_dev) +
+		SOLO_MOT_FLAG_AREA +
+		(SOLO_MOT_THRESH_SIZE * 2 * ch) +
+		(block * 2);
+
+	if (WARN_ON_ONCE(solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 0,
+			 &real_val, addr & ~0x3, 4, 0, 0)))
+		return;
+
+	if (block & 0x1) {
+		real_val &= 0xffff0000;
+		real_val |= val;
+	} else {
+		real_val &= 0x0000ffff;
+		real_val |= (val << 16);
+	}
+
+	WARN_ON_ONCE(solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1,
+				  &real_val, addr & ~0x3, 4, 0, 0));
 }
 
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
@@ -204,7 +221,6 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 
 		/* Clear working cache table */
 		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
-				    SOLO_MOT_THRESH_SIZE +
 				    (i * SOLO_MOT_THRESH_SIZE * 2),
 				    0x0000, SOLO_MOT_THRESH_REAL);
 
