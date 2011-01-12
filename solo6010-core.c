@@ -93,6 +93,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	if (!solo_dev)
 		return;
 
+	device_unregister(&solo_dev->dev);
+
 	pdev = solo_dev->pdev;
 
 	/* If we never initialized the PCI device, then nothing else
@@ -124,6 +126,73 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	pci_set_drvdata(pdev, NULL);
 
 	kfree(solo_dev);
+}
+
+static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned short *p = (unsigned short *)buf;
+	int i;
+
+	if (count != 128)
+		return -EINVAL;
+
+	solo_eeprom_ewen(solo_dev, 1);
+
+	for (i = 0; i < 64; i++)
+		solo_eeprom_write(solo_dev, i, p[i]);
+
+	solo_eeprom_ewen(solo_dev, 0);
+
+        return count;
+}
+static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr,
+			       char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned short *p = (unsigned short *)buf;
+	int i;
+
+	for (i = 0; i < 64; i++)
+		p[i] = solo_eeprom_read(solo_dev, i);
+
+	return 128;
+}
+static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
+
+static struct device_attribute *const solo_dev_attrs[] = {
+	&dev_attr_eeprom,
+};
+
+static void solo_device_release(struct device *dev)
+{
+	/* Do nothing */
+}
+
+static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
+{
+	struct device *dev = &solo_dev->dev;
+	int i;
+
+	dev->release = solo_device_release;
+	dev->parent = &solo_dev->pdev->dev;
+	set_dev_node(dev, dev_to_node(&solo_dev->pdev->dev));
+	dev_set_name(dev, "solo6x10");
+
+	if (device_register(dev))
+		return -ENOMEM;
+
+	for (i = 0; i < ARRAY_SIZE(solo_dev_attrs); i++) {
+		if (device_create_file(dev, solo_dev_attrs[i])) {
+			device_unregister(dev);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
 }
 
 static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
@@ -210,6 +279,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		       SOLO_DMA_CTRL_SDRAM_CLK_INVERT |
 		       SOLO_DMA_CTRL_READ_CLK_SELECT |
 		       SOLO_DMA_CTRL_LATENCY(1));
+
+	if ((ret = solo_sysfs_init(solo_dev)))
+		goto fail_probe;
 
 	if ((ret = solo_p2m_init(solo_dev)))
 		goto fail_probe;

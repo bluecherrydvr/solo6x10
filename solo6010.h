@@ -228,6 +228,9 @@ struct solo6010_dev {
 	struct snd_pcm		*snd_pcm;
 	atomic_t		snd_users;
 	int			g723_hw_idx;
+
+	/* sysfs stuffs */
+	struct device		dev;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
@@ -322,5 +325,11 @@ void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 
 /* Write text on OSD */
 int solo_osd_print(struct solo_enc_dev *solo_enc);
+
+/* EEPROM commands */
+unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en);
+unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc);
+int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
+		      unsigned short data);
 
 #endif /* __SOLO6010_H */
