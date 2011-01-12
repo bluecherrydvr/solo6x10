@@ -180,7 +180,8 @@ static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 	dev->release = solo_device_release;
 	dev->parent = &solo_dev->pdev->dev;
 	set_dev_node(dev, dev_to_node(&solo_dev->pdev->dev));
-	dev_set_name(dev, "solo6x10");
+	dev_set_name(dev, "solo6x10-%d-%d", solo_dev->vfd->num,
+		     solo_dev->nr_chans);
 
 	if (device_register(dev))
 		return -ENOMEM;
@@ -280,9 +281,6 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		       SOLO_DMA_CTRL_READ_CLK_SELECT |
 		       SOLO_DMA_CTRL_LATENCY(1));
 
-	if ((ret = solo_sysfs_init(solo_dev)))
-		goto fail_probe;
-
 	if ((ret = solo_p2m_init(solo_dev)))
 		goto fail_probe;
 
@@ -305,6 +303,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	if ((ret = solo_g723_init(solo_dev)))
+		goto fail_probe;
+
+	if ((ret = solo_sysfs_init(solo_dev)))
 		goto fail_probe;
 
 	return 0;
