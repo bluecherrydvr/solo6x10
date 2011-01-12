@@ -136,12 +136,14 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 	unsigned short *p = (unsigned short *)buf;
 	int i;
 
-	if (count != 128)
-		return -EINVAL;
+	if (count & 0x1)
+		dev_warn(dev, "EEPROM Write is not short aligned\n");
+	if (count > 128)
+		dev_warn(dev, "EEPROM Write truncated to 128 bytes\n");
 
 	solo_eeprom_ewen(solo_dev, 1);
 
-	for (i = 0; i < 64; i++)
+	for (i = 0; i < 64 && i < (count / 2); i++)
 		solo_eeprom_write(solo_dev, i, p[i]);
 
 	solo_eeprom_ewen(solo_dev, 0);
