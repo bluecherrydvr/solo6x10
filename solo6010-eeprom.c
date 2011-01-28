@@ -30,7 +30,8 @@
 #define EE_DATA_READ	0x01
 #define EE_ENB		(0x80 | EE_CS)
 
-#define eeprom_delay()	udelay(10)
+#define eeprom_delay()	udelay(100)
+//#define eeprom_delay()	solo_reg_read(solo_dev, SOLO_EEPROM_CTRL)
 #define ADDR_LEN	6
 
 /* Commands */
@@ -108,7 +109,7 @@ unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc)
 
 	solo_eeprom_reg_write(solo_dev, ~EE_CS);
 
-	return retval;
+	return swab16(retval);
 }
 
 int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
@@ -119,6 +120,7 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 	int i;
 
 	solo_eeprom_cmd(solo_dev, write_cmd);
+	data = swab16(data);
 
 	for (i = 15; i >= 0; i--) {
 		int dataval = (data & (1 << i)) ? EE_DATA_WRITE : 0;
