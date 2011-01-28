@@ -93,7 +93,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	if (!solo_dev)
 		return;
 
-	device_unregister(&solo_dev->dev);
+	if (solo_dev->dev.parent)
+		device_unregister(&solo_dev->dev);
 
 	pdev = solo_dev->pdev;
 
@@ -118,7 +119,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	if (solo_dev->reg_base) {
 		solo6010_irq_off(solo_dev, ~0);
 		pci_iounmap(pdev, solo_dev->reg_base);
-		free_irq(pdev->irq, solo_dev);
+		if (pdev->irq)
+			free_irq(pdev->irq, solo_dev);
 	}
 
 	pci_release_regions(pdev);
@@ -185,8 +187,10 @@ static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 	dev_set_name(dev, "solo6x10-%d-%d", solo_dev->vfd->num,
 		     solo_dev->nr_chans);
 
-	if (device_register(dev))
+	if (device_register(dev)) {
+		dev->parent = NULL;
 		return -ENOMEM;
+	}
 
 	for (i = 0; i < ARRAY_SIZE(solo_dev_attrs); i++) {
 		if (device_create_file(dev, solo_dev_attrs[i])) {
