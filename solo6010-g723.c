@@ -62,7 +62,7 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 {
 	int clk_div;
 
-	clk_div = SOLO_CLOCK_MHZ / (SAMPLERATE * (BITRATE * 2) * 2);
+	clk_div = (SOLO_CLOCK_MHZ * 1000000) / (SAMPLERATE * (BITRATE * 2) * 2);
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_SAMPLE,
 		       SOLO_AUDIO_BITRATE(BITRATE) |
@@ -120,8 +120,8 @@ static struct snd_pcm_hardware snd_solo_pcm_hw = {
 				   SNDRV_PCM_INFO_MMAP_VALID),
 	.formats		= SNDRV_PCM_FMTBIT_U8,
 	.rates			= SNDRV_PCM_RATE_8000,
-	.rate_min		= 8000,
-	.rate_max		= 8000,
+	.rate_min		= SAMPLERATE,
+	.rate_max		= SAMPLERATE,
 	.channels_min		= 1,
 	.channels_max		= 1,
 	.buffer_bytes_max	= MAX_BUFFER,
