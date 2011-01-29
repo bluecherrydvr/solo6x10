@@ -61,7 +61,11 @@
 #define PCI_DEVICE_ID_BC_6110_16	0x5310
 #endif /* Bluecherry */
 
-#define SOLO6010_NAME			"solo6010"
+/* Used in pci_device_id, and solo_dev->type */
+#define SOLO_DEV_6010			0
+#define SOLO_DEV_6110			1
+
+#define SOLO6010_NAME			"solo6x10"
 
 #define SOLO_MAX_CHANNELS		16
 
@@ -179,6 +183,7 @@ struct solo_enc_dev {
 struct solo6010_dev {
 	/* General stuff */
 	struct pci_dev		*pdev;
+	int			type;
 	u8 __iomem		*reg_base;
 	int			nr_chans;
 	int			nr_ext;

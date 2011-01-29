@@ -26,7 +26,7 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
-MODULE_DESCRIPTION("Softlogic 6010 MP4 Encoder/Decoder V4L2/ALSA Driver");
+MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 Encoder/Decoder V4L2/ALSA Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
@@ -210,9 +210,16 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	int sdram;
 	u8 chip_id;
 
-	if ((solo_dev = kzalloc(sizeof(*solo_dev), GFP_KERNEL)) == NULL)
+	solo_dev = kzalloc(sizeof(*solo_dev), GFP_KERNEL);
+	if (solo_dev == NULL)
 		return -ENOMEM;
 
+	if (id->driver_data == SOLO_DEV_6010)
+		dev_info(&pdev->dev, "Probing Softlogic 6010\n");
+	else
+		dev_info(&pdev->dev, "Probing Softlogic 6110\n");
+
+	solo_dev->type = id->driver_data;
 	solo_dev->pdev = pdev;
 	rwlock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
@@ -328,19 +335,29 @@ static void __devexit solo6010_pci_remove(struct pci_dev *pdev)
 	free_solo_dev(solo_dev);
 }
 
-static struct pci_device_id solo6010_id_table[] = {
+static DEFINE_PCI_DEVICE_TABLE(solo6010_id_table) = {
 	/* 6010 based cards */
-	{PCI_DEVICE(PCI_VENDOR_ID_SOFTLOGIC, PCI_DEVICE_ID_SOLO6010)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_4)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_9)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_16)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_4)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_9)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_16)},
+	{ PCI_DEVICE(PCI_VENDOR_ID_SOFTLOGIC, PCI_DEVICE_ID_SOLO6010),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_4),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_9),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_NEUSOLO_16),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_4),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_9),
+	  .driver_data = SOLO_DEV_6010 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_SOLO_16),
+	  .driver_data = SOLO_DEV_6010 },
 	/* 6110 based cards */
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_4)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_8)},
-	{PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_16)},
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_4),
+	  .driver_data = SOLO_DEV_6110 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_8),
+	  .driver_data = SOLO_DEV_6110 },
+	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_16),
+	  .driver_data = SOLO_DEV_6110 },
 	{0,}
 };
 
@@ -355,6 +372,8 @@ static struct pci_driver solo6010_pci_driver = {
 
 static int __init solo6010_module_init(void)
 {
+	printk(KERN_INFO "Enabling Softlogic 6x10 Driver v%s\n",
+	       SOLO6010_VERSION);
 	return pci_register_driver(&solo6010_pci_driver);
 }
 
