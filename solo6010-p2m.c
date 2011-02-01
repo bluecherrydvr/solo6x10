@@ -80,7 +80,8 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), cfg);
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), ctrl);
 
-	timeout = wait_for_completion_timeout(&p2m_dev->completion, HZ);
+	timeout = wait_for_completion_timeout(&p2m_dev->completion,
+					      msecs_to_jiffies(solo_dev->p2m_msecs));
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
 

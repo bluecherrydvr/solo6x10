@@ -113,8 +113,6 @@
  * This gives us 512 * 16kbyte queues. */
 #define SOLO_NR_RING_BUFS		64
 
-#define SOLO_CLOCK_MHZ			108
-
 #ifndef V4L2_BUF_FLAG_MOTION_ON
 #define V4L2_BUF_FLAG_MOTION_ON		0x0400
 #define V4L2_BUF_FLAG_MOTION_DETECTED	0x0800
@@ -184,6 +182,9 @@ struct solo6010_dev {
 	/* General stuff */
 	struct pci_dev		*pdev;
 	int			type;
+	unsigned int		time_sync;
+	unsigned int		usec_lsb;
+	unsigned int		clock_mhz;
 	u8 __iomem		*reg_base;
 	int			nr_chans;
 	int			nr_ext;
@@ -207,6 +208,7 @@ struct solo6010_dev {
 
 	/* P2M DMA Engine */
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
+	int			p2m_msecs;
 
 	/* V4L2 Display items */
 	struct video_device	*vfd;
