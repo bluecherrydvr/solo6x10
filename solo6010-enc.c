@@ -97,7 +97,11 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 		       SOLO_EOSD_EXT_ADDR(solo_dev) >> 16);
 	solo_reg_write(solo_dev, SOLO_VE_OSD_CLR,
 		       0xF0 << 16 | 0x80 << 8 | 0x80);
-	solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, 0);
+
+	if (solo_dev->type == SOLO_DEV_6010)
+		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, 0);
+	else
+		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, SOLO_VE_OSD_V_DOUBLE);
 
 	/* Clear OSG buffer */
 	buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);
@@ -164,7 +168,8 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 {
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
-		       (2 << 24) | (2 << 16) | (2 << 8) | (2 << 0));
+		       (2 << 24) | (2 << 16) | (2 << 8) | 2);
+
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, 0);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, 0);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG,
@@ -182,13 +187,23 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE(solo_dev) >> 16) |
 		       SOLO_VE_BLOCK_BASE(SOLO_MP4E_EXT_ADDR(solo_dev) >> 16));
 
-	solo_reg_write(solo_dev, SOLO_VE_CFG1,
-		       SOLO_VE_BYTE_ALIGN(2) |
-		       SOLO_VE_INSERT_INDEX | SOLO_VE_MOTION_MODE(0));
+	if (solo_dev->type == SOLO_DEV_6010) {
+		solo_reg_write(solo_dev, SOLO_VE_CFG1,
+			       SOLO_VE_BYTE_ALIGN(2) |
+			       SOLO_VE_INSERT_INDEX | SOLO_VE_MOTION_MODE(0));
+	} else {
+		solo_reg_write(solo_dev, SOLO_VE_CFG1,
+		  (SOLO_VE_MPEG_SIZE_H(SOLO_MP4E_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
+		  (SOLO_VE_JPEG_SIZE_H(SOLO_JPEG_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
+		  SOLO_VE_BYTE_ALIGN(2) | SOLO_VE_INSERT_INDEX |
+		  SOLO_VE_MOTION_MODE(0));
+	}
 
 	solo_reg_write(solo_dev, SOLO_VE_WMRK_POLY, 0);
 	solo_reg_write(solo_dev, SOLO_VE_VMRK_INIT_KEY, 0);
 	solo_reg_write(solo_dev, SOLO_VE_WMRK_STRL, 0);
+	if (solo_dev->type == SOLO_DEV_6110)
+		solo_reg_write(solo_dev, SOLO_VE_WMRK_ENABLE, 0);
 	solo_reg_write(solo_dev, SOLO_VE_ENCRYP_POLY, 0);
 	solo_reg_write(solo_dev, SOLO_VE_ENCRYP_INIT, 0);
 
@@ -197,12 +212,23 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 		       SOLO_COMP_ATTR_FCODE(1) |
 		       SOLO_COMP_TIME_INC(0) |
 		       SOLO_COMP_TIME_WIDTH(15) |
-		       SOLO_DCT_INTERVAL(36 / 4));
+		       SOLO_DCT_INTERVAL(solo_dev->type == SOLO_DEV_6010 ? 9 : 10));
 
-	for (i = 0; i < solo_dev->nr_chans; i++)
+	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_reg_write(solo_dev, SOLO_VE_CH_REF_BASE(i),
 			       (SOLO_EREF_EXT_ADDR(solo_dev) +
 			       (i * SOLO_EREF_EXT_SIZE)) >> 16);
+		solo_reg_write(solo_dev, SOLO_VE_CH_REF_BASE_E(i),
+			       (SOLO_EREF_EXT_ADDR(solo_dev) +
+			       ((i + 16) * SOLO_EREF_EXT_SIZE)) >> 16);
+	}
+
+	if (solo_dev->type == SOLO_DEV_6110) {
+		solo_reg_write(solo_dev, SOLO_VE_COMPT_MOT, 0x00040008);
+	} else {
+		for (i = 0; i < solo_dev->nr_chans; i++)
+			solo_reg_write(solo_dev, SOLO_VE_CH_MOT(i), 0x100);
+	}
 }
 
 int solo_enc_init(struct solo6010_dev *solo_dev)

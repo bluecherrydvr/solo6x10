@@ -56,12 +56,37 @@ struct solo_videobuf {
 	unsigned int		flags;
 };
 
-static unsigned char vid_vop_header[] = {
+static unsigned char vid_vop_header_6010[32] = {
 	0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x20,
 	0x02, 0x48, 0x05, 0xc0, 0x00, 0x40, 0x00, 0x40,
 	0x00, 0x40, 0x00, 0x80, 0x00, 0x97, 0x53, 0x04,
 	0x1f, 0x4c, 0x58, 0x10, 0x78, 0x51, 0x18, 0x3f,
 };
+
+static unsigned char vid_vop_header_6110_ntsc_d1[] = {
+	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e,
+	0x9a, 0x74, 0x05, 0x81, 0xec, 0x80, 0x00, 0x00,
+	0x00, 0x01, 0x68, 0xce, 0x32, 0x28, 0x00, 0x00,
+};
+
+static unsigned char vid_vop_header_6110_ntsc_cif[] = {
+	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e,
+	0x9a, 0x74, 0x0b, 0x0f, 0xc8, 0x00, 0x00, 0x00,
+	0x01, 0x68, 0xce, 0x32, 0x28, 0x00, 0x00, 0x00,
+};
+
+static unsigned char vid_vop_header_6110_pal_d1[] = {
+	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e,
+	0x9a, 0x74, 0x05, 0x80, 0x93, 0x20, 0x00, 0x00,
+	0x00, 0x01, 0x68, 0xce, 0x32, 0x28, 0x00, 0x00,
+};
+
+static unsigned char vid_vop_header_6110_pal_cif[] = {
+	0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e,
+	0x9a, 0x74, 0x0b, 0x04, 0xb2, 0x00, 0x00, 0x00,
+	0x01, 0x68, 0xce, 0x32, 0x28, 0x00, 0x00, 0x00,
+};
+
 
 /*
  * Things we can change around:
@@ -492,12 +517,12 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	vb->size = vh->mpeg_size;
 
 	/* If this is a key frame, add extra m4v header */
-	if (!vh->vop_type) {
+	if (!vh->vop_type && solo_dev->type == SOLO_DEV_6010) {
 		u16 fps = solo_dev->fps * 1000;
 		u16 interval = solo_enc->interval * 1000;
 		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
 
-		memcpy(p, vid_vop_header, sizeof(vid_vop_header));
+		memcpy(p, vid_vop_header_6010, sizeof(vid_vop_header_6010));
 
 		if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
 			p[10] |= ((XVID_PAR_43_NTSC << 3) & 0x78);
@@ -520,8 +545,32 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 			p[29] |= 0x20;
 
 		/* Adjust the dma buffer past this header */
-		vb->size += sizeof(vid_vop_header);
-		vbuf += sizeof(vid_vop_header);
+		vb->size += sizeof(vid_vop_header_6010);
+		vbuf += sizeof(vid_vop_header_6010);
+		svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
+	} else if (!vh->vop_type && solo_dev->type == SOLO_DEV_6110) {
+		u8 *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
+		void *vop;
+		int vop_len;
+
+		if (solo_enc->mode == SOLO_ENC_MODE_D1) {
+			if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
+				vop = vid_vop_header_6110_ntsc_d1;
+			else
+				vop = vid_vop_header_6110_pal_d1;
+			vop_len = sizeof(vid_vop_header_6110_ntsc_d1);
+		} else {
+			if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC)
+				vop = vid_vop_header_6110_ntsc_cif;
+			else
+				vop = vid_vop_header_6110_pal_cif;
+			vop_len = sizeof(vid_vop_header_6110_ntsc_cif);
+		}
+
+		memcpy(p, vop, vop_len);
+		/* Adjust the dma buffer past this header */
+		vb->size += vop_len;
+		vbuf += vop_len;
 		svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
 	} else
 		svb->flags |= V4L2_BUF_FLAG_PFRAME;
@@ -1621,8 +1670,10 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 		return ret;
 	}
 
-	/* D1@MAX-FPS * 4 */
-	solo_dev->enc_bw_remain = solo_dev->fps * 4 * 4;
+	if (solo_dev->type == SOLO_DEV_6010)
+		solo_dev->enc_bw_remain = solo_dev->fps * 4 * 4;
+	else
+		solo_dev->enc_bw_remain = solo_dev->fps * 4 * 5;
 
 	dev_info(&solo_dev->pdev->dev, "Encoders as /dev/video%d-%d\n",
 		 solo_dev->v4l2_enc[0]->vfd->num,

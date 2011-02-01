@@ -62,7 +62,7 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 {
 	int clk_div;
 
-	clk_div = (SOLO_CLOCK_MHZ * 1000000) / (SAMPLERATE * (BITRATE * 2) * 2);
+	clk_div = (solo_dev->clock_mhz * 1000000) / (SAMPLERATE * (BITRATE * 2) * 2);
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_SAMPLE,
 		       SOLO_AUDIO_BITRATE(BITRATE) |

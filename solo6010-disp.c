@@ -74,7 +74,12 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_CH_FORMAT,
 		       SOLO_VI_FD_SEL_MASK(0) | SOLO_VI_PROG_MASK(0));
 
-	solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
+	/* On 6110, initialize mozaic darkness stength */
+	if (solo_dev->type == SOLO_DEV_6010)
+		solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 0);
+	else
+		solo_reg_write(solo_dev, SOLO_VI_FMT_CFG, 16 << 22);
+
 	solo_reg_write(solo_dev, SOLO_VI_PAGE_SW, 2);
 
 	if (solo_dev->video_type == SOLO_VO_FMT_TYPE_NTSC) {

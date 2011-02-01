@@ -43,6 +43,52 @@ void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask)
 	solo_reg_write(solo_dev, SOLO_IRQ_ENABLE, solo_dev->irq_mask);
 }
 
+static void solo_set_time(struct solo6010_dev *solo_dev)
+{
+	struct timeval tv;
+
+	do_gettimeofday(&tv);
+	solo_reg_write(solo_dev, SOLO_TIMER_SEC, tv.tv_sec);
+	solo_reg_write(solo_dev, SOLO_TIMER_USEC, tv.tv_usec);
+}
+
+static void solo_timer_sync(struct solo6010_dev *solo_dev)
+{
+	u32 sec, usec;
+	struct timeval tv;
+	long diff;
+
+	if (solo_dev->type != SOLO_DEV_6110)
+		return;
+
+	solo_dev->time_sync++;
+
+	if (solo_dev->time_sync % 60)
+		return;
+
+	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
+	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
+	do_gettimeofday(&tv);
+
+	diff = (long)tv.tv_sec - (long)sec;
+	diff = (diff * 1000000) + ((long)tv.tv_usec - (long)usec);
+
+	if (diff > 1000 || diff < -1000) {
+		solo_set_time(solo_dev);
+	} else if (diff) {
+		long usec_lsb = solo_dev->usec_lsb;
+
+		usec_lsb -= diff / 4;
+		if (usec_lsb < 0)
+			usec_lsb = 0;
+		else if (usec_lsb > 255)
+			usec_lsb = 255;
+
+		solo_dev->usec_lsb = usec_lsb;
+		solo_reg_write(solo_dev, SOLO_TIMER_USEC_LSB, solo_dev->usec_lsb);
+	}
+}
+
 static irqreturn_t solo6010_isr(int irq, void *data)
 {
 	struct solo6010_dev *solo_dev = data;
@@ -71,8 +117,10 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 	if (status & SOLO_IRQ_IIC)
 		solo_i2c_isr(solo_dev);
 
-	if (status & SOLO_IRQ_VIDEO_IN)
+	if (status & SOLO_IRQ_VIDEO_IN) {
 		solo_video_in_isr(solo_dev);
+		solo_timer_sync(solo_dev);
+	}
 
 	if (status & SOLO_IRQ_ENCODER)
 		solo_enc_v4l2_isr(solo_dev);
@@ -138,14 +186,17 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 	unsigned short *p = (unsigned short *)buf;
 	int i;
 
-	if (count & 0x1)
+	if (count & 0x1) {
 		dev_warn(dev, "EEPROM Write is not short aligned\n");
-	if (count > 128)
-		dev_warn(dev, "EEPROM Write truncated to 128 bytes\n");
+		count &= ~0x1;
+	} if (count > 64) {
+		dev_warn(dev, "EEPROM Write truncated to 64 bytes\n");
+		count = 64;
+	}
 
 	solo_eeprom_ewen(solo_dev, 1);
 
-	for (i = 0; i < 64 && i < (count / 2); i++)
+	for (i = 32; i < 64 && i < (count / 2); i++)
 		solo_eeprom_write(solo_dev, i, p[i]);
 
 	solo_eeprom_ewen(solo_dev, 0);
@@ -160,10 +211,10 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 	unsigned short *p = (unsigned short *)buf;
 	int i;
 
-	for (i = 0; i < 64; i++)
+	for (i = 32; i < 64; i++)
 		p[i] = solo_eeprom_read(solo_dev, i);
 
-	return 128;
+	return 64;
 }
 static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
 
@@ -207,7 +258,6 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 {
 	struct solo6010_dev *solo_dev;
 	int ret;
-	int sdram;
 	u8 chip_id;
 
 	solo_dev = kzalloc(sizeof(*solo_dev), GFP_KERNEL);
@@ -223,6 +273,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	solo_dev->pdev = pdev;
 	rwlock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
+	solo_dev->p2m_msecs = 100; /* Only for during init */
 
 	if ((ret = pci_enable_device(pdev)))
 		goto fail_probe;
@@ -265,11 +316,36 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	solo6010_irq_off(solo_dev, ~0);
 
 	/* Initial global settings */
-	solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT |
-		       SOLO_SYS_CFG_INPUTDIV(25) |
-		       SOLO_SYS_CFG_FEEDBACKDIV((SOLO_CLOCK_MHZ * 2) - 2) |
-		       SOLO_SYS_CFG_OUTDIV(3));
-	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM, SOLO_CLOCK_MHZ - 1);
+	if (solo_dev->type == SOLO_DEV_6010) {
+		solo_dev->clock_mhz = 108;
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT |
+			       SOLO_SYS_CFG_INPUTDIV(25) |
+			       SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
+			       SOLO_SYS_CFG_OUTDIV(3));
+	} else {
+		u32 divq, divf;
+
+		solo_dev->clock_mhz = 135;
+
+		if (solo_dev->clock_mhz < 125) {
+			divq = 3;
+			divf = (solo_dev->clock_mhz * 4) / 3 - 1;
+		} else {
+			divq = 2;
+			divf = (solo_dev->clock_mhz * 2) / 3 - 1;
+		}
+
+		solo_reg_write(solo_dev, SOLO_PLL_CONFIG,
+			       (1 << 20) | /* PLL_RANGE */
+			       (8 << 15) | /* PLL_DIVR  */
+			       (divq << 12 ) |
+			       (divf <<  4 ) |
+			       (1 <<  1)   /* PLL_FSEN */ );
+
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT);
+	}
+
+	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM, solo_dev->clock_mhz - 1);
 
 	/* PLL locking time of 1ms */
 	mdelay(1);
@@ -286,13 +362,26 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Setup the DMA engine */
-	sdram = (solo_dev->nr_chans >= 8) ? 2 : 1;
 	solo_reg_write(solo_dev, SOLO_DMA_CTRL,
 		       SOLO_DMA_CTRL_REFRESH_CYCLE(1) |
-		       SOLO_DMA_CTRL_SDRAM_SIZE(sdram) |
+		       SOLO_DMA_CTRL_SDRAM_SIZE(2) |
 		       SOLO_DMA_CTRL_SDRAM_CLK_INVERT |
 		       SOLO_DMA_CTRL_READ_CLK_SELECT |
 		       SOLO_DMA_CTRL_LATENCY(1));
+
+	/* Undocumented crap */
+	if (solo_dev->type == SOLO_DEV_6010) {
+		solo_reg_write(solo_dev, SOLO_DMA_CTRL1, 1 << 8);
+	} else {
+		solo_reg_write(solo_dev, SOLO_DMA_CTRL1, 3 << 8);
+		solo_dev->usec_lsb = 0x3f;
+		solo_set_time(solo_dev);
+	}
+
+	/* Disable watchdog */
+	solo_reg_write(solo_dev, SOLO_TIMER_WATCHDOG, 0xff);
+
+	/* Initialize sub components */
 
 	if ((ret = solo_p2m_init(solo_dev)))
 		goto fail_probe;
@@ -320,6 +409,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 
 	if ((ret = solo_sysfs_init(solo_dev)))
 		goto fail_probe;
+
+	/* Now that init is over, set this lower */
+	solo_dev->p2m_msecs = 20;
 
 	return 0;
 
@@ -358,6 +450,7 @@ static DEFINE_PCI_DEVICE_TABLE(solo6010_id_table) = {
 	  .driver_data = SOLO_DEV_6110 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_16),
 	  .driver_data = SOLO_DEV_6110 },
+	{ PCI_DEVICE(0x0000, 0x0000), .driver_data = SOLO_DEV_6110 },
 	{0,}
 };
 

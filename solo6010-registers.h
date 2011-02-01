@@ -46,6 +46,9 @@
 #define	  SOLO_DMA_CTRL_READ_CLK_SELECT		(1<<2)
 #define	  SOLO_DMA_CTRL_LATENCY(n)		((n)<<0)
 
+/* Some things we set in this are undocumented. Why Softlogic?!?! */
+#define SOLO_DMA_CTRL1				0x0008
+
 #define SOLO_SYS_VCLK				0x000C
 #define	  SOLO_VCLK_INVERT			(1<<22)
 /* 0=sys_clk/4, 1=sys_clk/2, 2=clk_in/2 of system input */
@@ -80,6 +83,8 @@
 
 #define SOLO_CHIP_OPTION			0x001C
 #define   SOLO_CHIP_ID_MASK			0x00000007
+
+#define SOLO_PLL_CONFIG				0x0020 /* 6110 Only */
 
 #define SOLO_EEPROM_CTRL			0x0060
 #define	  SOLO_EEPROM_ACCESS_EN			(1<<7)
@@ -387,6 +392,9 @@
 #define	  SOLO_VE_INSERT_INDEX			(1<<18)
 #define	  SOLO_VE_MOTION_MODE(n)		((n)<<16)
 #define	  SOLO_VE_MOTION_BASE(n)		((n)<<0)
+#define   SOLO_VE_MPEG_SIZE_H(n)		((n)<<28) /* 6110 Only */
+#define   SOLO_VE_JPEG_SIZE_H(n)		((n)<<20) /* 6110 Only */
+#define   SOLO_VE_INSERT_INDEX_JPEG		(1<<19)   /* 6110 Only */
 
 #define SOLO_VE_WMRK_POLY			0x061C
 #define SOLO_VE_VMRK_INIT_KEY			0x0620
@@ -400,6 +408,7 @@
 #define	  SOLO_COMP_TIME_INC(n)			((n)<<25)
 #define	  SOLO_COMP_TIME_WIDTH(n)		((n)<<21)
 #define	  SOLO_DCT_INTERVAL(n)			((n)<<16)
+#define SOLO_VE_COMPT_MOT			0x0634 /* 6110 Only */
 
 #define SOLO_VE_STATE(n)			(0x0640+((n)*4))
 struct videnc_status {
@@ -448,11 +457,14 @@ struct videnc_status {
 #define SOLO_VE_JPEG_QP_CH_H			0x0678
 #define SOLO_VE_JPEG_CFG			0x067C
 #define SOLO_VE_JPEG_CTRL			0x0680
-
+#define SOLO_VE_CODE_ENCRYPT			0x0684 /* 6110 Only */
+#define SOLO_VE_JPEG_CFG1			0x0688 /* 6110 Only */
+#define SOLO_VE_WMRK_ENABLE			0x068C /* 6110 Only */
 #define SOLO_VE_OSD_CH				0x0690
 #define SOLO_VE_OSD_BASE			0x0694
 #define SOLO_VE_OSD_CLR				0x0698
 #define SOLO_VE_OSD_OPT				0x069C
+#define   SOLO_VE_OSD_V_DOUBLE			(1<<16) /* 6110 Only */
 
 #define SOLO_VE_CH_INTL(ch)			(0x0700+((ch)*4))
 #define SOLO_VE_CH_MOT(ch)			(0x0740+((ch)*4))
@@ -622,6 +634,7 @@ struct videnc_status {
 #define SOLO_TIMER_WATCHDOG			0x0be4
 #define SOLO_TIMER_USEC				0x0be8
 #define SOLO_TIMER_SEC				0x0bec
+#define SOLO_TIMER_USEC_LSB			0x0d20 /* 6110 Only */
 
 #define SOLO_AUDIO_CONTROL			0x0D00
 #define	  SOLO_AUDIO_ENABLE			(1<<31)
