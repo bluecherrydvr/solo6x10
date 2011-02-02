@@ -1,3 +1,14 @@
+solo6010 (2.2.0-1) lucid; urgency=low
+
+  * Add initial 6110 support (g.723 is a little crackly right now)
+  * Lower P2M timeout to avoid long delays when DMA fails
+  * Fix clock divider for G.723 initialization
+  * Fixup EEPROM support to correctly swab values and only allow
+    access to upper 64 bytes to avoid corrupting important values.
+  * Check for unaligned destiantion address in P2M DMA routines
+
+ -- Ben Collins <bcollins@bluecherry.net>  Tue, 01 Feb 2011 22:53:48 -0500
+
 solo6010 (2.1.0-1) lucid; urgency=low
 
   * Implemented eeprom reading and writing via sysfs
