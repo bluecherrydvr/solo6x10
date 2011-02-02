@@ -423,11 +423,20 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 		return ret;
 	}
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,37)
 	videobuf_queue_dma_contig_init(&fh->vidq, &solo_video_qops,
-				    &solo_dev->pdev->dev, &fh->slock,
-				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
-				    SOLO_DISP_PIX_FIELD,
-				    sizeof(struct videobuf_buffer), fh);
+				       &solo_dev->pdev->dev, &fh->slock,
+				       V4L2_BUF_TYPE_VIDEO_CAPTURE,
+				       SOLO_DISP_PIX_FIELD,
+				       sizeof(struct videobuf_buffer),
+				       fh, NULL);
+#else
+	videobuf_queue_dma_contig_init(&fh->vidq, &solo_video_qops,
+				       &solo_dev->pdev->dev, &fh->slock,
+				       V4L2_BUF_TYPE_VIDEO_CAPTURE,
+				       SOLO_DISP_PIX_FIELD,
+				       sizeof(struct videobuf_buffer), fh);
+#endif
 
 	return 0;
 }

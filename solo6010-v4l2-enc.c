@@ -859,12 +859,22 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	fh->fmt = V4L2_PIX_FMT_MPEG;
 	fh->type = SOLO_ENC_TYPE_STD;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,37)
 	videobuf_queue_dma_contig_init(&fh->vidq, &solo_enc_video_qops,
-				    &solo_enc->solo_dev->pdev->dev,
-				    &solo_enc->av_lock,
-				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
-				    V4L2_FIELD_INTERLACED,
-				    sizeof(struct solo_videobuf), fh);
+				       &solo_enc->solo_dev->pdev->dev,
+				       &solo_enc->av_lock,
+				       V4L2_BUF_TYPE_VIDEO_CAPTURE,
+				       V4L2_FIELD_INTERLACED,
+				       sizeof(struct solo_videobuf),
+				       fh, NULL);
+#else
+	videobuf_queue_dma_contig_init(&fh->vidq, &solo_enc_video_qops,
+				       &solo_enc->solo_dev->pdev->dev,
+				       &solo_enc->av_lock,
+				       V4L2_BUF_TYPE_VIDEO_CAPTURE,
+				       V4L2_FIELD_INTERLACED,
+				       sizeof(struct solo_videobuf), fh);
+#endif
 
 	return 0;
 }
