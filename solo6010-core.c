@@ -31,6 +31,10 @@ MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 
+static int full_eeprom;
+module_param(full_eeprom, uint, 0644);
+MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous, default is only top 64B)");
+
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask)
 {
 	solo_dev->irq_mask |= mask;
@@ -187,16 +191,22 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 	int i;
 
 	if (count & 0x1) {
-		dev_warn(dev, "EEPROM Write is not short aligned\n");
+		dev_warn(dev, "EEPROM Write is not 2 byte aligned "
+			 "(truncating 1 byte)\n");
 		count &= ~0x1;
-	} if (count > 64) {
+	}
+
+	if (!full_eeprom && count > 64) {
 		dev_warn(dev, "EEPROM Write truncated to 64 bytes\n");
 		count = 64;
+	} else if (full_eeprom && count > 128) {
+		dev_warn(dev, "EEPROM Write truncated to 128 bytes\n");
+		count = 128;
 	}
 
 	solo_eeprom_ewen(solo_dev, 1);
 
-	for (i = 32; i < 64 && i < (count / 2); i++)
+	for (i = full_eeprom ? 0 : 32; i < (count / 2); i++)
 		solo_eeprom_write(solo_dev, i, p[i]);
 
 	solo_eeprom_ewen(solo_dev, 0);
@@ -209,12 +219,13 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 	unsigned short *p = (unsigned short *)buf;
+	int count = (full_eeprom ? 128 : 64);
 	int i;
 
-	for (i = 32; i < 64; i++)
+	for (i = (full_eeprom ? 0 : 32); i < (count / 2); i++)
 		p[i] = solo_eeprom_read(solo_dev, i);
 
-	return 64;
+	return count;
 }
 static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
 
@@ -230,12 +241,18 @@ static void solo_device_release(struct device *dev)
 static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 {
 	struct device *dev = &solo_dev->dev;
+	const char *driver;
 	int i;
+
+	if (solo_dev->type == SOLO_DEV_6110)
+		driver = "solo6110";
+	else
+		driver = "solo6010";
 
 	dev->release = solo_device_release;
 	dev->parent = &solo_dev->pdev->dev;
 	set_dev_node(dev, dev_to_node(&solo_dev->pdev->dev));
-	dev_set_name(dev, "solo6x10-%d-%d", solo_dev->vfd->num,
+	dev_set_name(dev, "%s-%d-%d", driver, solo_dev->vfd->num,
 		     solo_dev->nr_chans);
 
 	if (device_register(dev)) {
