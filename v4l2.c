@@ -224,7 +224,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 		}
 		error = 0;
 	} else {
-		fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
+		fdma_addr = SOLO_DISP_EXT_ADDR + (fh->old_write *
 				(SOLO_HW_BPL * solo_vlines(solo_dev)));
 
 		error = solo_p2m_dma_t(solo_dev, 0, vbuf, fdma_addr,

@@ -372,11 +372,11 @@ static ssize_t sdram_offsets_show(struct device *dev,
 	char *out = buf;
 
 	out += sprintf(out, "DISP: 0x%08x @ 0x%08x\n",
-		       SOLO_DISP_EXT_ADDR(solo_dev),
+		       SOLO_DISP_EXT_ADDR,
 		       SOLO_DISP_EXT_SIZE);
 
 	out += sprintf(out, "EOSD: 0x%08x @ 0x%08x (0x%08x * %d)\n",
-		       SOLO_EOSD_EXT_ADDR(solo_dev),
+		       SOLO_EOSD_EXT_ADDR,
 		       SOLO_EOSD_EXT_AREA(solo_dev),
 		       SOLO_EOSD_EXT_SIZE(solo_dev),
 		       SOLO_EOSD_EXT_AREA(solo_dev) /
