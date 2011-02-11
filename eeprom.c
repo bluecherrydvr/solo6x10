@@ -53,18 +53,18 @@
 #define EE_READ_CMD	6
 #define EE_ERASE_CMD	7
 
-static unsigned int solo_eeprom_reg_read(struct solo6010_dev *solo_dev)
+static unsigned int solo_eeprom_reg_read(struct solo_dev *solo_dev)
 {
 	return solo_reg_read(solo_dev, SOLO_EEPROM_CTRL) & EE_DATA_READ;
 }
 
-static void solo_eeprom_reg_write(struct solo6010_dev *solo_dev, u32 data)
+static void solo_eeprom_reg_write(struct solo_dev *solo_dev, u32 data)
 {
 	solo_reg_write(solo_dev, SOLO_EEPROM_CTRL, data);
 	eeprom_delay();
 }
 
-static void solo_eeprom_cmd(struct solo6010_dev *solo_dev, int cmd)
+static void solo_eeprom_cmd(struct solo_dev *solo_dev, int cmd)
 {
 	int i;
 
@@ -82,7 +82,7 @@ static void solo_eeprom_cmd(struct solo6010_dev *solo_dev, int cmd)
 	solo_eeprom_reg_write(solo_dev, SOLO_EEPROM_ENABLE);
 }
 
-unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en)
+unsigned int solo_eeprom_ewen(struct solo_dev *solo_dev, int w_en)
 {
 	int ewen_cmd = (w_en ? 0x3f : 0) | (EE_EWEN_CMD << ADDR_LEN);
 	unsigned int retval = 0;
@@ -104,7 +104,7 @@ unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en)
 	return retval;
 }
 
-unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc)
+unsigned short solo_eeprom_read(struct solo_dev *solo_dev, int loc)
 {
 	int read_cmd = loc | (EE_READ_CMD << ADDR_LEN);
 	unsigned short retval = 0;
@@ -124,7 +124,7 @@ unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc)
 	return retval;
 }
 
-int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
+int solo_eeprom_write(struct solo_dev *solo_dev, int loc,
 		      unsigned short data)
 {
 	int write_cmd = loc | (EE_WRITE_CMD << ADDR_LEN);

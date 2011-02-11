@@ -195,14 +195,14 @@ struct solo_enc_buf {
 
 static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	return (solo_dev->motion_mask >> solo_enc->ch) & 1;
 }
 
 static int solo_motion_detected(struct solo_enc_dev *solo_enc)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	unsigned long flags;
 	u32 ch_mask = 1 << solo_enc->ch;
 	int ret = 0;
@@ -219,7 +219,7 @@ static int solo_motion_detected(struct solo_enc_dev *solo_enc)
 
 static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	u32 mask = 1 << solo_enc->ch;
 	unsigned long flags;
 
@@ -242,7 +242,7 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 /* MUST be called with solo_enc->enable_lock held */
 static void solo_update_mode(struct solo_enc_dev *solo_enc)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	int vop_len;
 	unsigned char *vop;
 
@@ -327,7 +327,7 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	u8 ch = solo_enc->ch;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	u8 interval;
 
 	BUG_ON(!mutex_is_locked(&solo_enc->enable_lock));
@@ -404,7 +404,7 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 static void __solo_enc_off(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	BUG_ON(!mutex_is_locked(&solo_enc->enable_lock));
 
@@ -435,7 +435,7 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 	mutex_unlock(&solo_enc->enable_lock);
 }
 
-static int enc_get_mpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t dma,
+static int enc_get_mpeg_dma(struct solo_dev *solo_dev, dma_addr_t dma,
 			      unsigned int off, unsigned int size)
 {
 	int ret;
@@ -471,7 +471,7 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 			  struct videobuf_dmabuf *vbuf, int off, int size,
 			  unsigned int base, unsigned int base_size)
 {
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
+	struct solo_dev *solo_dev = fh->enc->solo_dev;
 	struct scatterlist *sg;
 	int i;
 	int ret;
@@ -556,7 +556,7 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 			  struct videobuf_dmabuf *vbuf, struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	int frame_size;
 
@@ -585,7 +585,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 			  struct videobuf_dmabuf *vbuf, struct vop_header *vh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	int frame_off, frame_size;
 	int skip = 0;
@@ -712,12 +712,12 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 	mutex_unlock(&solo_enc->enable_lock);
 }
 
-void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
+void solo_enc_v4l2_isr(struct solo_dev *solo_dev)
 {
 	wake_up_interruptible_all(&solo_dev->ring_thread_wait);
 }
 
-static void solo_handle_ring(struct solo6010_dev *solo_dev)
+static void solo_handle_ring(struct solo_dev *solo_dev)
 {
 	for (;;) {
 		struct solo_enc_dev *solo_enc;
@@ -775,7 +775,7 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 
 static int solo_ring_thread(void *data)
 {
-	struct solo6010_dev *solo_dev = data;
+	struct solo_dev *solo_dev = data;
 	DECLARE_WAITQUEUE(wait, current);
 
 	set_freezable();
@@ -881,13 +881,13 @@ static int solo_enc_mmap(struct file *file, struct vm_area_struct *vma)
 	return videobuf_mmap_mapper(&fh->vidq, vma);
 }
 
-static int solo_ring_start(struct solo6010_dev *solo_dev)
+static int solo_ring_start(struct solo_dev *solo_dev)
 {
 	if (atomic_inc_return(&solo_dev->enc_users) > 1)
 		return 0;
 
 	solo_dev->ring_thread = kthread_run(solo_ring_thread, solo_dev,
-					    SOLO6010_NAME "_ring");
+					    SOLO6X10_NAME "_ring");
 	if (IS_ERR(solo_dev->ring_thread)) {
 		int err = PTR_ERR(solo_dev->ring_thread);
 		solo_dev->ring_thread = NULL;
@@ -899,7 +899,7 @@ static int solo_ring_start(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-static void solo_ring_stop(struct solo6010_dev *solo_dev)
+static void solo_ring_stop(struct solo_dev *solo_dev)
 {
 	if (atomic_dec_return(&solo_dev->enc_users) > 0)
 		return;
@@ -919,7 +919,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_dev *solo_enc = video_drvdata(file);
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_enc_fh *fh;
 	int ret;
 
@@ -992,7 +992,7 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 #endif
 {
 	struct solo_enc_fh *fh = file->private_data;
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
+	struct solo_dev *solo_dev = fh->enc->solo_dev;
 
 	solo_enc_off(fh);
 
@@ -1015,15 +1015,14 @@ static int solo_enc_querycap(struct file *file, void  *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
-	strcpy(cap->driver, SOLO6010_NAME);
-	snprintf(cap->card, sizeof(cap->card), "Softlogic %s Enc %d",
-		 solo_dev->type == SOLO_DEV_6010 ? "6010" : "6110",
+	strcpy(cap->driver, SOLO6X10_NAME);
+	snprintf(cap->card, sizeof(cap->card), "Softlogic 6x10 Enc %d",
 		 solo_enc->ch);
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI %s",
 		 pci_name(solo_dev->pdev));
-	cap->version = SOLO6010_VER_NUM;
+	cap->version = SOLO6X10_VER_NUM;
 	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
 				V4L2_CAP_READWRITE |
 				V4L2_CAP_STREAMING;
@@ -1035,7 +1034,7 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	if (input->index)
 		return -EINVAL;
@@ -1098,7 +1097,7 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	if (pix->pixelformat != V4L2_PIX_FMT_MPEG &&
@@ -1136,7 +1135,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	int ret;
 
@@ -1266,7 +1265,7 @@ static int solo_enum_framesizes(struct file *file, void *priv,
 				struct v4l2_frmsizeenum *fsize)
 {
 	struct solo_enc_fh *fh = priv;
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
+	struct solo_dev *solo_dev = fh->enc->solo_dev;
 
 	if (fsize->pixel_format != V4L2_PIX_FMT_MPEG)
 		return -EINVAL;
@@ -1293,7 +1292,7 @@ static int solo_enum_frameintervals(struct file *file, void *priv,
 				    struct v4l2_frmivalenum *fintv)
 {
 	struct solo_enc_fh *fh = priv;
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
+	struct solo_dev *solo_dev = fh->enc->solo_dev;
 
 	if (fintv->pixel_format != V4L2_PIX_FMT_MPEG || fintv->index)
 		return -EINVAL;
@@ -1318,7 +1317,7 @@ static int solo_g_parm(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
@@ -1336,7 +1335,7 @@ static int solo_s_parm(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
 	mutex_lock(&solo_enc->enable_lock);
@@ -1375,7 +1374,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	qc->id = v4l2_ctrl_next(solo_ctrl_classes, qc->id);
 	if (!qc->id)
@@ -1456,7 +1455,7 @@ static int solo_g_ctrl(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	switch (ctrl->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -1492,7 +1491,7 @@ static int solo_s_ctrl(struct file *file, void *priv,
 {
 	struct solo_enc_fh *fh = priv;
 	struct solo_enc_dev *solo_enc = fh->enc;
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	switch (ctrl->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -1673,7 +1672,7 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 };
 
 static const struct video_device solo_enc_template = {
-	.name			= SOLO6010_NAME,
+	.name			= SOLO6X10_NAME,
 	.fops			= &solo_enc_fops,
 	.ioctl_ops		= &solo_enc_ioctl_ops,
 	.minor			= -1,
@@ -1683,7 +1682,7 @@ static const struct video_device solo_enc_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev,
+static struct solo_enc_dev *solo_enc_alloc(struct solo_dev *solo_dev,
 					   u8 ch, unsigned nr)
 {
 	struct solo_enc_dev *solo_enc;
@@ -1714,7 +1713,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev,
 	video_set_drvdata(solo_enc->vfd, solo_enc);
 
 	snprintf(solo_enc->vfd->name, sizeof(solo_enc->vfd->name),
-		 "%s-enc (%i/%i)", SOLO6010_NAME, solo_dev->vfd->num,
+		 "%s-enc (%i/%i)", SOLO6X10_NAME, solo_dev->vfd->num,
 		 solo_enc->vfd->num);
 
 	INIT_LIST_HEAD(&solo_enc->listeners);
@@ -1750,7 +1749,7 @@ static void solo_enc_free(struct solo_enc_dev *solo_enc)
 	kfree(solo_enc);
 }
 
-int solo_enc_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
+int solo_enc_v4l2_init(struct solo_dev *solo_dev, unsigned nr)
 {
 	int i;
 
@@ -1791,7 +1790,7 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 	return 0;
 }
 
-void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
+void solo_enc_v4l2_exit(struct solo_dev *solo_dev)
 {
 	int i;
 

@@ -22,8 +22,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef __SOLO6010_OFFSETS_H
-#define __SOLO6010_OFFSETS_H
+#ifndef __SOLO6X10_OFFSETS_H
+#define __SOLO6X10_OFFSETS_H
 
 #define SOLO_DISP_EXT_ADDR(__solo)		0x00000000
 #define SOLO_DISP_EXT_SIZE			0x00480000
@@ -82,4 +82,4 @@
 #define SOLO_SDRAM_END(__solo) \
 	(SOLO_JPEG_EXT_ADDR(__solo) + SOLO_JPEG_EXT_SIZE(__solo))
 
-#endif /* __SOLO6010_OFFSETS_H */
+#endif /* __SOLO6X10_OFFSETS_H */
