@@ -70,7 +70,7 @@
 #define SOLO_MAX_CHANNELS		16
 
 /* Make sure these two match */
-#define SOLO6010_VERSION		"2.2.0"
+#define SOLO6010_VERSION		"2.2.1"
 #define SOLO6010_VER_MAJOR		2
 #define SOLO6010_VER_MINOR		2
 #define SOLO6010_VER_SUB		1
