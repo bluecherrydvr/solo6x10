@@ -8,7 +8,7 @@ Standards-Version: 3.8.4
 Package: solo6010-dkms
 Architecture: all
 Depends: dkms, make, gcc
-Breaks: bluecherry (<< 2.0.0-0beta4.0)
+Breaks: bluecherry (<< 2.0.0-0beta4.1)
 Description: Softlogic 6010 Video4Linux MPEG-4 Encoder/Decoder support
  This package provides support for Softlogic 6010 MPEG encoder/decoder
  boards through the dkms kernel module build system.
