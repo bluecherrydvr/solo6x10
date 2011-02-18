@@ -50,7 +50,7 @@
 #define SOLO_CAP_EXT_MAX_PAGE			(18 + 15)
 #define SOLO_CAP_EXT_SIZE			(SOLO_CAP_EXT_MAX_PAGE * 65536)
 
-/* Double, for eref and extended eref */
+/* Not sure why, but this +1 is important */
 #define SOLO_EREF_EXT_ADDR(__solo) \
 		(SOLO_CAP_EXT_ADDR(__solo) + \
 		 (SOLO_CAP_EXT_SIZE * (__solo->nr_chans + 1)))

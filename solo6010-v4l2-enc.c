@@ -44,7 +44,6 @@ struct solo_enc_fh {
 	u32			fmt;
 	u16			rd_idx;
 	u8			enc_on;
-	u8			jpeg_skip;
 	enum solo_enc_types	type;
 	struct videobuf_queue	vidq;
 	struct list_head	vidq_active;
@@ -585,9 +584,9 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	return 0;
 }
 
-static void solo_enc_fillbuf(struct solo_enc_fh *fh,
-			     struct videobuf_buffer *vb,
-			     struct solo_enc_buf *enc_buf)
+static int solo_enc_fillbuf(struct solo_enc_fh *fh,
+			    struct videobuf_buffer *vb,
+			    struct solo_enc_buf *enc_buf)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
@@ -626,18 +625,26 @@ static void solo_enc_fillbuf(struct solo_enc_fh *fh,
 		ret = solo_fill_jpeg(fh, vb, vbuf, &vh);
 
 vbuf_error:
+	/* On error, we push this buffer back into the queue. The
+	 * videobuf-core doesn't handle error packets very well. Plus
+	 * we recover nicely internally anyway. */
 	if (ret) {
-		vb->state = VIDEOBUF_ERROR;
+		unsigned long flags;
+
+		spin_lock_irqsave(&solo_enc->av_lock, flags);
+		vb->state = VIDEOBUF_QUEUED;
+		list_add(&vb->queue, &fh->vidq_active);
+		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 	} else {
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
 		vb->width = solo_enc->width;
 		vb->height = solo_enc->height;
+
+		wake_up(&vb->done);
 	}
 
-	wake_up(&vb->done);
-
-	return;
+	return ret;
 }
 
 static void solo_enc_thread_try(struct solo_enc_fh *fh)
@@ -648,33 +655,9 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 	for (;;) {
 		struct videobuf_buffer *vb;
 		struct solo_enc_buf *enc_buf = NULL;
+		int rd_idx;
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
-
-		/* First check if the encoder has given us anything to use */
-		for (;fh->rd_idx != solo_enc->enc_wr_idx;
-		     fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS) {
-			struct solo_enc_buf *ebuf =
-				&solo_enc->enc_buf[fh->rd_idx];
-
-			if (fh->fmt == V4L2_PIX_FMT_MPEG &&
-			    fh->type != ebuf->type)
-				continue;
-
-			enc_buf = ebuf;
-
-			/* For mjpeg, we never skip a frame */
-			if (fh->fmt == V4L2_PIX_FMT_MPEG)
-				break;
-
-			/* If we're here, then we are mjpeg. Skip if client is slow */
-			if (!fh->jpeg_skip)
-				break;
-			fh->jpeg_skip--;
-		}
-
-		if (!enc_buf)
-			break;
 
 		if (list_empty(&fh->vidq_active))
 			break;
@@ -682,19 +665,39 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 		vb = list_first_entry(&fh->vidq_active,
 				      struct videobuf_buffer, queue);
 
-		/* If this happens, enable skipping mjpeg frames */
-		if (!waitqueue_active(&vb->done)) {
-			fh->jpeg_skip++;
+		if (!waitqueue_active(&vb->done))
 			break;
+
+		/* First check if the encoder has given us anything to use */
+		for (rd_idx = fh->rd_idx; rd_idx != solo_enc->enc_wr_idx;
+		     rd_idx = (rd_idx + 1) % SOLO_NR_RING_BUFS) {
+			struct solo_enc_buf *ebuf =
+				&solo_enc->enc_buf[rd_idx];
+
+			if (fh->fmt == V4L2_PIX_FMT_MPEG &&
+			    fh->type != ebuf->type)
+				continue;
+
+			enc_buf = ebuf;
+
+			/* For MPEG, we never skip a frame. For JPEG, we'll
+			 * continue to the newest frame always. */
+			if (fh->fmt == V4L2_PIX_FMT_MPEG)
+				break;
 		}
 
-		/* From here, the video buf is in our care... */
+		if (!enc_buf)
+			break;
+
 		list_del(&vb->queue);
-		if (fh->rd_idx != solo_enc->enc_wr_idx)
-			fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		solo_enc_fillbuf(fh, vb, enc_buf);
+		/* If we fail, we do not set rd_idx, so it will try again */
+		if (!solo_enc_fillbuf(fh, vb, enc_buf)) {
+			if (rd_idx != solo_enc->enc_wr_idx)
+				rd_idx = (rd_idx + 1) % SOLO_NR_RING_BUFS;
+			fh->rd_idx = rd_idx;
+		}
 	}
 
 	assert_spin_locked(&solo_enc->av_lock);
