@@ -21,7 +21,7 @@
 
 #include "solo6010.h"
 
-int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
+int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
 		 int repeat, u32 ext_size)
 {
@@ -34,7 +34,7 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
 				  wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
-	ret = solo_p2m_dma_t(solo_dev, id, wr, dma_addr, ext_addr, size,
+	ret = solo_p2m_dma_t(solo_dev, wr, dma_addr, ext_addr, size,
 			     repeat, ext_size);
 
 	pci_unmap_single(solo_dev->pdev, dma_addr, size,
@@ -43,7 +43,7 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
 	return ret;
 }
 
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
 		   int repeat, u32 ext_size)
 {
@@ -51,17 +51,23 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 	unsigned int timeout = 0;
 	u32 cfg, ctrl;
 	int ret = 0;
+	int id;
 
 	if (WARN_ON_ONCE(dma_addr & 0x03))
 		return -EINVAL;
 	if (WARN_ON_ONCE(!size))
 		return -EINVAL;
-	if (WARN_ON_ONCE(id >= SOLO_NR_P2M))
-		return -EINVAL;
+
+	/* Get next ID */
+	spin_lock(&solo_dev->p2m_lock);
+	id = solo_dev->p2m_next;
+	solo_dev->p2m_next = (id + 1) % SOLO_NR_P2M;
+	spin_unlock(&solo_dev->p2m_lock);
 
 	p2m_dev = &solo_dev->p2m_dev[id];
 
-	mutex_lock(&p2m_dev->mutex);
+	if (down_interruptible(&p2m_dev->mutex))
+		return -EINTR;
 
 	cfg = SOLO_P2M_COPY_SIZE(size >> 2);
 	ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
@@ -90,7 +96,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
 	else if (WARN_ON_ONCE(timeout == 0))
 		ret = -EAGAIN;
 
-	mutex_unlock(&p2m_dev->mutex);
+	up(&p2m_dev->mutex);
 
 	return ret;
 }
@@ -129,10 +135,12 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	struct solo_p2m_dev *p2m_dev;
 	int i;
 
+	spin_lock_init(&solo_dev->p2m_lock);
+
 	for (i = 0; i < SOLO_NR_P2M; i++) {
 		p2m_dev = &solo_dev->p2m_dev[i];
 
-		mutex_init(&p2m_dev->mutex);
+		init_MUTEX(&p2m_dev->mutex);
 		init_completion(&p2m_dev->completion);
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(i),

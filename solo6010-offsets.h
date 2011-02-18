@@ -53,7 +53,7 @@
 /* Double, for eref and extended eref */
 #define SOLO_EREF_EXT_ADDR(__solo) \
 		(SOLO_CAP_EXT_ADDR(__solo) + \
-		 (SOLO_CAP_EXT_SIZE * (__solo->nr_chans * 2)))
+		 (SOLO_CAP_EXT_SIZE * (__solo->nr_chans + 1)))
 #define SOLO_EREF_EXT_SIZE			0x00140000
 
 #define SOLO_MP4E_EXT_ADDR(__solo) \

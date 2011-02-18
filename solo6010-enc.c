@@ -109,7 +109,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 		return;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
-		solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_OSG, 1, buf,
+		solo_p2m_dma(solo_dev, 1, buf,
 			     SOLO_EOSD_EXT_ADDR(solo_dev) +
 			     (SOLO_EOSD_EXT_SIZE * i),
 			     SOLO_EOSD_EXT_SIZE, 0, 0);
@@ -153,7 +153,7 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 		}
 	}
 
-	solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_OSG, 1, buf,
+	solo_p2m_dma(solo_dev, 1, buf,
 		     SOLO_EOSD_EXT_ADDR(solo_dev) +
 		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE),
 		     SOLO_EOSD_EXT_SIZE, 0, 0);

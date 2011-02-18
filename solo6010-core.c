@@ -428,7 +428,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Now that init is over, set this lower */
-	solo_dev->p2m_msecs = 20;
+	solo_dev->p2m_msecs = 10;
 
 	return 0;
 

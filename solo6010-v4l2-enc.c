@@ -412,16 +412,16 @@ static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 		return -EINVAL;
 
 	if (off + size <= SOLO_MP4E_EXT_SIZE(solo_dev))
-		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
+		return solo_p2m_dma_t(solo_dev, 0, buf,
 				      SOLO_MP4E_EXT_ADDR(solo_dev) + off, size,
 				      0, 0);
 
 	/* Buffer wrap */
-	ret = solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0, buf,
+	ret = solo_p2m_dma_t(solo_dev, 0, buf,
 			    SOLO_MP4E_EXT_ADDR(solo_dev) + off,
 			    SOLO_MP4E_EXT_SIZE(solo_dev) - off, 0, 0);
 
-	ret |= solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_MP4E, 0,
+	ret |= solo_p2m_dma_t(solo_dev, 0,
 			      buf + SOLO_MP4E_EXT_SIZE(solo_dev) - off,
 			      SOLO_MP4E_EXT_ADDR(solo_dev),
 			      size + off - SOLO_MP4E_EXT_SIZE(solo_dev), 0, 0);
@@ -451,16 +451,16 @@ static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t buf,
 		return -EINVAL;
 
 	if (off + size <= SOLO_JPEG_EXT_SIZE(solo_dev))
-		return solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
+		return solo_p2m_dma_t(solo_dev, 0, buf,
 				      SOLO_JPEG_EXT_ADDR(solo_dev) + off, size,
 				      0, 0);
 
 	/* Buffer wrap */
-	ret = solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0, buf,
+	ret = solo_p2m_dma_t(solo_dev, 0, buf,
 			     SOLO_JPEG_EXT_ADDR(solo_dev) + off,
 			     SOLO_JPEG_EXT_SIZE(solo_dev) - off, 0, 0);
 
-	ret |= solo_p2m_dma_t(solo_dev, SOLO_P2M_DMA_ID_JPEG, 0,
+	ret |= solo_p2m_dma_t(solo_dev, 0,
 			      buf + SOLO_JPEG_EXT_SIZE(solo_dev) - off,
 			      SOLO_JPEG_EXT_ADDR(solo_dev),
 			      size + off - SOLO_JPEG_EXT_SIZE(solo_dev),
@@ -690,7 +690,8 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 
 		/* From here, the video buf is in our care... */
 		list_del(&vb->queue);
-		fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
+		if (fh->rd_idx != solo_enc->enc_wr_idx)
+			fh->rd_idx = (fh->rd_idx + 1) % SOLO_NR_RING_BUFS;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
 		solo_enc_fillbuf(fh, vb, enc_buf);

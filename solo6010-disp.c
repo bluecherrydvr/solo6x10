@@ -162,7 +162,7 @@ static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,
 		buf[i] = val;
 
 	for (i = 0; i < reg_size; i += sizeof(buf))
-		ret |= solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1, buf,
+		ret |= solo_p2m_dma(solo_dev, 1, buf,
 				    SOLO_MOTION_EXT_ADDR(solo_dev) + off + i,
 				    sizeof(buf), 0, 0);
 
@@ -195,8 +195,8 @@ void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 		(SOLO_MOT_THRESH_SIZE * 2 * ch) +
 		(block * 2);
 
-	if (WARN_ON_ONCE(solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 0,
-			 &real_val, addr & ~0x3, 4, 0, 0)))
+	if (WARN_ON_ONCE(solo_p2m_dma(solo_dev, 0, &real_val, addr & ~0x3,
+				      4, 0, 0)))
 		return;
 
 	if (block & 0x1) {
@@ -207,8 +207,8 @@ void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 		real_val |= (val << 16);
 	}
 
-	WARN_ON_ONCE(solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_VIN, 1,
-				  &real_val, addr & ~0x3, 4, 0, 0));
+	WARN_ON_ONCE(solo_p2m_dma(solo_dev, 1, &real_val, addr & ~0x3,
+				  4, 0, 0));
 }
 
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k

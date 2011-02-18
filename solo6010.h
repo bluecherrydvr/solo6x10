@@ -90,16 +90,6 @@
 #define SOLO_NR_P2M			4
 #define SOLO_NR_P2M_DESC		256
 #define SOLO_P2M_DESC_SIZE		(SOLO_NR_P2M_DESC * 16)
-/* MPEG and JPEG share the same interrupt and locks so they must be together
- * in the same dma channel. */
-#define SOLO_P2M_DMA_ID_MP4E		0
-#define SOLO_P2M_DMA_ID_JPEG		0
-#define SOLO_P2M_DMA_ID_MP4D		1
-#define SOLO_P2M_DMA_ID_G723D		1
-#define SOLO_P2M_DMA_ID_DISP		2
-#define SOLO_P2M_DMA_ID_OSG		2
-#define SOLO_P2M_DMA_ID_G723E		3
-#define SOLO_P2M_DMA_ID_VIN		3
 
 /* Encoder standard modes */
 #define SOLO_ENC_MODE_CIF		2
@@ -133,7 +123,7 @@ enum SOLO_I2C_STATE {
 };
 
 struct solo_p2m_dev {
-	struct mutex		mutex;
+	struct semaphore	mutex;
 	struct completion	completion;
 	int			error;
 	u8			desc[SOLO_P2M_DESC_SIZE];
@@ -208,6 +198,8 @@ struct solo6010_dev {
 
 	/* P2M DMA Engine */
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
+	int			p2m_next;
+	spinlock_t		p2m_lock;
 	int			p2m_msecs;
 
 	/* V4L2 Display items */
@@ -317,10 +309,10 @@ void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off,
 			u8 data);
 
 /* P2M DMA */
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, u8 id, int wr,
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
 		   int repeat, u32 ext_size);
-int solo_p2m_dma(struct solo6010_dev *solo_dev, u8 id, int wr,
+int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
 		 int repeat, u32 ext_size);
 

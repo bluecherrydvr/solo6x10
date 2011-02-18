@@ -218,8 +218,7 @@ static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
 	for (i = 0; i < (count / G723_FRAMES_PER_PAGE); i++) {
 		int page = (pos / G723_FRAMES_PER_PAGE) + i;
 
-		err = solo_p2m_dma(solo_dev, SOLO_P2M_DMA_ID_G723E, 0,
-				   solo_pcm->g723_buf,
+		err = solo_p2m_dma(solo_dev, 0, solo_pcm->g723_buf,
 				   SOLO_G723_EXT_ADDR(solo_dev) +
 				   (page * G723_PERIOD_BLOCK) +
 				   (ss->number * G723_PERIOD_BYTES),
