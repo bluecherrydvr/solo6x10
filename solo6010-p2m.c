@@ -58,17 +58,6 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 	if (WARN_ON_ONCE(!size))
 		return -EINVAL;
 
-	/* Get next ID */
-	spin_lock(&solo_dev->p2m_lock);
-	id = solo_dev->p2m_next;
-	solo_dev->p2m_next = (id + 1) % SOLO_NR_P2M;
-	spin_unlock(&solo_dev->p2m_lock);
-
-	p2m_dev = &solo_dev->p2m_dev[id];
-
-	if (down_interruptible(&p2m_dev->mutex))
-		return -EINTR;
-
 	cfg = SOLO_P2M_COPY_SIZE(size >> 2);
 	ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
 		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
@@ -78,6 +67,16 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 		ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
 			 SOLO_P2M_REPEAT(repeat);
 	}
+
+	/* Get next ID */
+	id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
+	if (id < 0)
+		id = 0 - id;
+
+	p2m_dev = &solo_dev->p2m_dev[id];
+
+	if (mutex_lock_interruptible(&p2m_dev->mutex))
+		return -EINTR;
 
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
@@ -96,7 +95,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 	else if (WARN_ON_ONCE(timeout == 0))
 		ret = -EAGAIN;
 
-	up(&p2m_dev->mutex);
+	mutex_unlock(&p2m_dev->mutex);
 
 	return ret;
 }
@@ -135,12 +134,10 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	struct solo_p2m_dev *p2m_dev;
 	int i;
 
-	spin_lock_init(&solo_dev->p2m_lock);
-
 	for (i = 0; i < SOLO_NR_P2M; i++) {
 		p2m_dev = &solo_dev->p2m_dev[i];
 
-		init_MUTEX(&p2m_dev->mutex);
+		mutex_init(&p2m_dev->mutex);
 		init_completion(&p2m_dev->completion);
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(i),

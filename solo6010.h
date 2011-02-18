@@ -23,7 +23,6 @@
 #include <linux/version.h>
 #include <linux/pci.h>
 #include <linux/i2c.h>
-#include <linux/semaphore.h>
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/wait.h>
@@ -123,7 +122,7 @@ enum SOLO_I2C_STATE {
 };
 
 struct solo_p2m_dev {
-	struct semaphore	mutex;
+	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
 	u8			desc[SOLO_P2M_DESC_SIZE];
@@ -198,8 +197,7 @@ struct solo6010_dev {
 
 	/* P2M DMA Engine */
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
-	int			p2m_next;
-	spinlock_t		p2m_lock;
+	atomic_t		p2m_count;
 	int			p2m_msecs;
 
 	/* V4L2 Display items */
