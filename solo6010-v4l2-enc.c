@@ -613,7 +613,7 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	svb->flags |= V4L2_BUF_FLAG_TIMECODE;
 
 	/* Check for motion flags */
-	if (solo_is_motion_on(solo_enc)) {
+	if (fh->fmt == V4L2_PIX_FMT_MPEG && solo_is_motion_on(solo_enc)) {
 		svb->flags |= V4L2_BUF_FLAG_MOTION_ON;
 		if (enc_buf->motion)
 			svb->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
