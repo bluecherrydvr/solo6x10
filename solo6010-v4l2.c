@@ -201,13 +201,13 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 	return 0;
 }
 
-static void solo_fillbuf(struct solo_filehandle *fh,
-			 struct videobuf_buffer *vb)
+static int solo_fillbuf(struct solo_filehandle *fh,
+			struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 	dma_addr_t vbuf;
 	unsigned int fdma_addr;
-	int error = 0;
+	int ret = -1;
 	int i;
 
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
@@ -224,23 +224,27 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 		fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
 				(SOLO_HW_BPL * solo_vlines(solo_dev)));
 
-		error = solo_p2m_dma_t(solo_dev, 0, vbuf, fdma_addr,
-				       solo_bytesperline(solo_dev),
-				       solo_vlines(solo_dev), SOLO_HW_BPL);
+		ret = solo_p2m_dma_t(solo_dev, 0, vbuf, fdma_addr,
+				     solo_bytesperline(solo_dev),
+				     solo_vlines(solo_dev), SOLO_HW_BPL);
 	}
 
 finish_buf:
-	if (error) {
-		vb->state = VIDEOBUF_ERROR;
+	if (ret) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&fh->slock, flags);
+		list_add(&vb->queue, &fh->vidq_active);
+		spin_unlock_irqrestore(&fh->slock, flags);
 	} else {
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
 		do_gettimeofday(&vb->ts);
+
+		wake_up(&vb->done);
 	}
 
-	wake_up(&vb->done);
-
-	return;
+	return ret;
 }
 
 static void solo_thread_try(struct solo_filehandle *fh)
@@ -265,12 +269,12 @@ static void solo_thread_try(struct solo_filehandle *fh)
 		if (cur_write == fh->old_write)
 			break;
 
-		fh->old_write = cur_write;
 		list_del(&vb->queue);
 
 		spin_unlock(&fh->slock);
 
-		solo_fillbuf(fh, vb);
+		if (!solo_fillbuf(fh, vb))
+			fh->old_write = cur_write;
 	}
 
 	assert_spin_locked(&fh->slock);

@@ -632,7 +632,6 @@ vbuf_error:
 		unsigned long flags;
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
-		vb->state = VIDEOBUF_QUEUED;
 		list_add(&vb->queue, &fh->vidq_active);
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 	} else {
