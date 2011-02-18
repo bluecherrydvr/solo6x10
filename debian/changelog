@@ -1,3 +1,10 @@
+solo6010 (2.2.2-1) lucid; urgency=low
+
+  * p2m: Switch back to mutext and use atomic counter instead of
+    spinlock+int for id
+
+ -- Ben Collins <bcollins@bluecherry.net>  Fri, 18 Feb 2011 12:48:29 -0500
+
 solo6010 (2.2.1-1) lucid; urgency=low
 
   * Never return bad buffers, but re-insert them for a re-attempt
