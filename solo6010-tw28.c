@@ -545,8 +545,8 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	int i;
 	u8 value;
 
-	/* Detect techwell chip type */
-	for (i = 0; i < TW_NUM_CHIP; i++) {
+	/* Detect techwell chip type(s) */
+	for (i = 0; i < solo_dev->nr_chans / 4; i++) {
 		value = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
 					  TW_CHIP_OFFSET_ADDR(i), 0xFF);
 
