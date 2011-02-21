@@ -18,6 +18,9 @@ obj-m		:= solo6x10.o
 all:
 	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) modules
 
+install:
+	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) modules_install
+
 clean:
 	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) clean
 	rm -f Module.markers modules.order
