@@ -235,6 +235,7 @@ finish_buf:
 
 		spin_lock_irqsave(&fh->slock, flags);
 		list_add(&vb->queue, &fh->vidq_active);
+		vb->state = VIDEOBUF_QUEUED;
 		spin_unlock_irqrestore(&fh->slock, flags);
 	} else {
 		vb->state = VIDEOBUF_DONE;
@@ -270,6 +271,7 @@ static void solo_thread_try(struct solo_filehandle *fh)
 			break;
 
 		list_del(&vb->queue);
+		vb->state = VIDEOBUF_ACTIVE;
 
 		spin_unlock(&fh->slock);
 

@@ -633,6 +633,7 @@ vbuf_error:
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
 		list_add(&vb->queue, &fh->vidq_active);
+		vb->state = VIDEOBUF_QUEUED;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 	} else {
 		vb->state = VIDEOBUF_DONE;
@@ -689,6 +690,7 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 			break;
 
 		list_del(&vb->queue);
+		vb->state = VIDEOBUF_ACTIVE;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
 		/* If we fail, we do not set rd_idx, so it will try again */
