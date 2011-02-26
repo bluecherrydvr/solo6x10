@@ -307,20 +307,25 @@ static int solo_thread(void *data)
 
 static int solo_start_thread(struct solo_filehandle *fh)
 {
+	int ret = 0;
+
 	fh->kthread = kthread_run(solo_thread, fh, SOLO6010_NAME "_disp");
 
-	if (IS_ERR(fh->kthread))
-		return PTR_ERR(fh->kthread);
+	if (IS_ERR(fh->kthread)) {
+		ret = PTR_ERR(fh->kthread);
+		fh->kthread = NULL;
+	}
 
-	return 0;
+	return ret;
 }
 
 static void solo_stop_thread(struct solo_filehandle *fh)
 {
-	if (fh->kthread) {
-		kthread_stop(fh->kthread);
-		fh->kthread = NULL;
-	}
+	if (!fh->kthread)
+		return;
+
+	kthread_stop(fh->kthread);
+	fh->kthread = NULL;
 }
 
 static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,
@@ -464,9 +469,11 @@ static int solo_v4l2_release(struct inode *ino, struct file *file)
 {
 	struct solo_filehandle *fh = file->private_data;
 
+	solo_stop_thread(fh);
+
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
-	solo_stop_thread(fh);
+
 	kfree(fh);
 
 	return 0;

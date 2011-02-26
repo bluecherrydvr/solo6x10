@@ -148,7 +148,7 @@ struct solo_enc_dev {
 	/* General accounting */
 	wait_queue_head_t	thread_wait;
 	spinlock_t		av_lock;
-	spinlock_t		enable_lock;
+	struct mutex		enable_lock;
 	spinlock_t		motion_lock;
 	atomic_t		readers;
 	atomic_t		mpeg_readers;
