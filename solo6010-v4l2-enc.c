@@ -222,12 +222,10 @@ static void solo_motion_toggle(struct solo_enc_dev *solo_enc, int on)
 	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
 }
 
-/* Should be called with solo_enc->enable_lock held */
+/* MUST be called with solo_enc->enable_lock held */
 static void solo_update_mode(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-
-	assert_spin_locked(&solo_enc->enable_lock);
 
 	solo_enc->interlaced = (solo_enc->mode & 0x08) ? 1 : 0;
 	solo_enc->bw_weight = max(solo_dev->fps / solo_enc->interval, 1);
@@ -247,7 +245,7 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 	}
 }
 
-/* Should be called with solo_enc->enable_lock held */
+/* MUST be called with solo_enc->enable_lock held */
 static int __solo_enc_on(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
@@ -255,12 +253,19 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 interval;
 
-	assert_spin_locked(&solo_enc->enable_lock);
-
 	if (fh->enc_on)
 		return 0;
 
 	solo_update_mode(solo_enc);
+
+	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
+
+	/* Oops, we had a problem */
+	if (IS_ERR(fh->kthread)) {
+		int err = PTR_ERR(fh->kthread);
+		fh->kthread = NULL;
+		return err;
+	}
 
 	/* Make sure to bw check on first reader */
 	if (!atomic_read(&solo_enc->readers)) {
@@ -322,9 +327,9 @@ static int solo_enc_on(struct solo_enc_fh *fh)
 	struct solo_enc_dev *solo_enc = fh->enc;
 	int ret;
 
-	spin_lock(&solo_enc->enable_lock);
+	mutex_lock(&solo_enc->enable_lock);
 	ret = __solo_enc_on(fh);
-	spin_unlock(&solo_enc->enable_lock);
+	mutex_unlock(&solo_enc->enable_lock);
 
 	return ret;
 }
@@ -333,8 +338,6 @@ static void __solo_enc_off(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-
-	assert_spin_locked(&solo_enc->enable_lock);
 
 	if (!fh->enc_on)
 		return;
@@ -362,44 +365,9 @@ static void solo_enc_off(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 
-	spin_lock(&solo_enc->enable_lock);
+	mutex_lock(&solo_enc->enable_lock);
 	__solo_enc_off(fh);
-	spin_unlock(&solo_enc->enable_lock);
-}
-
-static int solo_start_fh_thread(struct solo_enc_fh *fh)
-{
-	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
-
-	/* Oops, we had a problem */
-	if (IS_ERR(fh->kthread)) {
-		int err = PTR_ERR(fh->kthread);
-
-		fh->kthread = NULL;
-		solo_enc_off(fh);
-
-		return err;
-	}
-
-	return 0;
-}
-
-static int solo_enc_start(struct solo_enc_fh *fh)
-{
-	int ret;
-
-	if (fh->enc_on)
-		return 0;
-
-	ret = solo_enc_on(fh);
-	if (ret)
-		return ret;
-
-	ret = solo_start_fh_thread(fh);
-	if (ret)
-		return ret;
-
-	return 0;
+	mutex_unlock(&solo_enc->enable_lock);
 }
 
 static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
@@ -891,7 +859,7 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 	int ret;
 
 	/* Make sure the encoder is on */
-	ret = solo_enc_start(fh);
+	ret = solo_enc_on(fh);
 	if (ret)
 		return ret;
 
@@ -907,10 +875,10 @@ static int solo_enc_release(struct inode *ino, struct file *file)
 {
 	struct solo_enc_fh *fh = file->private_data;
 
+	solo_enc_off(fh);
+
 	videobuf_stop(&fh->vidq);
 	videobuf_mmap_free(&fh->vidq);
-
-	solo_enc_off(fh);
 
 	kfree(fh);
 
@@ -1046,11 +1014,11 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	int ret;
 
-	spin_lock(&solo_enc->enable_lock);
+	mutex_lock(&solo_enc->enable_lock);
 
 	ret = solo_enc_try_fmt_cap(file, priv, f);
 	if (ret) {
-		spin_unlock(&solo_enc->enable_lock);
+		mutex_unlock(&solo_enc->enable_lock);
 		return ret;
 	}
 
@@ -1067,12 +1035,9 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 
 	ret = __solo_enc_on(fh);
 
-	spin_unlock(&solo_enc->enable_lock);
+	mutex_unlock(&solo_enc->enable_lock);
 
-	if (ret)
-		return ret;
-
-	return solo_start_fh_thread(fh);
+	return ret;
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
@@ -1124,7 +1089,7 @@ static int solo_enc_dqbuf(struct file *file, void *priv,
 	int ret;
 
 	/* Make sure the encoder is on */
-	ret = solo_enc_start(fh);
+	ret = solo_enc_on(fh);
 	if (ret)
 		return ret;
 
@@ -1249,10 +1214,10 @@ static int solo_s_parm(struct file *file, void *priv,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
 
-	spin_lock(&solo_enc->enable_lock);
+	mutex_lock(&solo_enc->enable_lock);
 
 	if (atomic_read(&solo_enc->mpeg_readers) > 0) {
-		spin_unlock(&solo_enc->enable_lock);
+		mutex_unlock(&solo_enc->enable_lock);
 		return -EBUSY;
 	}
 
@@ -1276,7 +1241,7 @@ static int solo_s_parm(struct file *file, void *priv,
 	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_update_mode(solo_enc);
 
-	spin_unlock(&solo_enc->enable_lock);
+	mutex_unlock(&solo_enc->enable_lock);
 
         return 0;
 }
@@ -1636,7 +1601,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	if (video_nr >= 0)
 		video_nr++;
 
-	spin_lock_init(&solo_enc->enable_lock);
+	mutex_init(&solo_enc->enable_lock);
 	spin_lock_init(&solo_enc->av_lock);
 	spin_lock_init(&solo_enc->motion_lock);
 
@@ -1651,9 +1616,9 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->motion_thresh = SOLO_DEF_MOT_THRESH;
 
-	spin_lock(&solo_enc->enable_lock);
+	mutex_lock(&solo_enc->enable_lock);
 	solo_update_mode(solo_enc);
-	spin_unlock(&solo_enc->enable_lock);
+	mutex_unlock(&solo_enc->enable_lock);
 
 	return solo_enc;
 }
