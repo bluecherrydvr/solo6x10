@@ -1,3 +1,14 @@
+solo6010 (2.2.3-1) lucid; urgency=low
+
+  * v4l2 display: Stop thread before stopping queue
+  * v4l2 encoder: Use mutex for enable lock instead of spinlock
+  * v4l2 encoder/display: Set VIDEOBUF_ACTIVE when we take a videobuf out of
+    the queue
+  * eeprom: Better checks for length
+  * Only probe as many tw chips as we expect to be present.
+
+ -- Ben Collins <bcollins@bluecherry.net>  Sat, 26 Feb 2011 15:56:20 -0500
+
 solo6010 (2.2.2-1) lucid; urgency=low
 
   * p2m: Switch back to mutext and use atomic counter instead of
