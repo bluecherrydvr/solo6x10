@@ -32,6 +32,14 @@
 
 #define eeprom_delay()	udelay(100)
 //#define eeprom_delay()	solo_reg_read(solo_dev, SOLO_EEPROM_CTRL)
+#if 0
+#define eeprom_delay()	({				\
+	int i, ret;					\
+	udelay(100);					\
+	for (i = ret = 0; i < 1000 && !ret; i++)	\
+		ret = solo_eeprom_reg_read(solo_dev);	\
+})
+#endif
 #define ADDR_LEN	6
 
 /* Commands */
@@ -41,15 +49,15 @@
 #define EE_READ_CMD	6
 #define EE_ERASE_CMD	7
 
+static unsigned int solo_eeprom_reg_read(struct solo6010_dev *solo_dev)
+{
+	return ((solo_reg_read(solo_dev, SOLO_EEPROM_CTRL) & EE_DATA_READ) ? 1 : 0);
+}
+
 static void solo_eeprom_reg_write(struct solo6010_dev *solo_dev, u32 data)
 {
 	solo_reg_write(solo_dev, SOLO_EEPROM_CTRL, data);
 	eeprom_delay();
-}
-
-static unsigned int solo_eeprom_reg_read(struct solo6010_dev *solo_dev)
-{
-	return ((solo_reg_read(solo_dev, SOLO_EEPROM_CTRL) & EE_DATA_READ) ? 1 : 0);
 }
 
 static void solo_eeprom_cmd(struct solo6010_dev *solo_dev, int cmd)
@@ -109,7 +117,7 @@ unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc)
 
 	solo_eeprom_reg_write(solo_dev, ~EE_CS);
 
-	return swab16(retval);
+	return retval;
 }
 
 int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
@@ -120,10 +128,9 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 	int i;
 
 	solo_eeprom_cmd(solo_dev, write_cmd);
-	data = swab16(data);
 
 	for (i = 15; i >= 0; i--) {
-		int dataval = (data & (1 << i)) ? EE_DATA_WRITE : 0;
+		unsigned int dataval = (data & (1 << i)) ? EE_WRITE_1 : EE_WRITE_0;
 
 		solo_eeprom_reg_write(solo_dev, EE_ENB);
 		solo_eeprom_reg_write(solo_dev, EE_ENB | dataval | EE_SHIFT_CLK);

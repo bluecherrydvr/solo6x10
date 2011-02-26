@@ -193,7 +193,6 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 	if (count & 0x1) {
 		dev_warn(dev, "EEPROM Write is not 2 byte aligned "
 			 "(truncating 1 byte)\n");
-		count &= ~0x1;
 	}
 
 	if (!full_eeprom && count > 64) {
@@ -206,8 +205,9 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 
 	solo_eeprom_ewen(solo_dev, 1);
 
-	for (i = full_eeprom ? 0 : 32; i < (count / 2); i++)
-		solo_eeprom_write(solo_dev, i, p[i]);
+	for (i = full_eeprom ? 0 : 32; i < min((int)(full_eeprom ? 64 : 32),
+					       (int)(count / 2)); i++)
+		solo_eeprom_write(solo_dev, i, cpu_to_be16(p[i]));
 
 	solo_eeprom_ewen(solo_dev, 0);
 
@@ -223,7 +223,7 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 	int i;
 
 	for (i = (full_eeprom ? 0 : 32); i < (count / 2); i++)
-		p[i] = solo_eeprom_read(solo_dev, i);
+		p[i] = be16_to_cpu(solo_eeprom_read(solo_dev, i));
 
 	return count;
 }
@@ -367,10 +367,15 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* PLL locking time of 1ms */
 	mdelay(1);
 
+	if (pdev->irq == 0)
+		pdev->irq = 17;
+
 	ret = request_irq(pdev->irq, solo6010_isr, IRQF_SHARED, SOLO6010_NAME,
 			  solo_dev);
-	if (ret)
+	if (ret) {
+printk("Failed to get IRQ: %d\n", pdev->irq);
 		goto fail_probe;
+	}
 
 	/* Handle this from the start */
 	solo6010_irq_on(solo_dev, SOLO_IRQ_PCI_ERR);
@@ -467,7 +472,6 @@ static DEFINE_PCI_DEVICE_TABLE(solo6010_id_table) = {
 	  .driver_data = SOLO_DEV_6110 },
 	{ PCI_DEVICE(PCI_VENDOR_ID_BLUECHERRY, PCI_DEVICE_ID_BC_6110_16),
 	  .driver_data = SOLO_DEV_6110 },
-	{ PCI_DEVICE(0x0000, 0x0000), .driver_data = SOLO_DEV_6110 },
 	{0,}
 };
 
