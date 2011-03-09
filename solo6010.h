@@ -26,6 +26,7 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/stringify.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
 
@@ -69,12 +70,15 @@
 #define SOLO_MAX_CHANNELS		16
 
 /* Make sure these two match */
-#define SOLO6010_VERSION		"2.2.3"
 #define SOLO6010_VER_MAJOR		2
 #define SOLO6010_VER_MINOR		2
-#define SOLO6010_VER_SUB		3
+#define SOLO6010_VER_SUB		4
 #define SOLO6010_VER_NUM \
     KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
+#define SOLO6010_VERSION \
+	__stringify(SOLO6010_VER_MAJOR) "." \
+	__stringify(SOLO6010_VER_MINOR) "." \
+	__stringify(SOLO6010_VER_SUB)
 
 /*
  * The SOLO6010 actually has 8 i2c channels, but we only use 2.

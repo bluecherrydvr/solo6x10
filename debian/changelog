@@ -1,3 +1,11 @@
+solo6010 (2.2.4-1) lucid; urgency=low
+
+  [IN PROGRESS]
+  * Remove extraneous WARN_ON's and add better handling of non-recoverable
+    vbuf errors
+
+ -- Ben Collins <bcollins@bluecherry.net>  Wed, 09 Mar 2011 13:05:33 -0500
+
 solo6010 (2.2.3-1) lucid; urgency=low
 
   * v4l2 display: Stop thread before stopping queue
