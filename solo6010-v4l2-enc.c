@@ -388,12 +388,13 @@ static int enc_get_mpeg_dma_t(struct solo6010_dev *solo_dev, dma_addr_t buf,
 			    SOLO_MP4E_EXT_ADDR(solo_dev) + off,
 			    SOLO_MP4E_EXT_SIZE(solo_dev) - off, 0, 0);
 
-	ret |= solo_p2m_dma_t(solo_dev, 0,
+	if (ret)
+		return ret;
+
+	return solo_p2m_dma_t(solo_dev, 0,
 			      buf + SOLO_MP4E_EXT_SIZE(solo_dev) - off,
 			      SOLO_MP4E_EXT_ADDR(solo_dev),
 			      size + off - SOLO_MP4E_EXT_SIZE(solo_dev), 0, 0);
-
-	return ret;
 }
 
 static int enc_get_mpeg_dma(struct solo6010_dev *solo_dev, void *buf,
@@ -427,13 +428,14 @@ static int enc_get_jpeg_dma(struct solo6010_dev *solo_dev, dma_addr_t buf,
 			     SOLO_JPEG_EXT_ADDR(solo_dev) + off,
 			     SOLO_JPEG_EXT_SIZE(solo_dev) - off, 0, 0);
 
-	ret |= solo_p2m_dma_t(solo_dev, 0,
+	if (ret)
+		return ret;
+
+	return solo_p2m_dma_t(solo_dev, 0,
 			      buf + SOLO_JPEG_EXT_SIZE(solo_dev) - off,
 			      SOLO_JPEG_EXT_ADDR(solo_dev),
 			      size + off - SOLO_JPEG_EXT_SIZE(solo_dev),
 			      0, 0);
-
-	return ret;
 }
 
 static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
@@ -449,8 +451,8 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
 
-	if (WARN_ON_ONCE(vb->bsize < (vh->jpeg_size + sizeof(jpeg_header))))
-		return -1;
+	if (vb->bsize < (vh->jpeg_size + sizeof(jpeg_header)))
+		return -EIO;
 
 	memcpy(p, jpeg_header, sizeof(jpeg_header));
 	p[SOF0_START + 5] = 0xff & (solo_enc->height >> 8);
@@ -476,8 +478,8 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	int frame_off, frame_size;
 
-	if (WARN_ON_ONCE(vb->bsize < vh->mpeg_size))
-		return -1;
+	if (vb->bsize < vh->mpeg_size)
+		return -EIO;
 
 	vb->width = vh->hsize << 4;
 	vb->height = vh->vsize << 4;
@@ -546,11 +548,10 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
 	frame_size = (vh->mpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	if (enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size))
-		return -1;
-
-	return 0;
+	return enc_get_mpeg_dma_t(solo_dev, vbuf, frame_off, frame_size);
 }
+
+#define VBUF_ERR(__err) ({ ret = -__err; goto vbuf_error; })
 
 static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 			    struct videobuf_buffer *vb,
@@ -561,18 +562,19 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	struct vop_header vh;
 	dma_addr_t vbuf;
-	int ret = -1;
+	int ret;
 
 	if (WARN_ON_ONCE(!(vbuf = videobuf_to_dma_contig(vb))))
-		goto vbuf_error;
+		VBUF_ERR(EAGAIN);
 
 	/* We need this for mpeg and jpeg */
 	if (enc_get_mpeg_dma(solo_dev, &vh, enc_buf->off, sizeof(vh)))
-		goto vbuf_error;
+		VBUF_ERR(EAGAIN);
 
+	/* Even if this is a jpeg frame, this is a good sanity check */
 	vh.mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
-	if (WARN_ON_ONCE(vh.mpeg_off != enc_buf->off))
-		goto vbuf_error;
+	if (vh.mpeg_off != enc_buf->off)
+		VBUF_ERR(EIO);
 
 	/* Setup some common flags for both types */
 	svb->flags = 0;
@@ -624,6 +626,7 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 		struct videobuf_buffer *vb;
 		struct solo_enc_buf *enc_buf = NULL;
 		int rd_idx;
+		int ret;
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
 
@@ -661,8 +664,13 @@ static void solo_enc_thread_try(struct solo_enc_fh *fh)
 		vb->state = VIDEOBUF_ACTIVE;
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		/* If we fail, we do not set rd_idx, so it will try again */
-		if (!solo_enc_fillbuf(fh, vb, enc_buf)) {
+		ret = solo_enc_fillbuf(fh, vb, enc_buf);
+
+		/* If we succeed, or get a failure other than EAGAIN, we
+		 * will update the idx so we continue. EAGAIN is for failures
+		 * that we can retry, such as DMA timeouts. Other failures, such
+		 * as buffer too small or invalid offsets, we will not retry. */
+		if (ret == 0 || ret != -EAGAIN) {
 			if (rd_idx != solo_enc->enc_wr_idx)
 				rd_idx = (rd_idx + 1) % SOLO_NR_RING_BUFS;
 			fh->rd_idx = rd_idx;

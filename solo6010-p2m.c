@@ -30,6 +30,8 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 
 	if (WARN_ON_ONCE((unsigned long)sys_addr & 0x03))
 		return -EINVAL;
+	if (WARN_ON_ONCE(!size))
+		return -EINVAL;
 
 	dma_addr = pci_map_single(solo_dev->pdev, sys_addr, size,
 				  wr ? PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
@@ -92,7 +94,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
-	else if (WARN_ON_ONCE(timeout == 0))
+	else if (timeout == 0)
 		ret = -EAGAIN;
 
 	mutex_unlock(&p2m_dev->mutex);
