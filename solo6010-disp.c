@@ -242,6 +242,9 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 {
 	int i;
 
+	dev_info(&solo_dev->pdev->dev, "Using %s video format\n",
+		 video_type ? "PAL" : "NTSC");
+
 	solo_dev->video_hsize = 704;
 	if (video_type == 0) {
 		solo_dev->video_type = SOLO_VO_FMT_TYPE_NTSC;
@@ -266,9 +269,6 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 void solo_disp_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
-
-	dev_info(&solo_dev->pdev->dev, "Using %s video format\n",
-		 video_type ? "PAL" : "NTSC");
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, 0);
 	solo_reg_write(solo_dev, SOLO_VO_ZOOM_CTRL, 0);
