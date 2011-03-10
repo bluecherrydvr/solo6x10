@@ -569,8 +569,11 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 		}
 	}
 
-	if (!solo_dev->tw28_cnt)
+	if (solo_dev->tw28_cnt != solo_dev->nr_chans / 4) {
+		dev_err(&solo_dev->pdev->dev, "Could not initialize any "
+			"(or all) techwell chips\n");
 		return -EINVAL;
+	}
 
 	saa7128_setup(solo_dev);
 
