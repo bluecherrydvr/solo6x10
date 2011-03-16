@@ -614,7 +614,7 @@ int tw28_get_video_status(struct solo6010_dev *solo_dev, u8 ch)
 	chip_num = ch / 4;
 	ch %= 4;
 
-	val = tw_readbyte(solo_dev, chip_num, TW286X_AV_STAT_ADDR,
+	val = tw_readbyte(solo_dev, chip_num, TW286x_AV_STAT_ADDR,
 			  TW_AV_STAT_ADDR) & 0x0f;
 
 	return val & (1 << ch) ? 1 : 0;
@@ -630,7 +630,7 @@ u16 tw28_get_audio_status(struct solo6010_dev *solo_dev)
 	int i;
 
 	for (i = 0; i < solo_dev->tw28_cnt; i++) {
-		val = (tw_readbyte(solo_dev, i, TW286X_AV_STAT_ADDR,
+		val = (tw_readbyte(solo_dev, i, TW286x_AV_STAT_ADDR,
 				   TW_AV_STAT_ADDR) & 0xf0) >> 4;
 		status |= val << (i * 4);
 	}
@@ -681,6 +681,7 @@ int tw28_set_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		break;
 
 	case V4L2_CID_SATURATION:
+		/* 286x chips have a U and V component for saturation */
 		if (is_tw286x(solo_dev, chip_num)) {
 			solo_i2c_writebyte(solo_dev, SOLO_I2C_TW,
 					   TW_CHIP_OFFSET_ADDR(chip_num),

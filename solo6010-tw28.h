@@ -36,7 +36,7 @@
 #define TW_AUDIO_INPUT_GAIN_ADDR(n)		(0x60 + ((n > 1) ? 1 : 0))
 
 /* tw286x */
-#define TW286X_AV_STAT_ADDR			0xfd
+#define TW286x_AV_STAT_ADDR			0xfd
 #define TW286x_HUE_ADDR(n)			(0x06 | ((n) << 4))
 #define TW286x_SATURATIONU_ADDR(n)		(0x04 | ((n) << 4))
 #define TW286x_SATURATIONV_ADDR(n)		(0x05 | ((n) << 4))
