@@ -125,11 +125,22 @@ enum SOLO_I2C_STATE {
 	IIC_STATE_STOP
 };
 
+struct solo_p2m_desc {
+	u32 dma_addr, ext_addr, ctrl, cfg;
+} __attribute__((__aligned__(4)));
+
+/* Used by v4l2 core to generate multi command descriptors */
+struct solo_p2m_desc_set {
+	int desc_count;
+	struct solo_p2m_desc desc[SOLO_NR_P2M_DESC];
+};
+
 struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
-	u8			desc[SOLO_P2M_DESC_SIZE];
+	/* This is only used for single commands. */
+	struct solo_p2m_desc __attribute__((__aligned__(8))) desc[2];
 };
 
 #define OSD_TEXT_MAX		36

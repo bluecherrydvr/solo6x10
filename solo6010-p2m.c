@@ -45,52 +45,54 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 	return ret;
 }
 
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
-		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
-		   int repeat, u32 ext_size)
+/* Mutex must be held for p2m_id before calling this!! */
+int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
+		      struct solo_p2m_desc *desc, int desc_cnt)
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
-	u32 cfg, ctrl;
+	unsigned int p2m_config;
 	int ret = 0;
-	int id;
-
-	if (WARN_ON_ONCE(dma_addr & 0x03))
-		return -EINVAL;
-	if (WARN_ON_ONCE(!size))
-		return -EINVAL;
-
-	cfg = SOLO_P2M_COPY_SIZE(size >> 2);
-	ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
-		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
-
-	if (repeat) {
-		cfg |= SOLO_P2M_EXT_INC(ext_size >> 2);
-		ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
-			 SOLO_P2M_REPEAT(repeat);
-	}
+        int p2m_id;
 
 	/* Get next ID */
-	id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
-	if (id < 0)
-		id = 0 - id;
+	p2m_id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
+	if (p2m_id < 0)
+		p2m_id = 0 - p2m_id;
 
-	p2m_dev = &solo_dev->p2m_dev[id];
+	p2m_dev = &solo_dev->p2m_dev[p2m_id];
 
 	if (mutex_lock_interruptible(&p2m_dev->mutex))
 		return -EINTR;
 
+	/* Save the p2m config state */
+	p2m_config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
+
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
-	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), dma_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), ext_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), cfg);
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), ctrl);
+
+	/* Point the p2m to the single-shot descriptors */
+	solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), __pa(desc));
+
+	/* Set descriptor mode */
+//	solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), p2m_config |
+//		       SOLO_P2M_DESC_MODE);
+
+	/* Set the number of descriptors to run after the first */
+	solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), desc_cnt - 1);
+
+	/* The first descriptor is used here, hardware takes over after that */
+	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc[0].dma_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc[0].ext_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc[0].cfg);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc[0].ctrl);
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
 					      msecs_to_jiffies(solo_dev->p2m_msecs));
 
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
+	/* Teardown */
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
+//	solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), p2m_config);
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
@@ -100,6 +102,30 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 	mutex_unlock(&p2m_dev->mutex);
 
 	return ret;
+}
+
+int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
+		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
+		   int repeat, u32 ext_size)
+{
+	struct solo_p2m_desc desc;
+
+	memset(&desc, 0, sizeof(desc));
+
+	desc.cfg = SOLO_P2M_COPY_SIZE(size >> 2);
+	desc.ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
+		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
+
+	if (repeat) {
+		desc.cfg |= SOLO_P2M_EXT_INC(ext_size >> 2);
+		desc.ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
+			 SOLO_P2M_REPEAT(repeat);
+	}
+
+	desc.dma_addr = dma_addr;
+	desc.ext_addr = ext_addr;
+
+	return solo_p2m_dma_desc(solo_dev, &desc, 1);
 }
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
@@ -142,12 +168,10 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 		mutex_init(&p2m_dev->mutex);
 		init_completion(&p2m_dev->completion);
 
-		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(i),
-			       __pa(p2m_dev->desc));
-
 		solo_reg_write(solo_dev, SOLO_P2M_CONTROL(i), 0);
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(i),
 			       SOLO_P2M_CSC_16BIT_565 |
+			       SOLO_P2M_DESC_INTR_OPT |
 			       SOLO_P2M_DMA_INTERVAL(0) |
 			       SOLO_P2M_PCI_MASTER_MODE);
 		solo6010_irq_on(solo_dev, SOLO_IRQ_P2M(i));
