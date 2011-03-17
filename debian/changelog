@@ -1,10 +1,15 @@
-solo6010 (2.2.4-1) lucid; urgency=low
+solo6010 (2.3.0-1) lucid; urgency=low
 
-  [IN PROGRESS]
   * Remove extraneous WARN_ON's and add better handling of non-recoverable
-    vbuf errors
+    vbuf errors.
+  * Implement P2M descriptor functionality.
+  * Convert v4l2-encoders to use DMA scattergather, relying on new descriptor
+    based P2M DMA.
+  * Move mpeg vop and jpeg header creating to solo_update_mode(), since this
+    doesn't change except in that case. Keeps from having to do it every
+    frame.
 
- -- Ben Collins <bcollins@bluecherry.net>  Wed, 09 Mar 2011 13:05:33 -0500
+ -- Ben Collins <bcollins@bluecherry.net>  Thu, 17 Mar 2011 16:42:51 -0400
 
 solo6010 (2.2.3-1) lucid; urgency=low
 
