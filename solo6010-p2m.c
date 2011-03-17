@@ -51,7 +51,6 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
-	unsigned int p2m_config;
 	int ret = 0;
         int p2m_id;
 
@@ -65,34 +64,23 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	if (mutex_lock_interruptible(&p2m_dev->mutex))
 		return -EINTR;
 
-	/* Save the p2m config state */
-	p2m_config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
+	p2m_dev->desc = desc;
+	p2m_dev->desc_cnt = desc_cnt;
+	p2m_dev->desc_idx = 1;
 
-	/* Point the p2m to the single-shot descriptors */
-	solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), __pa(desc));
-
-	/* Set descriptor mode */
-//	solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), p2m_config |
-//		       SOLO_P2M_DESC_MODE);
-
-	/* Set the number of descriptors to run after the first */
-	solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), desc_cnt - 1);
-
-	/* The first descriptor is used here, hardware takes over after that */
-	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc[0].dma_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc[0].ext_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc[0].cfg);
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc[0].ctrl);
+	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc->dma_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc->ext_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc->cfg);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc->ctrl);
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
 					      msecs_to_jiffies(solo_dev->p2m_msecs));
 
-	/* Teardown */
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
-//	solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), p2m_config);
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
@@ -104,33 +92,57 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	return ret;
 }
 
+void solo_p2m_fill_desc(struct solo_p2m_desc *desc, int wr,
+			dma_addr_t dma_addr, u32 ext_addr, u32 size,
+			int repeat, u32 ext_size)
+{
+	desc->cfg = SOLO_P2M_COPY_SIZE(size >> 2);
+	desc->ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
+		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
+
+	if (repeat) {
+		desc->cfg |= SOLO_P2M_EXT_INC(ext_size >> 2);
+		desc->ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
+			 SOLO_P2M_REPEAT(repeat);
+	}
+
+	desc->dma_addr = dma_addr;
+	desc->ext_addr = ext_addr;
+}
+
 int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
 		   int repeat, u32 ext_size)
 {
 	struct solo_p2m_desc desc;
 
-	memset(&desc, 0, sizeof(desc));
-
-	desc.cfg = SOLO_P2M_COPY_SIZE(size >> 2);
-	desc.ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
-		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
-
-	if (repeat) {
-		desc.cfg |= SOLO_P2M_EXT_INC(ext_size >> 2);
-		desc.ctrl |=  SOLO_P2M_PCI_INC(size >> 2) |
-			 SOLO_P2M_REPEAT(repeat);
-	}
-
-	desc.dma_addr = dma_addr;
-	desc.ext_addr = ext_addr;
+	solo_p2m_fill_desc(&desc, wr, dma_addr, ext_addr, size, repeat,
+			   ext_size);
 
 	return solo_p2m_dma_desc(solo_dev, &desc, 1);
 }
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	complete(&solo_dev->p2m_dev[id].completion);
+	struct solo_p2m_dev *p2m_dev = &solo_dev->p2m_dev[id];
+	struct solo_p2m_desc *desc;
+
+	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
+
+	/* This set is done */
+	if (p2m_dev->desc_idx >= p2m_dev->desc_cnt) {
+		complete(&solo_dev->p2m_dev[id].completion);
+		return;
+	}
+
+	/* Reset to start next descriptor */
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
+
+	desc = &p2m_dev->desc[p2m_dev->desc_idx++];
+	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), desc->dma_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), desc->ext_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), desc->cfg);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc->ctrl);
 }
 
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status)

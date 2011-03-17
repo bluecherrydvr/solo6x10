@@ -131,16 +131,17 @@ struct solo_p2m_desc {
 
 /* Used by v4l2 core to generate multi command descriptors */
 struct solo_p2m_desc_set {
-	int desc_count;
-	struct solo_p2m_desc desc[SOLO_NR_P2M_DESC];
+	int count;
+	struct solo_p2m_desc item[SOLO_NR_P2M_DESC];
 };
 
 struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
-	/* This is only used for single commands. */
-	struct solo_p2m_desc __attribute__((__aligned__(8))) desc[2];
+	struct solo_p2m_desc	*desc;
+	int			desc_cnt;
+	int			desc_idx;
 };
 
 #define OSD_TEXT_MAX		36
@@ -174,11 +175,17 @@ struct solo_enc_dev {
 	u16			width;
 	u16			height;
 	char			osd_text[OSD_TEXT_MAX + 1];
-	u8			*osd_buf;
+	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
+					__attribute__((__aligned__(4)));
 	struct mutex		osd_mutex;
 	/* Our software ring of enc buf references */
 	u16			enc_wr_idx;
 	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
+	/* VOP stuff */
+	unsigned char		vop[64];
+	int			vop_len;
+	unsigned char		jpeg_header[1024];
+	int			jpeg_len;
 };
 
 /* The SOLO6010 PCI Device */
@@ -328,6 +335,11 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
 		 int repeat, u32 ext_size);
+void solo_p2m_fill_desc(struct solo_p2m_desc *desc, int wr,
+			dma_addr_t dma_addr, u32 ext_addr, u32 size,
+			int repeat, u32 ext_size);
+int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
+		      struct solo_p2m_desc *desc, int desc_cnt);
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);
