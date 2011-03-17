@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2010,2011 Ben Collins <bcollins@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,9 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
+	unsigned int config = 0;
+	dma_addr_t dma = 0;
+	unsigned int dma_size = 0;
 	int ret = 0;
         int p2m_id;
 
@@ -68,19 +71,39 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
-	p2m_dev->desc = desc;
-	p2m_dev->desc_cnt = desc_cnt;
-	p2m_dev->desc_idx = 1;
 
-	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc->dma_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc->ext_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc->cfg);
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc->ctrl);
+	/* We only need to do this when we have more than one
+	 * descriptor. */
+	if (desc_cnt > 1) {
+		dma_size = sizeof(*desc) * SOLO_NR_P2M_DESC;
+		dma = pci_map_single(solo_dev->pdev, desc, dma_size,
+				     PCI_DMA_TODEVICE);
+		config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
+
+		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), dma);
+		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id),
+			       desc_cnt - 1);
+		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config |
+			       SOLO_P2M_DESC_MODE);
+	} else {
+		solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc[1].dma_addr);
+		solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc[1].ext_addr);
+		solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc[1].cfg);
+		solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc[1].ctrl);
+	}
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
 					      msecs_to_jiffies(solo_dev->p2m_msecs));
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
+
+	if (desc_cnt > 1) {
+		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
+		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), 0);
+		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), 0);
+		pci_unmap_single(solo_dev->pdev, dma, dma_size,
+				 PCI_DMA_TODEVICE);
+	}
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
@@ -114,35 +137,18 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
 		   int repeat, u32 ext_size)
 {
-	struct solo_p2m_desc desc;
+	struct solo_p2m_desc desc[2];
 
-	solo_p2m_fill_desc(&desc, wr, dma_addr, ext_addr, size, repeat,
+	solo_p2m_fill_desc(&desc[1], wr, dma_addr, ext_addr, size, repeat,
 			   ext_size);
 
-	return solo_p2m_dma_desc(solo_dev, &desc, 1);
+	return solo_p2m_dma_desc(solo_dev, desc, 1);
 }
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	struct solo_p2m_dev *p2m_dev = &solo_dev->p2m_dev[id];
-	struct solo_p2m_desc *desc;
-
 	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
-
-	/* This set is done */
-	if (p2m_dev->desc_idx >= p2m_dev->desc_cnt) {
-		complete(&solo_dev->p2m_dev[id].completion);
-		return;
-	}
-
-	/* Reset to start next descriptor */
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
-
-	desc = &p2m_dev->desc[p2m_dev->desc_idx++];
-	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), desc->dma_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), desc->ext_addr);
-	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), desc->cfg);
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc->ctrl);
+	complete(&solo_dev->p2m_dev[id].completion);
 }
 
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status)

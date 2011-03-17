@@ -125,9 +125,13 @@ enum SOLO_I2C_STATE {
 	IIC_STATE_STOP
 };
 
+/* Defined in Table 4-16, Page 68-69 of the 6010 Datasheet */
 struct solo_p2m_desc {
-	u32 dma_addr, ext_addr, ctrl, cfg;
-} __attribute__((__aligned__(4)));
+	u32	ctrl;
+	u32	cfg;
+	u32	dma_addr;
+	u32	ext_addr;
+};
 
 /* Used by v4l2 core to generate multi command descriptors */
 struct solo_p2m_desc_set {
@@ -139,9 +143,6 @@ struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
 	int			error;
-	struct solo_p2m_desc	*desc;
-	int			desc_cnt;
-	int			desc_idx;
 };
 
 #define OSD_TEXT_MAX		36

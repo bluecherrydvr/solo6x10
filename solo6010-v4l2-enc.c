@@ -111,10 +111,6 @@ static unsigned char vop_6110_pal_cif[] = {
 };
 
 
-/* For aspect */
-#define XVID_PAR_43_PAL		2
-#define XVID_PAR_43_NTSC	3
-
 static const u32 solo_user_ctrls[] = {
 	V4L2_CID_BRIGHTNESS,
 	V4L2_CID_CONTRAST,
@@ -307,13 +303,11 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 	solo_enc->vop_len = vop_len;
 
 	/* Now handle the jpeg header */
-	memcpy(solo_enc->jpeg_header, jpeg_header, sizeof(jpeg_header));
 	vop = solo_enc->jpeg_header;
 	vop[SOF0_START + 5] = 0xff & (solo_enc->height >> 8);
 	vop[SOF0_START + 6] = 0xff & solo_enc->height;
 	vop[SOF0_START + 7] = 0xff & (solo_enc->width >> 8);
 	vop[SOF0_START + 8] = 0xff & solo_enc->width;
-	solo_enc->jpeg_len = sizeof(jpeg_header);
 }
 
 /* MUST be called with solo_enc->enable_lock held */
@@ -482,7 +476,7 @@ static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
 	struct scatterlist *sg;
 	int i;
 
-	fh->desc_set.count = 0;
+	fh->desc_set.count = 1;
 
 	for_each_sg(vbuf->sglist, sg, vbuf->sglen, i) {
 		struct solo_p2m_desc *desc;
@@ -511,7 +505,7 @@ static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
 			solo_p2m_fill_desc(desc, 0, dma, base + off,
 					   base_size - off, 0, 0);
 			desc = &fh->desc_set.item[fh->desc_set.count++];
-			solo_p2m_fill_desc(desc, 0, dma + base_size - off,
+			solo_p2m_fill_desc(desc, 0, dma + (base_size - off),
 					   base, len + off - base_size, 0, 0);
 		}
 
@@ -1665,6 +1659,10 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	mutex_lock(&solo_enc->enable_lock);
 	solo_update_mode(solo_enc);
 	mutex_unlock(&solo_enc->enable_lock);
+
+	/* Initialize this per encoder */
+	solo_enc->jpeg_len = sizeof(jpeg_header);
+	memcpy(solo_enc->jpeg_header, jpeg_header, solo_enc->jpeg_len);
 
 	return solo_enc;
 }
