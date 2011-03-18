@@ -31,7 +31,6 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
-#define G723_INTR_ORDER		0
 #define G723_FDMA_PAGES		32
 #define G723_PERIOD_BYTES	48
 #define G723_PERIOD_BLOCK	1024
@@ -46,9 +45,9 @@
 /* The solo writes to 1k byte pages, 32 pages, in the dma. Each 1k page
  * is broken down to 20 * 48 byte regions (one for each channel possible)
  * with the rest of the page being dummy data. */
-#define MAX_BUFFER		(G723_PERIOD_BYTES * PERIODS_MAX)
-#define IRQ_PAGES		4 // 0 - 4
-#define PERIODS_MIN		(1 << IRQ_PAGES)
+#define G723_MAX_BUFFER		(G723_PERIOD_BYTES * PERIODS_MAX)
+#define G723_INTR_ORDER		4 // 0 - 4
+#define PERIODS_MIN		(1 << G723_INTR_ORDER)
 #define PERIODS_MAX		G723_FDMA_PAGES
 
 struct solo_snd_pcm {
@@ -69,7 +68,7 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 		       SOLO_AUDIO_CLK_DIV(clk_div));
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_FDMA_INTR,
-		      SOLO_AUDIO_FDMA_INTERVAL(IRQ_PAGES) |
+		      SOLO_AUDIO_FDMA_INTERVAL(1) |
 		      SOLO_AUDIO_INTR_ORDER(G723_INTR_ORDER) |
 		      SOLO_AUDIO_FDMA_BASE(SOLO_G723_EXT_ADDR(solo_dev) >> 16));
 
@@ -124,7 +123,7 @@ static struct snd_pcm_hardware snd_solo_pcm_hw = {
 	.rate_max		= SAMPLERATE,
 	.channels_min		= 1,
 	.channels_max		= 1,
-	.buffer_bytes_max	= MAX_BUFFER,
+	.buffer_bytes_max	= G723_MAX_BUFFER,
 	.period_bytes_min	= G723_PERIOD_BYTES,
 	.period_bytes_max	= G723_PERIOD_BYTES,
 	.periods_min		= PERIODS_MIN,
@@ -322,7 +321,7 @@ static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
 	ret = snd_pcm_lib_preallocate_pages_for_all(pcm,
 					SNDRV_DMA_TYPE_CONTINUOUS,
 					snd_dma_continuous_data(GFP_KERNEL),
-					MAX_BUFFER, MAX_BUFFER);
+					G723_MAX_BUFFER, G723_MAX_BUFFER);
 	if (ret < 0)
 		return ret;
 
