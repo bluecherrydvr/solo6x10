@@ -251,6 +251,10 @@ struct solo6010_dev {
 
 	/* sysfs stuffs */
 	struct device		dev;
+
+	/* Ring thread */
+	struct task_struct	*ring_thread;
+	wait_queue_head_t	ring_thread_wait;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)

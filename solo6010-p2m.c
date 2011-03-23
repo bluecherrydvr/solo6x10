@@ -82,7 +82,7 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), dma);
 		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id),
-			       desc_cnt - 1);
+			       desc_cnt);
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config |
 			       SOLO_P2M_DESC_MODE);
 	} else {
@@ -147,7 +147,6 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	solo_reg_write(solo_dev, SOLO_IRQ_STAT, SOLO_IRQ_P2M(id));
 	complete(&solo_dev->p2m_dev[id].completion);
 }
 
