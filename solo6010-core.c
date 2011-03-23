@@ -367,15 +367,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* PLL locking time of 1ms */
 	mdelay(1);
 
-	if (pdev->irq == 0)
-		pdev->irq = 17;
-
 	ret = request_irq(pdev->irq, solo6010_isr, IRQF_SHARED, SOLO6010_NAME,
 			  solo_dev);
-	if (ret) {
-printk("Failed to get IRQ: %d\n", pdev->irq);
+	if (ret)
 		goto fail_probe;
-	}
 
 	/* Handle this from the start */
 	solo6010_irq_on(solo_dev, SOLO_IRQ_PCI_ERR);
