@@ -469,16 +469,12 @@ static int enc_get_mpeg_dma(struct solo6010_dev *solo_dev, void *buf,
 	return ret;
 }
 
-/* Build a descriptor queue out of an SG list and send it to the P2M for
- * processing. */
-static int solo_send_desc(struct solo_enc_fh *fh, int skip,
-			  struct videobuf_dmabuf *vbuf, int off, int size,
-			  unsigned int base, unsigned int base_size)
+static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
+			    struct videobuf_dmabuf *vbuf, int off, int size,
+			    unsigned int base, unsigned int base_size)
 {
-	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
 	struct scatterlist *sg;
 	int i;
-	int ret;
 
 	fh->desc_set.count = 1;
 
@@ -486,7 +482,6 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 		struct solo_p2m_desc *desc;
 		dma_addr_t dma;
 		int len;
-		int left = base_size - off;
 
 		desc = &fh->desc_set.item[fh->desc_set.count++];
 		dma = sg_dma_address(sg);
@@ -502,45 +497,24 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 
 		len = min(len, size);
 
-		if (len <= left) {
-			/* Single descriptor */
+		if (off + len <= base_size) {
 			solo_p2m_fill_desc(desc, 0, dma, base + off,
 					   len, 0, 0);
 		} else {
 			/* Buffer wrap */
-			solo_p2m_fill_desc(desc, 0, dma, base + off, left,
-					   0, 0);
-
-			/* Get another descriptor */
+			solo_p2m_fill_desc(desc, 0, dma, base + off,
+					   base_size - off, 0, 0);
 			desc = &fh->desc_set.item[fh->desc_set.count++];
-
-			solo_p2m_fill_desc(desc, 0, dma + left, base,
-					   len - left, 0, 0);
+			solo_p2m_fill_desc(desc, 0, dma + (base_size - off),
+					   base, len + off - base_size, 0, 0);
 		}
 
 		size -= len;
+		off = (off + len) % base_size;
+
 		if (size <= 0)
 			break;
-
-		off += len;
-		if (off >= base_size)
-			off -= base_size;
-
-		/* 254 because we may use two descriptors per loop */
-		if (fh->desc_set.count >= 254) {
-			ret = solo_p2m_dma_desc(solo_dev, fh->desc_set.item,
-						fh->desc_set.count - 1);
-			if (ret)
-				return ret;
-			fh->desc_set.count = 1;
-		}
 	}
-
-	if (fh->desc_set.count <= 1)
-		return 0;
-
-	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item,
-				 fh->desc_set.count - 1);
 }
 
 static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
@@ -567,9 +541,11 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	frame_size = (vh->jpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	return solo_send_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
-			      frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
-			      SOLO_JPEG_EXT_SIZE(solo_dev));
+	solo_setup_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
+			frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
+			SOLO_JPEG_EXT_SIZE(solo_dev));
+
+	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item, fh->desc_set.count);
 }
 
 static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
@@ -604,9 +580,11 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
 	frame_size = (vh->mpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	return solo_send_desc(fh, skip, vbuf, frame_off, frame_size,
-			      SOLO_MP4E_EXT_ADDR(solo_dev),
-			      SOLO_MP4E_EXT_SIZE(solo_dev));
+	solo_setup_desc(fh, skip, vbuf, frame_off, frame_size,
+			SOLO_MP4E_EXT_ADDR(solo_dev),
+			SOLO_MP4E_EXT_SIZE(solo_dev));
+
+	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item, fh->desc_set.count);
 }
 
 #define VBUF_ERR(__err) ({ ret = -__err; goto vbuf_error; })
@@ -763,12 +741,6 @@ static int solo_enc_thread(void *data)
 
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
-	solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
-	wake_up_interruptible_all(&solo_dev->ring_thread_wait);
-}
-
-static void solo_handle_ring(struct solo6010_dev *solo_dev)
-{
 	struct solo_enc_dev *solo_enc;
 	struct solo_enc_buf *enc_buf;
 	struct videnc_status vstatus;
@@ -809,28 +781,7 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 		wake_up_interruptible_all(&solo_enc->thread_wait);
 	}
 
-	solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
-}
-
-static int solo_ring_thread(void *data)
-{
-	struct solo6010_dev *solo_dev = data;
-	DECLARE_WAITQUEUE(wait, current);
-
-	set_freezable();
-	add_wait_queue(&solo_dev->ring_thread_wait, &wait);
-
-	for (;;) {
-		long timeout = schedule_timeout_interruptible(HZ);
-		if (timeout == -ERESTARTSYS || kthread_should_stop())
-			break;
-		solo_handle_ring(solo_dev);
-		try_to_freeze();
-	}
-
-	remove_wait_queue(&solo_dev->ring_thread_wait, &wait);
-
-	return 0;
+	return;
 }
 
 static int solo_enc_buf_setup(struct videobuf_queue *vq, unsigned int *count,
@@ -1729,15 +1680,6 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 {
 	int i;
 
-	init_waitqueue_head(&solo_dev->ring_thread_wait);
-	solo_dev->ring_thread = kthread_run(solo_ring_thread, solo_dev,
-					    SOLO6010_NAME "_ring");
-	if (IS_ERR(solo_dev->ring_thread)) {
-		int err = PTR_ERR(solo_dev->ring_thread);
-		solo_dev->ring_thread = NULL;
-		return err;
-	}
-
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i);
 		if (IS_ERR(solo_dev->v4l2_enc[i]))
@@ -1769,9 +1711,4 @@ void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_enc_free(solo_dev->v4l2_enc[i]);
-
-	if (solo_dev->ring_thread) {
-		kthread_stop(solo_dev->ring_thread);
-		solo_dev->ring_thread = NULL;
-	}
 }
