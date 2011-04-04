@@ -8,7 +8,6 @@ solo6010 (2.3.0-1) lucid; urgency=low
   * Move mpeg vop and jpeg header creating to solo_update_mode(), since this
     doesn't change except in that case. Keeps from having to do it every
     frame.
-  * Move encoder ring handling to a thread per card, triggered by interrupt
 
  -- Ben Collins <bcollins@bluecherry.net>  Thu, 17 Mar 2011 16:42:51 -0400
 
