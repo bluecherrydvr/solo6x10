@@ -1,3 +1,4 @@
+- batch up desc requests for more efficient use of p2m
 - encoder on/off controls
 - mpeg cid bitrate mode (vbr/cbr)
 - mpeg cid bitrate/bitrate-peak
