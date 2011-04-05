@@ -693,11 +693,6 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 		vb = list_first_entry(&fh->vidq_active,
 				      struct videobuf_buffer, queue);
 
-		if (!waitqueue_active(&vb->done)) {
-			spin_unlock_irqrestore(&solo_enc->av_lock, flags);
-			continue;
-		}
-
 		list_del(&vb->queue);
 		vb->state = VIDEOBUF_ACTIVE;
 
