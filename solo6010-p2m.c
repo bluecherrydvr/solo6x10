@@ -47,13 +47,12 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 
 /* Mutex must be held for p2m_id before calling this!! */
 int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
-		      struct solo_p2m_desc *desc, int desc_cnt)
+		      struct solo_p2m_desc *desc, dma_addr_t desc_dma,
+		      int desc_cnt)
 {
 	struct solo_p2m_dev *p2m_dev;
 	unsigned int timeout = 0;
 	unsigned int config = 0;
-	dma_addr_t dma = 0;
-	unsigned int dma_size = 0;
 	int ret = 0;
         int p2m_id;
 
@@ -75,14 +74,10 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	/* We only need to do this when we have more than one
 	 * descriptor. */
 	if (desc_cnt > 1) {
-		dma_size = sizeof(*desc) * SOLO_NR_P2M_DESC;
-		dma = pci_map_single(solo_dev->pdev, desc, dma_size,
-				     PCI_DMA_TODEVICE);
 		config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
 
-		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), dma);
-		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id),
-			       desc_cnt);
+		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), desc_dma);
+		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), desc_cnt);
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config |
 			       SOLO_P2M_DESC_MODE);
 	} else {
@@ -101,8 +96,6 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
 		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), 0);
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), 0);
-		pci_unmap_single(solo_dev->pdev, dma, dma_size,
-				 PCI_DMA_TODEVICE);
 	}
 
 	if (WARN_ON_ONCE(p2m_dev->error))
@@ -142,7 +135,8 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 	solo_p2m_fill_desc(&desc[1], wr, dma_addr, ext_addr, size, repeat,
 			   ext_size);
 
-	return solo_p2m_dma_desc(solo_dev, desc, 1);
+	/* No need for desc_dma since we know it is a single-shot */
+	return solo_p2m_dma_desc(solo_dev, desc, 0, 1);
 }
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)

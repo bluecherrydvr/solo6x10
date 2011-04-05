@@ -129,12 +129,6 @@ struct solo_p2m_desc {
 	u32	ext_addr;
 };
 
-/* Used by v4l2 core to generate multi command descriptors */
-struct solo_p2m_desc_set {
-	int count;
-	struct solo_p2m_desc item[SOLO_NR_P2M_DESC];
-};
-
 struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
@@ -159,10 +153,18 @@ struct solo_enc_dev {
 	u16			motion_thresh;
 	u16			width;
 	u16			height;
+
+	/* OSD buffers */
 	char			osd_text[OSD_TEXT_MAX + 1];
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
 					__attribute__((__aligned__(4)));
 	struct mutex		osd_mutex;
+
+	/* VOP_HEADER handling */
+	void			*vh_buf;
+	dma_addr_t		vh_dma;
+	int			vh_size;
+
 	/* VOP stuff */
 	unsigned char		vop[64];
 	int			vop_len;
@@ -328,7 +330,8 @@ void solo_p2m_fill_desc(struct solo_p2m_desc *desc, int wr,
 			dma_addr_t dma_addr, u32 ext_addr, u32 size,
 			int repeat, u32 ext_size);
 int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
-		      struct solo_p2m_desc *desc, int desc_cnt);
+		      struct solo_p2m_desc *desc, dma_addr_t desc_dma,
+		      int desc_cnt);
 
 /* Set the threshold for motion detection */
 void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val);

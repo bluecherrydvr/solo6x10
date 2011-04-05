@@ -54,7 +54,8 @@ struct solo_snd_pcm {
 	int				on;
 	spinlock_t			lock;
 	struct solo6010_dev		*solo_dev;
-	unsigned char			g723_buf[G723_PERIOD_BYTES];
+	unsigned char			*g723_buf;
+	dma_addr_t			g723_dma;
 };
 
 static void solo_g723_config(struct solo6010_dev *solo_dev)
@@ -139,6 +140,14 @@ static int snd_solo_pcm_open(struct snd_pcm_substream *ss)
 	if (solo_pcm == NULL)
 		return -ENOMEM;
 
+	solo_pcm->g723_buf = pci_alloc_consistent(solo_dev->pdev,
+						  G723_PERIOD_BYTES,
+						  &solo_pcm->g723_dma);
+	if (solo_pcm->g723_buf == NULL) {
+		kfree(solo_pcm);
+		return -ENOMEM;
+	}
+
 	spin_lock_init(&solo_pcm->lock);
 	solo_pcm->solo_dev = solo_dev;
 	ss->runtime->hw = snd_solo_pcm_hw;
@@ -153,6 +162,8 @@ static int snd_solo_pcm_close(struct snd_pcm_substream *ss)
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
 
 	snd_pcm_substream_chip(ss) = solo_pcm->solo_dev;
+	pci_free_consistent(solo_pcm->solo_dev->pdev, G723_PERIOD_BYTES,
+			    solo_pcm->g723_buf, solo_pcm->g723_dma);
 	kfree(solo_pcm);
 
         return 0;
@@ -217,11 +228,11 @@ static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
 	for (i = 0; i < (count / G723_FRAMES_PER_PAGE); i++) {
 		int page = (pos / G723_FRAMES_PER_PAGE) + i;
 
-		err = solo_p2m_dma(solo_dev, 0, solo_pcm->g723_buf,
-				   SOLO_G723_EXT_ADDR(solo_dev) +
-				   (page * G723_PERIOD_BLOCK) +
-				   (ss->number * G723_PERIOD_BYTES),
-				   G723_PERIOD_BYTES, 0, 0);
+		err = solo_p2m_dma_t(solo_dev, 0, solo_pcm->g723_dma,
+				     SOLO_G723_EXT_ADDR(solo_dev) +
+				     (page * G723_PERIOD_BLOCK) +
+				     (ss->number * G723_PERIOD_BYTES),
+				     G723_PERIOD_BYTES, 0, 0);
 		if (err)
 			return err;
 
