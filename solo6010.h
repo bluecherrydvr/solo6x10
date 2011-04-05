@@ -102,10 +102,6 @@
 #define SOLO_DEFAULT_GOP		30
 #define SOLO_DEFAULT_QP			3
 
-/* There is 8MB memory available for solo to buffer MPEG4 frames.
- * This gives us 512 * 16kbyte queues. */
-#define SOLO_NR_RING_BUFS		64
-
 #ifndef V4L2_BUF_FLAG_MOTION_ON
 #define V4L2_BUF_FLAG_MOTION_ON		0x0400
 #define V4L2_BUF_FLAG_MOTION_DETECTED	0x0800
@@ -147,23 +143,11 @@ struct solo_p2m_dev {
 
 #define OSD_TEXT_MAX		36
 
-enum solo_enc_types {
-	SOLO_ENC_TYPE_STD,
-	SOLO_ENC_TYPE_EXT,
-};
-
-struct solo_enc_buf {
-	enum solo_enc_types	type;
-	u32			off;
-	int			motion;
-};
-
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
 	/* V4L2 Items */
 	struct video_device	*vfd;
 	/* General accounting */
-	wait_queue_head_t	thread_wait;
 	spinlock_t		av_lock;
 	struct mutex		enable_lock;
 	spinlock_t		motion_lock;
@@ -179,14 +163,14 @@ struct solo_enc_dev {
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
 					__attribute__((__aligned__(4)));
 	struct mutex		osd_mutex;
-	/* Our software ring of enc buf references */
-	u16			enc_wr_idx;
-	struct solo_enc_buf	enc_buf[SOLO_NR_RING_BUFS];
 	/* VOP stuff */
 	unsigned char		vop[64];
 	int			vop_len;
 	unsigned char		jpeg_header[1024];
 	int			jpeg_len;
+
+	/* File handles that are listening for buffers */
+	struct list_head	listeners;
 };
 
 /* The SOLO6010 PCI Device */
@@ -251,6 +235,10 @@ struct solo6010_dev {
 
 	/* sysfs stuffs */
 	struct device		dev;
+
+	/* Ring thread */
+	struct task_struct	*ring_thread;
+	wait_queue_head_t	ring_thread_wait;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)

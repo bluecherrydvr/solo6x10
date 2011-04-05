@@ -28,6 +28,8 @@
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
 
+#define IRQ_LEVEL			0
+
 static void solo_capture_config(struct solo6010_dev *solo_dev)
 {
 	unsigned long height;
@@ -183,7 +185,7 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 	int i;
 
 	solo_reg_write(solo_dev, SOLO_VE_CFG0,
-		       SOLO_VE_INTR_CTRL(0) |
+		       SOLO_VE_INTR_CTRL(IRQ_LEVEL) |
 		       SOLO_VE_BLOCK_SIZE(SOLO_MP4E_EXT_SIZE(solo_dev) >> 16) |
 		       SOLO_VE_BLOCK_BASE(SOLO_MP4E_EXT_ADDR(solo_dev) >> 16));
 

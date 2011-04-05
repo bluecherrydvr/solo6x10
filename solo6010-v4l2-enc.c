@@ -35,20 +35,29 @@
 #define MP4_QS			16
 #define DMA_ALIGN		128
 
-static int solo_enc_thread(void *data);
-
 extern unsigned video_nr;
+
+enum solo_enc_types {
+	SOLO_ENC_TYPE_STD,
+	SOLO_ENC_TYPE_EXT,
+};
+
+struct solo_enc_buf {
+	enum solo_enc_types	type;
+	u32			off;
+	int			motion;
+};
 
 struct solo_enc_fh {
 	struct			solo_enc_dev *enc;
 	u32			fmt;
-	u16			rd_idx;
 	u8			enc_on;
 	enum solo_enc_types	type;
 	struct videobuf_queue	vidq;
 	struct list_head	vidq_active;
 	struct task_struct	*kthread;
 	struct solo_p2m_desc_set desc_set;
+	struct list_head	list;
 };
 
 struct solo_videobuf {
@@ -322,15 +331,7 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 		return 0;
 
 	solo_update_mode(solo_enc);
-
-	fh->kthread = kthread_run(solo_enc_thread, fh, SOLO6010_NAME "_enc");
-
-	/* Oops, we had a problem */
-	if (IS_ERR(fh->kthread)) {
-		int err = PTR_ERR(fh->kthread);
-		fh->kthread = NULL;
-		return err;
-	}
+	list_add(&fh->list, &solo_enc->listeners);
 
 	/* Make sure to bw check on first reader */
 	if (!atomic_read(&solo_enc->readers)) {
@@ -341,7 +342,6 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	}
 
 	fh->enc_on = 1;
-	fh->rd_idx = solo_enc->enc_wr_idx;
 
 	if (fh->type == SOLO_ENC_TYPE_EXT)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
@@ -407,11 +407,7 @@ static void __solo_enc_off(struct solo_enc_fh *fh)
 	if (!fh->enc_on)
 		return;
 
-	if (fh->kthread) {
-		kthread_stop(fh->kthread);
-		fh->kthread = NULL;
-	}
-
+	list_del(&fh->list);
 	fh->enc_on = 0;
 
 	if (fh->fmt == V4L2_PIX_FMT_MPEG)
@@ -469,12 +465,16 @@ static int enc_get_mpeg_dma(struct solo6010_dev *solo_dev, void *buf,
 	return ret;
 }
 
-static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
-			    struct videobuf_dmabuf *vbuf, int off, int size,
-			    unsigned int base, unsigned int base_size)
+/* Build a descriptor queue out of an SG list and send it to the P2M for
+ * processing. */
+static int solo_send_desc(struct solo_enc_fh *fh, int skip,
+			  struct videobuf_dmabuf *vbuf, int off, int size,
+			  unsigned int base, unsigned int base_size)
 {
+	struct solo6010_dev *solo_dev = fh->enc->solo_dev;
 	struct scatterlist *sg;
 	int i;
+	int ret;
 
 	fh->desc_set.count = 1;
 
@@ -482,6 +482,7 @@ static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
 		struct solo_p2m_desc *desc;
 		dma_addr_t dma;
 		int len;
+		int left = base_size - off;
 
 		desc = &fh->desc_set.item[fh->desc_set.count++];
 		dma = sg_dma_address(sg);
@@ -497,24 +498,45 @@ static void solo_setup_desc(struct solo_enc_fh *fh, int skip,
 
 		len = min(len, size);
 
-		if (off + len <= base_size) {
+		if (len <= left) {
+			/* Single descriptor */
 			solo_p2m_fill_desc(desc, 0, dma, base + off,
 					   len, 0, 0);
 		} else {
 			/* Buffer wrap */
-			solo_p2m_fill_desc(desc, 0, dma, base + off,
-					   base_size - off, 0, 0);
+			solo_p2m_fill_desc(desc, 0, dma, base + off, left,
+					   0, 0);
+
+			/* Get another descriptor */
 			desc = &fh->desc_set.item[fh->desc_set.count++];
-			solo_p2m_fill_desc(desc, 0, dma + (base_size - off),
-					   base, len + off - base_size, 0, 0);
+
+			solo_p2m_fill_desc(desc, 0, dma + left, base,
+					   len - left, 0, 0);
 		}
 
 		size -= len;
-		off = (off + len) % base_size;
-
 		if (size <= 0)
 			break;
+
+		off += len;
+		if (off >= base_size)
+			off -= base_size;
+
+		/* 254 because we may use two descriptors per loop */
+		if (fh->desc_set.count >= 254) {
+			ret = solo_p2m_dma_desc(solo_dev, fh->desc_set.item,
+						fh->desc_set.count - 1);
+			if (ret)
+				return ret;
+			fh->desc_set.count = 1;
+		}
 	}
+
+	if (fh->desc_set.count <= 1)
+		return 0;
+
+	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item,
+				 fh->desc_set.count - 1);
 }
 
 static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
@@ -541,11 +563,9 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	frame_size = (vh->jpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	solo_setup_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
-			frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
-			SOLO_JPEG_EXT_SIZE(solo_dev));
-
-	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item, fh->desc_set.count);
+	return solo_send_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
+			      frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
+			      SOLO_JPEG_EXT_SIZE(solo_dev));
 }
 
 static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
@@ -580,11 +600,9 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
 	frame_size = (vh->mpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
-	solo_setup_desc(fh, skip, vbuf, frame_off, frame_size,
-			SOLO_MP4E_EXT_ADDR(solo_dev),
-			SOLO_MP4E_EXT_SIZE(solo_dev));
-
-	return solo_p2m_dma_desc(solo_dev, fh->desc_set.item, fh->desc_set.count);
+	return solo_send_desc(fh, skip, vbuf, frame_off, frame_size,
+			      SOLO_MP4E_EXT_ADDR(solo_dev),
+			      SOLO_MP4E_EXT_SIZE(solo_dev));
 }
 
 #define VBUF_ERR(__err) ({ ret = -__err; goto vbuf_error; })
@@ -653,135 +671,106 @@ vbuf_error:
 	return ret;
 }
 
-static void solo_enc_thread_try(struct solo_enc_fh *fh)
+static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
+				struct solo_enc_buf *enc_buf)
 {
-	struct solo_enc_dev *solo_enc = fh->enc;
-	unsigned long flags;
+	struct solo_enc_fh *fh, *t;
 
-	for (;;) {
+	list_for_each_entry_safe(fh, t, &solo_enc->listeners, list) {
 		struct videobuf_buffer *vb;
-		struct solo_enc_buf *enc_buf = NULL;
-		int rd_idx;
-		int ret;
+		unsigned long flags;
+
+		if (fh->type != enc_buf->type)
+			continue;
 
 		spin_lock_irqsave(&solo_enc->av_lock, flags);
 
-		if (list_empty(&fh->vidq_active))
-			break;
+		if (list_empty(&fh->vidq_active)) {
+			spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+			continue;
+		}
 
 		vb = list_first_entry(&fh->vidq_active,
 				      struct videobuf_buffer, queue);
 
-		if (!waitqueue_active(&vb->done))
-			break;
-
-		/* First check if the encoder has given us anything to use */
-		for (rd_idx = fh->rd_idx; rd_idx != solo_enc->enc_wr_idx;
-		     rd_idx = (rd_idx + 1) % SOLO_NR_RING_BUFS) {
-			struct solo_enc_buf *ebuf =
-				&solo_enc->enc_buf[rd_idx];
-
-			if (fh->fmt == V4L2_PIX_FMT_MPEG &&
-			    fh->type != ebuf->type)
-				continue;
-
-			enc_buf = ebuf;
-
-			/* For MPEG, we never skip a frame. For JPEG, we'll
-			 * continue to the newest frame always. */
-			if (fh->fmt == V4L2_PIX_FMT_MPEG)
-				break;
+		if (!waitqueue_active(&vb->done)) {
+			spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+			continue;
 		}
-
-		if (!enc_buf)
-			break;
 
 		list_del(&vb->queue);
 		vb->state = VIDEOBUF_ACTIVE;
+
 		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
 
-		ret = solo_enc_fillbuf(fh, vb, enc_buf);
-
-		/* If we succeed, or get a failure other than EAGAIN, we
-		 * will update the idx so we continue. EAGAIN is for failures
-		 * that we can retry, such as DMA timeouts. Other failures, such
-		 * as buffer too small or invalid offsets, we will not retry. */
-		if (ret == 0 || ret != -EAGAIN) {
-			if (rd_idx != solo_enc->enc_wr_idx)
-				rd_idx = (rd_idx + 1) % SOLO_NR_RING_BUFS;
-			fh->rd_idx = rd_idx;
-		}
+		solo_enc_fillbuf(fh, vb, enc_buf);
 	}
-
-	assert_spin_locked(&solo_enc->av_lock);
-	spin_unlock(&solo_enc->av_lock);
-}
-
-static int solo_enc_thread(void *data)
-{
-	struct solo_enc_fh *fh = data;
-	struct solo_enc_dev *solo_enc = fh->enc;
-	DECLARE_WAITQUEUE(wait, current);
-
-	set_freezable();
-	add_wait_queue(&solo_enc->thread_wait, &wait);
-
-	for (;;) {
-		long timeout = schedule_timeout_interruptible(HZ);
-		if (timeout == -ERESTARTSYS || kthread_should_stop())
-			break;
-		solo_enc_thread_try(fh);
-		try_to_freeze();
-	}
-
-	remove_wait_queue(&solo_enc->thread_wait, &wait);
-
-        return 0;
 }
 
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 {
-	struct solo_enc_dev *solo_enc;
-	struct solo_enc_buf *enc_buf;
-	struct videnc_status vstatus;
-	u32 mpeg_current;
-	u8 cur_q, ch;
-	enum solo_enc_types enc_type;
+	solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
+	wake_up_interruptible_all(&solo_dev->ring_thread_wait);
+}
 
-	vstatus.status11 = solo_reg_read(solo_dev, SOLO_VE_STATE(11));
-	cur_q = (vstatus.status11_st.last_queue + 1) % MP4_QS;
+#define GET_QUEUE(__sdev) (solo_reg_read(solo_dev, SOLO_VE_STATE(11)) & 0xff)
 
-	while (solo_dev->enc_idx != cur_q) {
+static void solo_handle_ring(struct solo6010_dev *solo_dev)
+{
+	u8 cur_q;
+
+	while ((cur_q = GET_QUEUE(solo_dev)) != solo_dev->enc_idx) {
+		struct solo_enc_dev *solo_enc;
+		struct solo_enc_buf enc_buf;
+		u32 mpeg_current;
+		u8 ch;
+
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
 		solo_dev->enc_idx = (solo_dev->enc_idx + 1) % MP4_QS;
 
 		ch = (mpeg_current >> 24) & 0x1f;
+		enc_buf.off = mpeg_current & 0x00ffffff;
 
 		if (ch >= SOLO_MAX_CHANNELS) {
 			ch -= SOLO_MAX_CHANNELS;
-			enc_type = SOLO_ENC_TYPE_EXT;
+			enc_buf.type = SOLO_ENC_TYPE_EXT;
 		} else
-			enc_type = SOLO_ENC_TYPE_STD;
+			enc_buf.type = SOLO_ENC_TYPE_STD;
 
 		solo_enc = solo_dev->v4l2_enc[ch];
 		BUG_ON(solo_enc == NULL);
-		enc_buf = &solo_enc->enc_buf[solo_enc->enc_wr_idx];
 
-		enc_buf->off = mpeg_current & 0x00ffffff;
-		enc_buf->type = enc_type;
 		if (solo_motion_detected(solo_enc))
-			enc_buf->motion = 1;
+			enc_buf.motion = 1;
 		else
-			enc_buf->motion = 0;
+			enc_buf.motion = 0;
 
-		solo_enc->enc_wr_idx = (solo_enc->enc_wr_idx + 1) %
-					SOLO_NR_RING_BUFS;
-
-		wake_up_interruptible_all(&solo_enc->thread_wait);
+		solo_enc_handle_one(solo_enc, &enc_buf);
 	}
 
-	return;
+	solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
+}
+
+static int solo_ring_thread(void *data)
+{
+	struct solo6010_dev *solo_dev = data;
+	DECLARE_WAITQUEUE(wait, current);
+
+	set_freezable();
+	add_wait_queue(&solo_dev->ring_thread_wait, &wait);
+
+	for (;;) {
+		long timeout = schedule_timeout_interruptible(HZ);
+		if (timeout == -ERESTARTSYS || kthread_should_stop())
+			break;
+		solo_handle_ring(solo_dev);
+		try_to_freeze();
+	}
+
+	remove_wait_queue(&solo_dev->ring_thread_wait, &wait);
+
+	return 0;
 }
 
 static int solo_enc_buf_setup(struct videobuf_queue *vq, unsigned int *count,
@@ -827,7 +816,6 @@ static void solo_enc_buf_queue(struct videobuf_queue *vq,
 
 	vb->state = VIDEOBUF_QUEUED;
 	list_add_tail(&vb->queue, &fh->vidq_active);
-	wake_up_interruptible(&fh->enc->thread_wait);
 }
 
 static void solo_enc_buf_release(struct videobuf_queue *vq,
@@ -1641,11 +1629,11 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	if (video_nr >= 0)
 		video_nr++;
 
+	INIT_LIST_HEAD(&solo_enc->listeners);
 	mutex_init(&solo_enc->enable_lock);
 	spin_lock_init(&solo_enc->av_lock);
 	spin_lock_init(&solo_enc->motion_lock);
 
-	init_waitqueue_head(&solo_enc->thread_wait);
 	atomic_set(&solo_enc->readers, 0);
 	atomic_set(&solo_enc->mpeg_readers, 0);
 	mutex_init(&solo_enc->osd_mutex);
@@ -1680,6 +1668,15 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 {
 	int i;
 
+	init_waitqueue_head(&solo_dev->ring_thread_wait);
+	solo_dev->ring_thread = kthread_run(solo_ring_thread, solo_dev,
+					    SOLO6010_NAME "_ring");
+	if (IS_ERR(solo_dev->ring_thread)) {
+		int err = PTR_ERR(solo_dev->ring_thread);
+		solo_dev->ring_thread = NULL;
+		return err;
+	}
+
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i);
 		if (IS_ERR(solo_dev->v4l2_enc[i]))
@@ -1711,4 +1708,9 @@ void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_enc_free(solo_dev->v4l2_enc[i]);
+
+	if (solo_dev->ring_thread) {
+		kthread_stop(solo_dev->ring_thread);
+		solo_dev->ring_thread = NULL;
+	}
 }
