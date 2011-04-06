@@ -78,7 +78,7 @@ static int erase_off(struct solo6010_dev *solo_dev)
 
 void solo_video_in_isr(struct solo6010_dev *solo_dev)
 {
-	wake_up_interruptible(&solo_dev->disp_thread_wait);
+	wake_up_interruptible_all(&solo_dev->disp_thread_wait);
 }
 
 static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
