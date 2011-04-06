@@ -160,11 +160,6 @@ struct solo_enc_dev {
 					__attribute__((__aligned__(4)));
 	struct mutex		osd_mutex;
 
-	/* VOP_HEADER handling */
-	void			*vh_buf;
-	dma_addr_t		vh_dma;
-	int			vh_size;
-
 	/* VOP stuff */
 	unsigned char		vop[64];
 	int			vop_len;
@@ -241,6 +236,8 @@ struct solo6010_dev {
 	/* Ring thread */
 	struct task_struct	*ring_thread;
 	wait_queue_head_t	ring_thread_wait;
+	atomic_t		enc_users;
+	atomic_t		disp_users;
 };
 
 static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
@@ -262,7 +259,7 @@ static inline u32 solo_reg_read(struct solo6010_dev *solo_dev, int reg)
 }
 
 static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
-				      u32 data)
+				  u32 data)
 {
 	unsigned long flags;
 	u16 val;

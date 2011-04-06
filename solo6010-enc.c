@@ -246,16 +246,12 @@ int solo_enc_init(struct solo6010_dev *solo_dev)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(i), 0);
 	}
 
-	solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
-
 	return 0;
 }
 
 void solo_enc_exit(struct solo6010_dev *solo_dev)
 {
 	int i;
-
-	solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(i), 0);

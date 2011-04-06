@@ -66,14 +66,12 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	if (mutex_lock_interruptible(&p2m_dev->mutex))
 		return -EINTR;
 
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
-
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
 
-	/* We only need to do this when we have more than one
-	 * descriptor. */
 	if (desc_cnt > 1) {
+		/* We only need to do this when we have more than one
+		 * descriptor. */
 		config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), desc_dma);
@@ -92,11 +90,8 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
-	if (desc_cnt > 1) {
+	if (desc_cnt > 1)
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
-		solo_reg_write(solo_dev, SOLO_P2M_DESC_ID(p2m_id), 0);
-		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), 0);
-	}
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;

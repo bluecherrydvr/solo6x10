@@ -309,6 +309,9 @@ static int solo_start_thread(struct solo_filehandle *fh)
 {
 	int ret = 0;
 
+	if (atomic_inc_return(&fh->solo_dev->disp_users) == 1)
+		solo6010_irq_on(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
+
 	fh->kthread = kthread_run(solo_thread, fh, SOLO6010_NAME "_disp");
 
 	if (IS_ERR(fh->kthread)) {
@@ -326,6 +329,9 @@ static void solo_stop_thread(struct solo_filehandle *fh)
 
 	kthread_stop(fh->kthread);
 	fh->kthread = NULL;
+
+	if (atomic_dec_return(&fh->solo_dev->disp_users) == 0)
+		solo6010_irq_off(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
 }
 
 static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,
@@ -824,6 +830,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	int ret;
 	int i;
 
+	atomic_set(&solo_dev->disp_users, 0);
 	init_waitqueue_head(&solo_dev->disp_thread_wait);
 
 	solo_dev->vfd = video_device_alloc();
@@ -864,16 +871,14 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	while (erase_off(solo_dev))
 		;// Do nothing
 
-	solo6010_irq_on(solo_dev, SOLO_IRQ_VIDEO_IN);
-
 	return 0;
 }
 
 void solo_v4l2_exit(struct solo6010_dev *solo_dev)
 {
-	solo6010_irq_off(solo_dev, SOLO_IRQ_VIDEO_IN);
-	if (solo_dev->vfd) {
-		video_unregister_device(solo_dev->vfd);
-		solo_dev->vfd = NULL;
-	}
+	if (solo_dev->vfd == NULL)
+		return;
+
+	video_unregister_device(solo_dev->vfd);
+	solo_dev->vfd = NULL;
 }
