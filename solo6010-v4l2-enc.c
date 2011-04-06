@@ -515,10 +515,8 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	int skip = 0;
 	int ret;
 
-	if (vb->bsize < enc_buf->mpeg_size) {
-		printk("Bad size: %u\n", enc_buf->mpeg_size);
+	if (vb->bsize < enc_buf->mpeg_size + solo_enc->vop_len)
 		return -EIO;
-	}
 
 	/* Includes the VOP header */
 	vb->size = 64;
@@ -536,7 +534,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	}
 
 	ret = solo_send_desc(fh, skip, vbuf, enc_buf->mpeg_off,
-			     enc_buf->mpeg_size + 64,
+			     enc_buf->mpeg_size,
 			     SOLO_MP4E_EXT_ADDR(solo_dev),
 			     SOLO_MP4E_EXT_SIZE(solo_dev));
 
