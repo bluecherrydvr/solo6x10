@@ -288,7 +288,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 
 	solo_dev->type = id->driver_data;
 	solo_dev->pdev = pdev;
-	rwlock_init(&solo_dev->reg_io_lock);
+	spin_lock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
 	solo_dev->p2m_msecs = 100; /* Only for during init */
 
