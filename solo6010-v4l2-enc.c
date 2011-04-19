@@ -310,7 +310,6 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 		return 0;
 
 	solo_update_mode(solo_enc);
-	list_add(&fh->list, &solo_enc->listeners);
 
 	/* Make sure to bw check on first reader */
 	if (!atomic_read(&solo_enc->readers)) {
@@ -321,6 +320,7 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	}
 
 	fh->enc_on = 1;
+	list_add(&fh->list, &solo_enc->listeners);
 
 	if (fh->type == SOLO_ENC_TYPE_EXT)
 		solo_reg_write(solo_dev, SOLO_CAP_CH_COMP_ENA_E(ch), 1);
@@ -420,13 +420,13 @@ static int solo_send_single(struct solo6010_dev *solo_dev, dma_addr_t vdma,
 
 	if (off + size <= base_size) {
 		/* Single buffer */
-		return solo_p2m_dma_t(solo_dev, 0, vdma, base + off, size,
-				      0, 0);
+		return solo_p2m_dma_t(solo_dev, 0, vdma, base + off,
+				      size, 0, 0);
 	}
 
 	/* Two-buffer wrap */
-	ret = solo_p2m_dma_t(solo_dev, 0, vdma, base + off, base_size - off,
-			     0, 0);
+	ret = solo_p2m_dma_t(solo_dev, 0, vdma, base + off,
+			     base_size - off, 0, 0);
 	if (ret)
 		return ret;
 
@@ -444,6 +444,9 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip, dma_addr_t vdma,
 	struct scatterlist *sg;
 	int i;
 	int ret;
+
+	if (WARN_ON_ONCE(size > FRAME_BUF_SIZE))
+		return -EINVAL;
 
 	/* Not SG */
 	if (!use_sg)
@@ -666,9 +669,11 @@ vbuf_error:
 static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 				struct solo_enc_buf *enc_buf)
 {
-	struct solo_enc_fh *fh, *t;
+	struct solo_enc_fh *fh;
 
-	list_for_each_entry_safe(fh, t, &solo_enc->listeners, list) {
+	mutex_lock(&solo_enc->enable_lock);
+
+	list_for_each_entry(fh, &solo_enc->listeners, list) {
 		struct videobuf_buffer *vb;
 		unsigned long flags;
 
@@ -692,6 +697,8 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 
 		solo_enc_fillbuf(fh, vb, enc_buf);
 	}
+
+	mutex_unlock(&solo_enc->enable_lock);
 }
 
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
