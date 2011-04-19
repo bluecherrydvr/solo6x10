@@ -59,7 +59,7 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	/* Get next ID */
 	p2m_id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
 	if (p2m_id < 0)
-		p2m_id = 0 - p2m_id;
+		p2m_id = -p2m_id;
 
 	p2m_dev = &solo_dev->p2m_dev[p2m_id];
 
@@ -107,6 +107,9 @@ void solo_p2m_fill_desc(struct solo_p2m_desc *desc, int wr,
 			dma_addr_t dma_addr, u32 ext_addr, u32 size,
 			int repeat, u32 ext_size)
 {
+	WARN_ON_ONCE(dma_addr & 0x03);
+	WARN_ON_ONCE(!size);
+
 	desc->cfg = SOLO_P2M_COPY_SIZE(size >> 2);
 	desc->ctrl = SOLO_P2M_BURST_SIZE(SOLO_P2M_BURST_256) |
 		(wr ? SOLO_P2M_WRITE : 0) | SOLO_P2M_TRANS_ON;
