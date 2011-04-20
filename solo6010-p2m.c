@@ -142,12 +142,15 @@ void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 	complete(&solo_dev->p2m_dev[id].completion);
 }
 
-void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status)
+void solo_p2m_error_isr(struct solo6010_dev *solo_dev)
 {
+	unsigned int err = solo_reg_read(solo_dev, SOLO_PCI_ERR);
 	struct solo_p2m_dev *p2m_dev;
 	int i;
 
-	if (!(status & SOLO_PCI_ERR_P2M))
+	panic("P2M PCI error detected");
+
+	if (!(err & SOLO_PCI_ERR_P2M))
 		return;
 
 	for (i = 0; i < SOLO_NR_P2M; i++) {

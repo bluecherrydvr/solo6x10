@@ -28,7 +28,7 @@
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
 
-#define IRQ_LEVEL			2
+#define IRQ_LEVEL			0
 
 static void solo_capture_config(struct solo6010_dev *solo_dev)
 {
@@ -119,7 +119,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	kfree(buf);
 }
 
-/* Should be called with osd_mutex held */
+/* Should be called with enable_lock held */
 int solo_osd_print(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;

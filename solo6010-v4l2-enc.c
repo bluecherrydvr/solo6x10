@@ -1562,14 +1562,14 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 			if (ctrl->size - 1 > OSD_TEXT_MAX)
                                 err = -ERANGE;
 			else {
-				mutex_lock(&solo_enc->osd_mutex);
+				mutex_lock(&solo_enc->enable_lock);
                         	err = copy_from_user(solo_enc->osd_text,
 						     ctrl->string,
 						     OSD_TEXT_MAX);
 				solo_enc->osd_text[OSD_TEXT_MAX] = '\0';
 				if (!err)
 					err = solo_osd_print(solo_enc);
-				mutex_unlock(&solo_enc->osd_mutex);
+				mutex_unlock(&solo_enc->enable_lock);
 			}
 			break;
 #endif
@@ -1604,11 +1604,11 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 				ctrl->size = OSD_TEXT_MAX;
 				err = -ENOSPC;
 			} else {
-				mutex_lock(&solo_enc->osd_mutex);
+				mutex_lock(&solo_enc->enable_lock);
 				err = copy_to_user(ctrl->string,
 						   solo_enc->osd_text,
 						   OSD_TEXT_MAX);
-				mutex_unlock(&solo_enc->osd_mutex);
+				mutex_unlock(&solo_enc->enable_lock);
 			}
 			break;
 #endif
@@ -1730,7 +1730,6 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 
 	atomic_set(&solo_enc->readers, 0);
 	atomic_set(&solo_enc->mpeg_readers, 0);
-	mutex_init(&solo_enc->osd_mutex);
 
 	solo_enc->qp = SOLO_DEFAULT_QP;
         solo_enc->gop = solo_dev->fps;

@@ -109,10 +109,8 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 		status &= solo_dev->irq_mask;
 	}
 
-	if (status & SOLO_IRQ_PCI_ERR) {
-		u32 err = solo_reg_read(solo_dev, SOLO_PCI_ERR);
-		solo_p2m_error_isr(solo_dev, err);
-	}
+	if (status & SOLO_IRQ_PCI_ERR)
+		solo_p2m_error_isr(solo_dev);
 
 	for (i = 0; i < SOLO_NR_P2M; i++)
 		if (status & SOLO_IRQ_P2M(i))

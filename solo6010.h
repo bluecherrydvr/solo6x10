@@ -158,7 +158,6 @@ struct solo_enc_dev {
 	char			osd_text[OSD_TEXT_MAX + 1];
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
 					__attribute__((__aligned__(4)));
-	struct mutex		osd_mutex;
 
 	/* VOP stuff */
 	unsigned char		vop[64];
@@ -305,7 +304,7 @@ void solo_g723_exit(struct solo6010_dev *solo_dev);
 /* ISR's */
 int solo_i2c_isr(struct solo6010_dev *solo_dev);
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id);
-void solo_p2m_error_isr(struct solo6010_dev *solo_dev, u32 status);
+void solo_p2m_error_isr(struct solo6010_dev *solo_dev);
 void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev);
 void solo_g723_isr(struct solo6010_dev *solo_dev);
 void solo_motion_isr(struct solo6010_dev *solo_dev);
