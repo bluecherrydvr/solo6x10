@@ -227,8 +227,29 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 }
 static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
 
+static ssize_t solo_set_vid_type(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	return -EPERM;
+}
+
+static ssize_t solo_get_vid_type(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "%s", solo_dev->video_type ==
+		       SOLO_VO_FMT_TYPE_NTSC ? "NTSC" : "PAL");
+}
+static DEVICE_ATTR(video_type, S_IWUSR | S_IRUGO, solo_get_vid_type,
+		   solo_set_vid_type);
+
 static struct device_attribute *const solo_dev_attrs[] = {
 	&dev_attr_eeprom,
+	&dev_attr_video_type,
 };
 
 static void solo_device_release(struct device *dev)
