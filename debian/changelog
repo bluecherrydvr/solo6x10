@@ -9,6 +9,7 @@ solo6010 (2.3.0-1) lucid; urgency=low
     doesn't change except in that case. Keeps from having to do it every
     frame.
   * Move all buffer handling to a thread, outside of interrupt context.
+  * Increase timeout for P2M to avoid a system lockup induced by SOLO bug
 
  -- Ben Collins <bcollins@bluecherry.net>  Thu, 17 Mar 2011 16:42:51 -0400
 
