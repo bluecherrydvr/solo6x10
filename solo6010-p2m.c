@@ -51,15 +51,19 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 		      int desc_cnt)
 {
 	struct solo_p2m_dev *p2m_dev;
-	unsigned int timeout = 0;
+	unsigned int timeout;
 	unsigned int config = 0;
 	int ret = 0;
         int p2m_id;
 
-	/* Get next ID */
-	p2m_id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
-	if (p2m_id < 0)
-		p2m_id = -p2m_id;
+	/* Get next ID. According to Softlogic, 6110 has problems on !=0 P2M */
+	if (solo_dev->type != SOLO_DEV_6110) {
+		p2m_id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
+		if (p2m_id < 0)
+			p2m_id = -p2m_id;
+	} else {
+		p2m_id = 0;
+	}
 
 	p2m_dev = &solo_dev->p2m_dev[p2m_id];
 
@@ -88,15 +92,15 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
 					      solo_dev->p2m_jiffies);
 
-	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
-
-	if (desc_cnt > 1)
-		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
-
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
 	else if (timeout == 0)
 		ret = -EAGAIN;
+
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
+
+	if (desc_cnt > 1)
+		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
 
 	mutex_unlock(&p2m_dev->mutex);
 
@@ -147,8 +151,6 @@ void solo_p2m_error_isr(struct solo6010_dev *solo_dev)
 	unsigned int err = solo_reg_read(solo_dev, SOLO_PCI_ERR);
 	struct solo_p2m_dev *p2m_dev;
 	int i;
-
-	panic("P2M PCI error detected");
 
 	if (!(err & SOLO_PCI_ERR_P2M))
 		return;
