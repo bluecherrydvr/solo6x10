@@ -201,7 +201,7 @@ struct solo6010_dev {
 	/* P2M DMA Engine */
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
 	atomic_t		p2m_count;
-	int			p2m_msecs;
+	int			p2m_jiffies;
 
 	/* V4L2 Display items */
 	struct video_device	*vfd;

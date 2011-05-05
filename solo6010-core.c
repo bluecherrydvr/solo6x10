@@ -309,7 +309,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	solo_dev->pdev = pdev;
 	spin_lock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
-	solo_dev->p2m_msecs = 100; /* Only for during init */
+	solo_dev->p2m_jiffies = msecs_to_jiffies(100); /* Only for during init */
 
 	if ((ret = pci_enable_device(pdev)))
 		goto fail_probe;
@@ -447,7 +447,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Now that init is over, set this lower */
-	solo_dev->p2m_msecs = 10;
+	solo_dev->p2m_jiffies = msecs_to_jiffies(50);
 
 	return 0;
 

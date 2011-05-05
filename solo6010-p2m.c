@@ -86,7 +86,7 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	}
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
-					      msecs_to_jiffies(solo_dev->p2m_msecs));
+					      solo_dev->p2m_jiffies);
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
