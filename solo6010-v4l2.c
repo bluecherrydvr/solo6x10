@@ -201,13 +201,13 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 	return 0;
 }
 
-static int solo_fillbuf(struct solo_filehandle *fh,
-			struct videobuf_buffer *vb)
+static void solo_fillbuf(struct solo_filehandle *fh,
+			 struct videobuf_buffer *vb)
 {
 	struct solo6010_dev *solo_dev = fh->solo_dev;
 	dma_addr_t vbuf;
 	unsigned int fdma_addr;
-	int ret = -1;
+	int error = -1;
 	int i;
 
 	if (!(vbuf = videobuf_to_dma_contig(vb)))
@@ -220,41 +220,42 @@ static int solo_fillbuf(struct solo_filehandle *fh,
 			((u8 *)p)[i] = 0x80;
 			((u8 *)p)[i + 1] = 0x00;
 		}
-		ret = 0;
+		error = 0;
 	} else {
 		fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
 				(SOLO_HW_BPL * solo_vlines(solo_dev)));
 
-		ret = solo_p2m_dma_t(solo_dev, 0, vbuf, fdma_addr,
-				     solo_bytesperline(solo_dev),
-				     solo_vlines(solo_dev), SOLO_HW_BPL);
+		error = solo_p2m_dma_t(solo_dev, 0, vbuf, fdma_addr,
+				       solo_bytesperline(solo_dev),
+				       solo_vlines(solo_dev), SOLO_HW_BPL);
 	}
 
 finish_buf:
-	if (ret) {
-		unsigned long flags;
-
-		spin_lock_irqsave(&fh->slock, flags);
-		list_add(&vb->queue, &fh->vidq_active);
-		vb->state = VIDEOBUF_QUEUED;
-		spin_unlock_irqrestore(&fh->slock, flags);
+	if (error) {
+		vb->state = VIDEOBUF_ERROR;
 	} else {
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
 		do_gettimeofday(&vb->ts);
-
-		wake_up(&vb->done);
 	}
 
-	return ret;
+	wake_up(&vb->done);
 }
 
 static void solo_thread_try(struct solo_filehandle *fh)
 {
 	struct videobuf_buffer *vb;
-	unsigned int cur_write;
 
+	/* Only "break" from this loop if slock is held, otherwise
+	 * just return. */
 	for (;;) {
+		unsigned int cur_write;
+
+		cur_write = SOLO_VI_STATUS0_PAGE(solo_reg_read(fh->solo_dev,
+							       SOLO_VI_STATUS0));
+		if (cur_write == fh->old_write)
+			return;
+
 		spin_lock(&fh->slock);
 
 		if (list_empty(&fh->vidq_active))
@@ -266,18 +267,13 @@ static void solo_thread_try(struct solo_filehandle *fh)
 		if (!waitqueue_active(&vb->done))
 			break;
 
-		cur_write = SOLO_VI_STATUS0_PAGE(solo_reg_read(fh->solo_dev,
-							       SOLO_VI_STATUS0));
-		if (cur_write == fh->old_write)
-			break;
-
+		fh->old_write = cur_write;
 		list_del(&vb->queue);
 		vb->state = VIDEOBUF_ACTIVE;
 
 		spin_unlock(&fh->slock);
 
-		if (!solo_fillbuf(fh, vb))
-			fh->old_write = cur_write;
+		solo_fillbuf(fh, vb);
 	}
 
 	assert_spin_locked(&fh->slock);
