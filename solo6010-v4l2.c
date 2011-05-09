@@ -220,6 +220,7 @@ static int solo_fillbuf(struct solo_filehandle *fh,
 			((u8 *)p)[i] = 0x80;
 			((u8 *)p)[i + 1] = 0x00;
 		}
+		ret = 0;
 	} else {
 		fdma_addr = SOLO_DISP_EXT_ADDR(solo_dev) + (fh->old_write *
 				(SOLO_HW_BPL * solo_vlines(solo_dev)));
