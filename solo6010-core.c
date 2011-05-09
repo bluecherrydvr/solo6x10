@@ -247,9 +247,23 @@ static ssize_t solo_get_vid_type(struct device *dev,
 static DEVICE_ATTR(video_type, S_IWUSR | S_IRUGO, solo_get_vid_type,
 		   solo_set_vid_type);
 
+static ssize_t solo_get_p2m_timeouts(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "%d\n", solo_dev->p2m_timeouts);
+}
+static DEVICE_ATTR(p2m_timeouts, S_IWUSR | S_IRUGO, solo_get_p2m_timeouts,
+		   NULL);
+
+
 static struct device_attribute *const solo_dev_attrs[] = {
 	&dev_attr_eeprom,
 	&dev_attr_video_type,
+	&dev_attr_p2m_timeouts,
 };
 
 static void solo_device_release(struct device *dev)

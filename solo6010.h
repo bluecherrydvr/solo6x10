@@ -202,6 +202,7 @@ struct solo6010_dev {
 	struct solo_p2m_dev	p2m_dev[SOLO_NR_P2M];
 	atomic_t		p2m_count;
 	int			p2m_jiffies;
+	unsigned int		p2m_timeouts;
 
 	/* V4L2 Display items */
 	struct video_device	*vfd;

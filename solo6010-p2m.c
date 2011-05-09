@@ -94,8 +94,10 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 	if (WARN_ON_ONCE(p2m_dev->error))
 		ret = -EIO;
-	else if (timeout == 0)
+	else if (timeout == 0) {
+		solo_dev->p2m_timeouts++;
 		ret = -EAGAIN;
+	}
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
