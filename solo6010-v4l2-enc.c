@@ -1484,7 +1484,7 @@ static int solo_g_ctrl(struct file *file, void *priv,
 		ctrl->value = V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC;
 		break;
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
-		if (atomic_read(&solo_enc->mpeg_readers) > 0)
+		if (atomic_read(&solo_enc->readers) > 0)
 			return -EBUSY;
 		ctrl->value = solo_enc->gop;
 		break;
