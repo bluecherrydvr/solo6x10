@@ -1379,7 +1379,6 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 
-	solo_enc->gop = max(solo_dev->fps / solo_enc->interval, 1);
 	solo_update_mode(solo_enc);
 
 	mutex_unlock(&solo_enc->enable_lock);
@@ -1485,6 +1484,8 @@ static int solo_g_ctrl(struct file *file, void *priv,
 		ctrl->value = V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC;
 		break;
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		if (atomic_read(&solo_enc->mpeg_readers) > 0)
+			return -EBUSY;
 		ctrl->value = solo_enc->gop;
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
@@ -1523,10 +1524,6 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		if (ctrl->value < 1 || ctrl->value > 255)
 			return -ERANGE;
 		solo_enc->gop = ctrl->value;
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(solo_enc->ch),
-			       solo_enc->gop);
-		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(solo_enc->ch),
-			       solo_enc->gop);
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
 	{
