@@ -554,6 +554,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	struct solo_videobuf *svb = (struct solo_videobuf *)vb;
 	unsigned char vh[128];
+	unsigned int vh_size;
 	int skip = 0;
 	int ret;
 
@@ -590,7 +591,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	if (ret)
 		return ret;
 
-	/* Use the actual byte size */
+	/* Get the VOP header so we can get the actual mpeg payload size */
 	if (use_sg) {
 		sg_copy_to_buffer(vbuf->sglist, vbuf->sglen, vh,
 				  sizeof(vh));
@@ -599,7 +600,17 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 		memcpy(vh, p, sizeof(vh));
 	}
 
-	vb->size += *(unsigned int *)(vh + skip) & 0x000fffff;
+	/* Sanity check this. Mpeg_size is an aligned value that is
+	 * always >= the actual mpeg size given in the vop header.
+	 * Alignment is 64 bytes, but I've set this check for 128 bytes
+	 * to give some leeway since you can configure it to do that
+	 * much alignement elsewhere in the encoder init. */
+	vh_size = *(unsigned int *)(vh + skip) & 0x000fffff;
+	if (WARN_ON_ONCE(vh_size > enc_buf->mpeg_size ||
+	    (enc_buf->mpeg_size - vh_size) > 128))
+		return -EINVAL;
+
+	vb->size += vh_size;
 
 	return 0;
 }
