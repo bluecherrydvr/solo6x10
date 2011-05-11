@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2010-2011 Ben Collins <bcollins@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,6 +53,7 @@ struct solo_enc_fh {
 	int			desc_nelts;
         struct solo_p2m_desc	*desc_items;
 	dma_addr_t		desc_dma;
+	spinlock_t		av_lock;
 	struct list_head	list;
 };
 
@@ -606,10 +607,10 @@ vbuf_error:
 	if (ret) {
 		unsigned long flags;
 
-		spin_lock_irqsave(&solo_enc->av_lock, flags);
+		spin_lock_irqsave(&fh->av_lock, flags);
 		list_add(&vb->queue, &fh->vidq_active);
 		vb->state = VIDEOBUF_QUEUED;
-		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+		spin_unlock_irqrestore(&fh->av_lock, flags);
 	} else {
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
@@ -636,10 +637,10 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 		if (fh->type != enc_buf->type)
 			continue;
 
-		spin_lock_irqsave(&solo_enc->av_lock, flags);
+		spin_lock_irqsave(&fh->av_lock, flags);
 
 		if (list_empty(&fh->vidq_active)) {
-			spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+			spin_unlock_irqrestore(&fh->av_lock, flags);
 			continue;
 		}
 
@@ -649,7 +650,7 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 		list_del(&vb->queue);
 		vb->state = VIDEOBUF_ACTIVE;
 
-		spin_unlock_irqrestore(&solo_enc->av_lock, flags);
+		spin_unlock_irqrestore(&fh->av_lock, flags);
 
 		solo_enc_fillbuf(fh, vb, enc_buf);
 	}
@@ -878,6 +879,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	}
 
 	fh->enc = solo_enc;
+	spin_lock_init(&fh->av_lock);
 	file->private_data = fh;
 	INIT_LIST_HEAD(&fh->vidq_active);
 	fh->fmt = V4L2_PIX_FMT_MPEG;
@@ -886,7 +888,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,37)
 	videobuf_queue_sg_init(&fh->vidq, &solo_enc_video_qops,
 				&solo_dev->pdev->dev,
-				&solo_enc->av_lock,
+				&fh->av_lock,
 				V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				V4L2_FIELD_INTERLACED,
 				sizeof(struct solo_videobuf),
@@ -894,7 +896,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 #else
 	videobuf_queue_sg_init(&fh->vidq, &solo_enc_video_qops,
 				&solo_dev->pdev->dev,
-				&solo_enc->av_lock,
+				&fh->av_lock,
 				V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				V4L2_FIELD_INTERLACED,
 				sizeof(struct solo_videobuf), fh);
@@ -1650,7 +1652,6 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 
 	INIT_LIST_HEAD(&solo_enc->listeners);
 	mutex_init(&solo_enc->enable_lock);
-	spin_lock_init(&solo_enc->av_lock);
 	spin_lock_init(&solo_enc->motion_lock);
 
 	atomic_set(&solo_enc->readers, 0);

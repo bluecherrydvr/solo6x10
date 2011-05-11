@@ -142,7 +142,6 @@ struct solo_enc_dev {
 	/* V4L2 Items */
 	struct video_device	*vfd;
 	/* General accounting */
-	spinlock_t		av_lock;
 	struct mutex		enable_lock;
 	spinlock_t		motion_lock;
 	atomic_t		readers;
