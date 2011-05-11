@@ -31,14 +31,14 @@ The card should be detected with lspci.  An example would look like this:
 
 will also show this:
 
-('[   12.822837] solo6x10 0000:04:05.0: Probing Softlogic 6110
-[   12.823108] solo6x10 0000:04:05.0: PCI INT A -> Link[APC6] -> GSI 16 (level, low) -> IRQ 16
-[   12.824294] solo6x10 0000:04:05.0: Enabled 2 i2c adapters
-[   12.824332] solo6x10 0000:04:05.0: Using NTSC video format
-[   15.760706] solo6x10 0000:04:05.0: Initialized 4 tw28xx chips: tw2864[4]
-[   15.760783] solo6x10 0000:04:05.0: Display as /dev/video0 with 16 inputs (5 extended)
-[   15.788965] solo6x10 0000:04:05.0: Encoders as /dev/video1-16
-[   15.789372] solo6x10 0000:04:05.0: Alsa sound card as Softlogic0`)
+	[   12.822837] solo6x10 0000:04:05.0: Probing Softlogic 6110
+	[   12.823108] solo6x10 0000:04:05.0: PCI INT A -> Link[APC6] -> GSI 16 (level, low) -> IRQ 16
+	[   12.824294] solo6x10 0000:04:05.0: Enabled 2 i2c adapters
+	[   12.824332] solo6x10 0000:04:05.0: Using NTSC video format
+	[   15.760706] solo6x10 0000:04:05.0: Initialized 4 tw28xx chips: tw2864[4]
+	[   15.760783] solo6x10 0000:04:05.0: Display as /dev/video0 with 16 inputs (5 extended)
+	[   15.788965] solo6x10 0000:04:05.0: Encoders as /dev/video1-16
+	[   15.789372] solo6x10 0000:04:05.0: Alsa sound card as Softlogic0
 
 What is the display port?
 -------------------------
