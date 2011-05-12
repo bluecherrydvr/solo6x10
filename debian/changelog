@@ -1,3 +1,17 @@
+solo6010 (2.3.1-1) lucid; urgency=low
+
+  * utils: Add example bc-record program
+  * v4l2-enc: Move av_lock to be per filehandle (in
+  * encoder: Use scattergather exclusively
+  * encoder: Return EBUSY if attempts are made to s
+  * encoder: Allow setting GOP before enabling the 
+  * encoder: Sanity-check mpeg size from VOP header
+  * display: Fix skipping and jumping in frames
+  * p2m: Track number of timeouts for statistics
+  * display: Return buffer on blank frames without error
+
+ -- Ben Collins <bcollins@bluecherry.net>  Wed, 11 May 2011 15:27:48 -0400
+
 solo6010 (2.3.0-1) lucid; urgency=low
 
   * Remove extraneous WARN_ON's and add better handling of non-recoverable

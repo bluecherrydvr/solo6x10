@@ -1,9 +1,8 @@
-- Rework sg to be enabled always, and setup 6110 to use manual descriptor more
+- Setup 6110 to use manual descriptor mode
 
 - Fix tw2815 4-port
-- Fix setting GOP
 
-- batch up desc requests for more efficient use of p2m
+- batch up desc requests for more efficient use of p2m?
 - encoder on/off controls
 - mpeg cid bitrate mode (vbr/cbr)
 - mpeg cid bitrate/bitrate-peak
