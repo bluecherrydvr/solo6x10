@@ -9,6 +9,7 @@ solo6010 (2.3.1-1) lucid; urgency=low
   * display: Fix skipping and jumping in frames
   * p2m: Track number of timeouts for statistics
   * display: Return buffer on blank frames without error
+  * core: Set SDRAM size correctly for 4-port cards (fixes 4-port tw2815)
 
  -- Ben Collins <bcollins@bluecherry.net>  Wed, 11 May 2011 15:27:48 -0400
 
