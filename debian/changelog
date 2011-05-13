@@ -1,3 +1,11 @@
+solo6010 (2.3.2-1) lucid; urgency=low
+
+  * Bug #793: Inputs randomly show black screens, either partially or fully
+  * Bug #792: Inputs randomly show duplicates from other inputs
+  * Both fixed by rework of 2864 initialization
+
+ -- Ben Collins <bcollins@bluecherry.net>  Fri, 13 May 2011 10:10:13 -0400
+
 solo6010 (2.3.1-1) lucid; urgency=low
 
   * utils: Add example bc-record program
