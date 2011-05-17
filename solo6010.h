@@ -135,7 +135,7 @@ struct solo_p2m_dev {
 	int			error;
 };
 
-#define OSD_TEXT_MAX		36
+#define OSD_TEXT_MAX		44
 
 struct solo_enc_dev {
 	struct solo6010_dev	*solo_dev;
