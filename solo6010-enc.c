@@ -101,9 +101,11 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 		       0xF0 << 16 | 0x80 << 8 | 0x80);
 
 	if (solo_dev->type == SOLO_DEV_6010)
-		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, 0);
+		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT,
+			       SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
 	else
-		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, SOLO_VE_OSD_V_DOUBLE);
+		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, SOLO_VE_OSD_V_DOUBLE |
+			       SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
 
 	/* Clear OSG buffer */
 	buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);

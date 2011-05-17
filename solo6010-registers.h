@@ -425,6 +425,10 @@
 #define SOLO_VE_OSD_CLR				0x0698
 #define SOLO_VE_OSD_OPT				0x069C
 #define   SOLO_VE_OSD_V_DOUBLE			(1<<16) /* 6110 Only */
+#define   SOLO_VE_OSD_H_SHADOW			(1<<15)
+#define   SOLO_VE_OSD_V_SHADOW			(1<<14)
+#define   SOLO_VE_OSD_H_OFFSET(n)		((n & 0x7f)<<7)
+#define   SOLO_VE_OSD_V_OFFSET(n)		(n & 0x7f)
 
 #define SOLO_VE_CH_INTL(ch)			(0x0700+((ch)*4))
 #define SOLO_VE_CH_MOT(ch)			(0x0740+((ch)*4))
