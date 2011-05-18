@@ -73,9 +73,9 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
 
-	if (desc_cnt > 1) {
-		/* We only need to do this when we have more than one
-		 * descriptor. */
+	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110) {
+		/* For 6010 with more than one desc, we can do a one-shot */
+		p2m_dev->desc_count = p2m_dev->desc_idx = 0;
 		config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
 
 		solo_reg_write(solo_dev, SOLO_P2M_DES_ADR(p2m_id), desc_dma);
@@ -83,6 +83,11 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config |
 			       SOLO_P2M_DESC_MODE);
 	} else {
+		/* For single descriptors and 6110, we need to run each desc */
+		p2m_dev->desc_count = desc_cnt;
+		p2m_dev->desc_idx = 1;
+		p2m_dev->descs = desc;
+
 		solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc[1].dma_addr);
 		solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc[1].ext_addr);
 		solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc[1].cfg);
@@ -101,7 +106,7 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
-	if (desc_cnt > 1)
+	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110)
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
 
 	mutex_unlock(&p2m_dev->mutex);
@@ -145,7 +150,23 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 
 void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 {
-	complete(&solo_dev->p2m_dev[id].completion);
+	struct solo_p2m_dev *p2m_dev = &solo_dev->p2m_dev[id];
+	struct solo_p2m_desc *desc;
+
+	if (p2m_dev->desc_count <= p2m_dev->desc_idx) {
+		complete(&p2m_dev->completion);
+		return;
+	}
+
+	/* Setup next descriptor */
+	p2m_dev->desc_idx++;
+	desc = &p2m_dev->descs[p2m_dev->desc_idx];
+
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), 0);
+	solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(id), desc->dma_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(id), desc->ext_addr);
+	solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(id), desc->cfg);
+	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc->ctrl);
 }
 
 void solo_p2m_error_isr(struct solo6010_dev *solo_dev)

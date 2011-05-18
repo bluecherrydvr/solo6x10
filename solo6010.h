@@ -132,6 +132,9 @@ struct solo_p2m_desc {
 struct solo_p2m_dev {
 	struct mutex		mutex;
 	struct completion	completion;
+	int			desc_count;
+	int			desc_idx;
+	struct solo_p2m_desc	*descs;
 	int			error;
 };
 
