@@ -24,39 +24,48 @@
 #define SOLO_DISP_EXT_ADDR(__solo)		0x00000000
 #define SOLO_DISP_EXT_SIZE			0x00480000
 
+/* This is the encoder on-screen display. Not sure why it needs double
+ * area for each encoder (extended?) */
 #define SOLO_EOSD_EXT_ADDR(__solo) \
 		(SOLO_DISP_EXT_ADDR(__solo) + SOLO_DISP_EXT_SIZE)
-#define SOLO_EOSD_EXT_SIZE			0x00010000
+#define SOLO_EOSD_EXT_SIZE			0x00020000
+#define SOLO_EOSD_EXT_AREA(__solo) \
+		(SOLO_EOSD_EXT_SIZE * __solo->nr_chans * 2)
 
 #define SOLO_MOTION_EXT_ADDR(__solo) \
-		(SOLO_EOSD_EXT_ADDR(__solo) + \
-		 (SOLO_EOSD_EXT_SIZE * __solo->nr_chans * 2))
+		(SOLO_EOSD_EXT_ADDR(__solo) + SOLO_EOSD_EXT_AREA(__solo))
 #define SOLO_MOTION_EXT_SIZE			0x00080000
 
 #define SOLO_G723_EXT_ADDR(__solo) \
 		(SOLO_MOTION_EXT_ADDR(__solo) + SOLO_MOTION_EXT_SIZE)
 #define SOLO_G723_EXT_SIZE			0x00010000
 
+/* Capture is for storing frames that need to be encoded. These are raw,
+ * which means PAL-D1 is the largest frame (hence the 18). Not sure what
+ * the extra location is for. */
 #define SOLO_CAP_EXT_ADDR(__solo) \
 		(SOLO_G723_EXT_ADDR(__solo) + SOLO_G723_EXT_SIZE)
 #define SOLO_CAP_EXT_MAX_PAGE			(18 + 15)
-#define SOLO_CAP_EXT_SIZE			(SOLO_CAP_EXT_MAX_PAGE * 65536)
-
-#define SOLO_EREF_EXT_ADDR(__solo) \
-		(SOLO_CAP_EXT_ADDR(__solo) + \
-		 (SOLO_CAP_EXT_SIZE * (__solo->nr_chans + 1)))
-#define SOLO_EREF_EXT_SIZE			0x00140000
+#define SOLO_CAP_EXT_AREA(__solo) \
+		((SOLO_CAP_EXT_MAX_PAGE << 16) * (__solo->nr_chans + 1))
 
 #define SOLO_MP4E_EXT_ADDR(__solo) \
-		(SOLO_EREF_EXT_ADDR(__solo) + \
-		 (SOLO_EREF_EXT_SIZE * __solo->nr_chans))
+		(SOLO_CAP_EXT_ADDR(__solo) + SOLO_CAP_EXT_AREA(__solo))
 #define SOLO_MP4E_EXT_SIZE(__solo)		(0x00080000 * __solo->nr_chans)
 
 #define SOLO_JPEG_EXT_ADDR(__solo) \
 		(SOLO_MP4E_EXT_ADDR(__solo) + SOLO_MP4E_EXT_SIZE(__solo))
 #define SOLO_JPEG_EXT_SIZE(__solo)		(0x00080000 * __solo->nr_chans)
 
-#define SOLO_SDRAM_END(__solo) \
+/* This is to save full frames for P-Frame reference. Each input needs
+ * two -- one for regular encoder, and one for extended encoder. */
+#define SOLO_EREF_EXT_ADDR(__solo) \
 		(SOLO_JPEG_EXT_ADDR(__solo) + SOLO_JPEG_EXT_SIZE(__solo))
+#define SOLO_EREF_EXT_SIZE			0x00140000
+#define SOLO_EREF_EXT_AREA(__solo) \
+		(SOLO_EREF_EXT_SIZE * __solo->nr_chans * 2)
+
+#define SOLO_SDRAM_END(__solo) \
+		(SOLO_EREF_EXT_ADDR(__solo) + SOLO_EREF_EXT_AREA(__solo))
 
 #endif /* __SOLO6010_OFFSETS_H */
