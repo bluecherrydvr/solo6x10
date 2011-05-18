@@ -194,9 +194,54 @@ void solo_p2m_exit(struct solo6010_dev *solo_dev)
 		solo6010_irq_off(solo_dev, SOLO_IRQ_P2M(i));
 }
 
+static int solo_p2m_test(struct solo6010_dev *solo_dev, int base, int size)
+{
+	u32 *wr_buf;
+	u32 *rd_buf;
+	int i;
+	int ret = -EIO;
+	int order = get_order(size);
+
+	if ((wr_buf = (u32 *)__get_free_pages(GFP_KERNEL, order)) == NULL)
+		return -1;
+
+	if ((rd_buf = (u32 *)__get_free_pages(GFP_KERNEL, order)) == NULL) {
+		free_pages((unsigned long)wr_buf, order);
+		return -1;
+	}
+
+	for (i = 0; i < ((size / 2) >> 2); i++)
+		*(wr_buf + i) = (i << 16) | (i + 1);
+
+	for(i = ((size / 2) >> 2); i < (size >> 2); i++)
+		*(wr_buf + i) = ~((i << 16) | (i + 1));
+
+	memset(rd_buf, 0x55, size);
+
+	if (solo_p2m_dma(solo_dev, 1, wr_buf, base, size, 0, 0))
+		goto test_fail;
+
+	if (solo_p2m_dma(solo_dev, 0, rd_buf, base, size, 0, 0))
+		goto test_fail;
+
+	for (i = 0; i < (size >> 2); i++) {
+		if (*(wr_buf + i) != *(rd_buf + i))
+			goto test_fail;
+	}
+
+	ret = 0;
+
+test_fail:
+	free_pages((unsigned long)wr_buf, order);
+	free_pages((unsigned long)rd_buf, order);
+
+	return ret;
+}
+
 int solo_p2m_init(struct solo6010_dev *solo_dev)
 {
 	struct solo_p2m_dev *p2m_dev;
+	int sdram_ok = 0;
 	int i;
 
 	for (i = 0; i < SOLO_NR_P2M; i++) {
@@ -212,6 +257,43 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_P2M_DMA_INTERVAL(0) |
 			       SOLO_P2M_PCI_MASTER_MODE);
 		solo6010_irq_on(solo_dev, SOLO_IRQ_P2M(i));
+	}
+
+	/* Find correct SDRAM size */
+	for (i = 2; i >= 0; i--) {
+		solo_reg_write(solo_dev, SOLO_DMA_CTRL,
+			       SOLO_DMA_CTRL_REFRESH_CYCLE(1) |
+			       SOLO_DMA_CTRL_SDRAM_SIZE(i) |
+			       SOLO_DMA_CTRL_SDRAM_CLK_INVERT |
+			       SOLO_DMA_CTRL_READ_CLK_SELECT |
+			       SOLO_DMA_CTRL_LATENCY(1));
+
+		if (i == 2) {
+			if (solo_p2m_test(solo_dev, 0x07ff0000, 0x00010000) ||
+			    solo_p2m_test(solo_dev, 0x05ff0000, 0x00010000))
+				continue;
+		}
+
+		if (i == 1) {
+			if (solo_p2m_test(solo_dev, 0x03ff0000, 0x00010000))
+				continue;
+		}
+
+		if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
+			continue;
+
+		sdram_ok = (32 * 1024 * 1024) << i;
+		break;
+	}
+
+	if (!sdram_ok) {
+		dev_err(&solo_dev->pdev->dev, "Error detecting SDRAM size\n");
+		return -EIO;
+	}
+
+	if (SOLO_SDRAM_END(solo_dev) > sdram_ok) {
+		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough\n");
+		return -EIO;
 	}
 
 	return 0;

@@ -414,7 +414,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* Setup the DMA engine */
 	solo_reg_write(solo_dev, SOLO_DMA_CTRL,
 		       SOLO_DMA_CTRL_REFRESH_CYCLE(1) |
-		       SOLO_DMA_CTRL_SDRAM_SIZE(solo_dev->nr_chans == 4 ? 0 : 2) |
+		       SOLO_DMA_CTRL_SDRAM_SIZE(2) |
 		       SOLO_DMA_CTRL_SDRAM_CLK_INVERT |
 		       SOLO_DMA_CTRL_READ_CLK_SELECT |
 		       SOLO_DMA_CTRL_LATENCY(1));
