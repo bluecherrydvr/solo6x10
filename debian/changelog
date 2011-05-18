@@ -1,3 +1,18 @@
+solo6010 (2.3.3-1) lucid; urgency=low
+
+  * solo: Update SDRAM offsets and comment layout
+  * solo: Fix offsets (especially to fit into 32Meg SDRAM)
+  * p2m: Auto-detect size of SDRAM
+  * p2m: Virtualize descriptor mode for 6110
+  * v4l2-enc: Use contiguous dma for 6110
+  * Revert "encoder: Use scattergather exclusively"
+  * OSD: Add drop shadow around text to help contrast
+  * OSD: Extend string length to 44 characters (352/8, max line length for CIF)
+
+  * Feature #492: Add black box around time stamp
+
+ -- Ben Collins <bcollins@bluecherry.net>  Wed, 18 May 2011 11:13:41 -0400
+
 solo6010 (2.3.2-1) lucid; urgency=low
 
   * Bug #793: Inputs randomly show black screens, either partially or fully
