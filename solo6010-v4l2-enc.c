@@ -358,9 +358,6 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	/* Enables the standard encoder */
 	solo_reg_write(solo_dev, SOLO_CAP_CH_SCALE(ch), solo_enc->mode);
 
-	/* Settle down Beavis... */
-//	mdelay(10);
-
 	return 0;
 }
 
@@ -749,7 +746,11 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 			enc_buf.type = SOLO_ENC_TYPE_STD;
 
 		solo_enc = solo_dev->v4l2_enc[ch];
-		BUG_ON(solo_enc == NULL);
+		if (solo_enc == NULL) {
+			dev_err(&solo_dev->pdev->dev, "Got spurious packet for "
+				"channel %d\n", ch);
+			continue;
+		}
 
 		enc_buf.vop_type = (mpeg_current >> 29) & 1;
 		enc_buf.mpeg_off = mpeg_current & 0x00ffffff;

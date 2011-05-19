@@ -259,11 +259,39 @@ static ssize_t solo_get_p2m_timeouts(struct device *dev,
 static DEVICE_ATTR(p2m_timeouts, S_IWUSR | S_IRUGO, solo_get_p2m_timeouts,
 		   NULL);
 
+static ssize_t solo_get_sdram_size(struct device *dev,
+				   struct device_attribute *attr,
+				   char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "%dMegs\n", solo_dev->sdram_size >> 20);
+}
+static DEVICE_ATTR(sdram_size, S_IWUSR | S_IRUGO, solo_get_sdram_size,
+		   NULL);
+
+static ssize_t solo_get_tw28xx(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "tw2815[%d] tw2864[%d] tw2865[%d]\n",
+		       hweight32(solo_dev->tw2815),
+		       hweight32(solo_dev->tw2864),
+		       hweight32(solo_dev->tw2865));
+}
+static DEVICE_ATTR(tw28xx, S_IWUSR | S_IRUGO, solo_get_tw28xx,
+                   NULL);
 
 static struct device_attribute *const solo_dev_attrs[] = {
 	&dev_attr_eeprom,
 	&dev_attr_video_type,
 	&dev_attr_p2m_timeouts,
+	&dev_attr_sdram_size,
+	&dev_attr_tw28xx,
 };
 
 static void solo_device_release(struct device *dev)

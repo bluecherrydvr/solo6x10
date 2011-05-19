@@ -310,9 +310,6 @@ int solo_i2c_init(struct solo6010_dev *solo_dev)
 		return ret;
 	}
 
-	dev_info(&solo_dev->pdev->dev, "Enabled %d i2c adapters\n",
-		 SOLO_I2C_ADAPTERS);
-
 	return 0;
 }
 

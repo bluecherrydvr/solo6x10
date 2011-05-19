@@ -241,7 +241,6 @@ test_fail:
 int solo_p2m_init(struct solo6010_dev *solo_dev)
 {
 	struct solo_p2m_dev *p2m_dev;
-	int sdram_ok = 0;
 	int i;
 
 	for (i = 0; i < SOLO_NR_P2M; i++) {
@@ -260,7 +259,7 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	}
 
 	/* Find correct SDRAM size */
-	for (i = 2; i >= 0; i--) {
+	for (solo_dev->sdram_size = 0, i = 2; i >= 0; i--) {
 		solo_reg_write(solo_dev, SOLO_DMA_CTRL,
 			       SOLO_DMA_CTRL_REFRESH_CYCLE(1) |
 			       SOLO_DMA_CTRL_SDRAM_SIZE(i) |
@@ -282,16 +281,16 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 		if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
 			continue;
 
-		sdram_ok = (32 * 1024 * 1024) << i;
+		solo_dev->sdram_size = (32 << 20) << i;
 		break;
 	}
 
-	if (!sdram_ok) {
+	if (!solo_dev->sdram_size) {
 		dev_err(&solo_dev->pdev->dev, "Error detecting SDRAM size\n");
 		return -EIO;
 	}
 
-	if (SOLO_SDRAM_END(solo_dev) > sdram_ok) {
+	if (SOLO_SDRAM_END(solo_dev) > solo_dev->sdram_size) {
 		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough\n");
 		return -EIO;
 	}

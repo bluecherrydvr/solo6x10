@@ -234,6 +234,7 @@ struct solo6010_dev {
 
 	/* sysfs stuffs */
 	struct device		dev;
+	int			sdram_size;
 
 	/* Ring thread */
 	struct task_struct	*ring_thread;
