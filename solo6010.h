@@ -161,6 +161,11 @@ struct solo_enc_dev {
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
 					__attribute__((__aligned__(4)));
 
+	/* VOP_HEADER handling */
+	void			*vh_buf;
+	dma_addr_t		vh_dma;
+	int			vh_size;
+
 	/* VOP stuff */
 	unsigned char		vop[64];
 	int			vop_len;
