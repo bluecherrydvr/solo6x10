@@ -1,3 +1,10 @@
+solo6010 (2.3.4-1) lucid; urgency=low
+
+  * enc: Only decrement jpeg_off once
+  * enc: Only allocate one vop_header DMA per card, not per encoder
+
+ -- Ben Collins <bcollins@bluecherry.net>  Tue, 24 May 2011 10:33:30 -0400
+
 solo6010 (2.3.3-1) lucid; urgency=low
 
   * solo: Update SDRAM offsets and comment layout
