@@ -553,8 +553,6 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	svb->flags |= V4L2_BUF_FLAG_KEYFRAME;
 
-	vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
-
 	if (vb->bsize < (vh->jpeg_size + solo_enc->jpeg_len))
 		return -EIO;
 
@@ -744,6 +742,7 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 
 		enc_buf.vh = (struct vop_header *)solo_dev->vh_buf;
 		enc_buf.vh->mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
+		enc_buf.vh->jpeg_off -= SOLO_JPEG_EXT_ADDR(solo_dev);
 
 		/* Sanity check */
 		if (enc_buf.vh->mpeg_off != off)
