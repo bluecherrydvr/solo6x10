@@ -330,6 +330,8 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
 	u8 interval;
 
+	BUG_ON(!mutex_is_locked(&solo_enc->enable_lock));
+
 	if (fh->enc_on)
 		return 0;
 
@@ -403,6 +405,8 @@ static void __solo_enc_off(struct solo_enc_fh *fh)
 {
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+
+	BUG_ON(!mutex_is_locked(&solo_enc->enable_lock));
 
 	if (!fh->enc_on)
 		return;
@@ -734,11 +738,11 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 		}
 
 		/* FAIL... */
-		if (enc_get_mpeg_dma(solo_dev, solo_enc->vh_dma, off,
+		if (enc_get_mpeg_dma(solo_dev, solo_dev->vh_dma, off,
 				     sizeof(struct vop_header)))
 			continue;
 
-		enc_buf.vh = (struct vop_header *)solo_enc->vh_buf;
+		enc_buf.vh = (struct vop_header *)solo_dev->vh_buf;
 		enc_buf.vh->mpeg_off -= SOLO_MP4E_EXT_ADDR(solo_dev);
 
 		/* Sanity check */
@@ -1660,19 +1664,8 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 	if (!solo_enc)
 		return ERR_PTR(-ENOMEM);
 
-	solo_enc->vh_size = sizeof(struct vop_header);
-	solo_enc->vh_buf = pci_alloc_consistent(solo_dev->pdev,
-						solo_enc->vh_size,
-						&solo_enc->vh_dma);
-	if (solo_enc->vh_buf == NULL) {
-		kfree(solo_enc);
-		return ERR_PTR(-ENOMEM);
-        }
-
 	solo_enc->vfd = video_device_alloc();
 	if (!solo_enc->vfd) {
-		pci_free_consistent(solo_dev->pdev, solo_enc->vh_size,
-				    solo_enc->vh_buf, solo_enc->vh_dma);
 		kfree(solo_enc);
 		return ERR_PTR(-ENOMEM);
 	}
@@ -1686,8 +1679,6 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 				    video_nr);
 	if (ret < 0) {
 		video_device_release(solo_enc->vfd);
-		pci_free_consistent(solo_dev->pdev, solo_enc->vh_size,
-				    solo_enc->vh_buf, solo_enc->vh_dma);
 		kfree(solo_enc);
 		return ERR_PTR(ret);
 	}
@@ -1731,8 +1722,6 @@ static void solo_enc_free(struct solo_enc_dev *solo_enc)
 		return;
 
 	video_unregister_device(solo_enc->vfd);
-	pci_free_consistent(solo_enc->solo_dev->pdev, solo_enc->vh_size,
-			    solo_enc->vh_buf, solo_enc->vh_dma);
 	kfree(solo_enc);
 }
 
@@ -1742,6 +1731,13 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 
 	atomic_set(&solo_dev->enc_users, 0);
 	init_waitqueue_head(&solo_dev->ring_thread_wait);
+
+	solo_dev->vh_size = sizeof(struct vop_header);
+	solo_dev->vh_buf = pci_alloc_consistent(solo_dev->pdev,
+						solo_dev->vh_size,
+						&solo_dev->vh_dma);
+	if (solo_dev->vh_buf == NULL)
+		return -ENOMEM;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i);
@@ -1753,6 +1749,8 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 		int ret = PTR_ERR(solo_dev->v4l2_enc[i]);
 		while (i--)
 			solo_enc_free(solo_dev->v4l2_enc[i]);
+		pci_free_consistent(solo_dev->pdev, solo_dev->vh_size,
+				    solo_dev->vh_buf, solo_dev->vh_dma);
 		return ret;
 	}
 
@@ -1774,4 +1772,7 @@ void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev)
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_enc_free(solo_dev->v4l2_enc[i]);
+
+	pci_free_consistent(solo_dev->pdev, solo_dev->vh_size,
+			    solo_dev->vh_buf, solo_dev->vh_dma);
 }
