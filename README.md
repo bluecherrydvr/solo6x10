@@ -10,13 +10,16 @@ Requirements
 
 Compiling
 ---------
-Simply download and run 'make' and 'make install'.  
+Simply download and run sudo make ; sudo make install ; sudo depmod -a  
 
 Public bug / feature tracker
 ---------------------------
 The public bug and feature tracker for the solo6x10 driver can be found here:
 http://improve.bluecherrydvr.com/projects/solo6010-v2[2]
 
+General questions, comments, suggestions
+----------------------------------------
+Please visit our support page: http://support.bluecherrydvr.com/forums/214485-hardware-compression-mpeg-4-h-264-driver[3]
 
 FAQs
 ====
@@ -47,7 +50,7 @@ Basically think of this as a built-in quad or multiplexer.  You can display one 
 on this display port.
 
 The display port allows you to view and configure what is shown on the video out port of the card. The device has several inputs 
-and depends on which card you have installed:
+and depends on which card you have installed.
 
 4-port: 1 input per port and 1 virtual input for all 4 inputs in 4-up mode.
 8-port: 1 input per port and 2 virtual inputs for 4-up on inputs 1-4 and 5-8 respectively.
@@ -93,3 +96,5 @@ Please contact support@bluecherry.net for information
 
 [1]: http://www.bluecherrydvr.com
 [2]: http://improve.bluecherrydvr.com/projects/solo6010-v2
+[3]: http://support.bluecherrydvr.com/forums/214485-hardware-compression-mpeg-4-h-264-driver
+
