@@ -158,7 +158,7 @@ struct solo_enc_dev {
 
 	/* OSD buffers */
 	char			osd_text[OSD_TEXT_MAX + 1];
-	u8			osd_buf[SOLO_EOSD_EXT_SIZE]
+	u8			osd_buf[SOLO_EOSD_EXT_SIZE_MAX]
 					__attribute__((__aligned__(4)));
 
 	/* VOP stuff */

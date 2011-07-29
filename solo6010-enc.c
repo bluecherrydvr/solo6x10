@@ -108,15 +108,15 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 			       SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
 
 	/* Clear OSG buffer */
-	buf = kzalloc(SOLO_EOSD_EXT_SIZE, GFP_KERNEL);
+	buf = kzalloc(SOLO_EOSD_EXT_SIZE(solo_dev), GFP_KERNEL);
 	if (!buf)
 		return;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_p2m_dma(solo_dev, 1, buf,
 			     SOLO_EOSD_EXT_ADDR(solo_dev) +
-			     (SOLO_EOSD_EXT_SIZE * i),
-			     SOLO_EOSD_EXT_SIZE, 0, 0);
+			     (SOLO_EOSD_EXT_SIZE(solo_dev) * i),
+			     SOLO_EOSD_EXT_SIZE(solo_dev), 0, 0);
 	}
 	kfree(buf);
 }
@@ -145,7 +145,7 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 		return 0;
 	}
 
-	memset(buf, 0, SOLO_EOSD_EXT_SIZE);
+	memset(buf, 0, SOLO_EOSD_EXT_SIZE_MAX);
 	vga_data = (const unsigned char *)vga->data;
 
 	for (i = 0; i < len; i++) {
@@ -159,8 +159,8 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 
 	solo_p2m_dma(solo_dev, 1, buf,
 		     SOLO_EOSD_EXT_ADDR(solo_dev) +
-		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE),
-		     SOLO_EOSD_EXT_SIZE, 0, 0);
+		     (solo_enc->ch * SOLO_EOSD_EXT_SIZE(solo_dev)),
+		     SOLO_EOSD_EXT_SIZE(solo_dev), 0, 0);
 
 	/* Enable OSD on this channel */
         reg |= (1 << solo_enc->ch);

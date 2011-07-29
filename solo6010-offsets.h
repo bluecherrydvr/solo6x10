@@ -28,9 +28,11 @@
  * area for each encoder (extended?) */
 #define SOLO_EOSD_EXT_ADDR(__solo) \
 		(SOLO_DISP_EXT_ADDR(__solo) + SOLO_DISP_EXT_SIZE)
-#define SOLO_EOSD_EXT_SIZE			0x00020000
+#define SOLO_EOSD_EXT_SIZE(__solo) \
+		((__solo->type == SOLO_DEV_6110) ? 0x00020000 : 0x00010000)
+#define SOLO_EOSD_EXT_SIZE_MAX 0x00020000
 #define SOLO_EOSD_EXT_AREA(__solo) \
-		(SOLO_EOSD_EXT_SIZE * __solo->nr_chans * 2)
+		(SOLO_EOSD_EXT_SIZE(__solo) * __solo->nr_chans * 2)
 
 #define SOLO_MOTION_EXT_ADDR(__solo) \
 		(SOLO_EOSD_EXT_ADDR(__solo) + SOLO_EOSD_EXT_AREA(__solo))
