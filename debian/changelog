@@ -1,3 +1,10 @@
+solo6010 (2.3.5-1) lucid; urgency=low
+
+  * Bug #855: solo6010: Fix OSD on odd-numbered 6010 channels
+  * Fix compile on 2.6.38 kernels
+
+ -- John Brooks <john.brooks@bluecherry.net>  Fri, 29 Jul 2011 14:58:00 -0600
+
 solo6010 (2.3.4-1) lucid; urgency=low
 
   * enc: Only decrement jpeg_off once
