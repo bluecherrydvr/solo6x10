@@ -1496,16 +1496,23 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		u16 block = (ctrl->value >> 16) & 0xffff;
 		u16 value = ctrl->value & 0xffff;
 
-		/* Block value > 0 means a specific block, else global */
-		if (block > 1024)
+		/* Motion thresholds are in a table of 64x64 samples, with
+		 * each sample representing 16x16 pixels of the source. In
+		 * effect, 44x30 samples are used for NTSC, and 44x36 for PAL.
+		 * The 5th sample on the 10th row is (10*64)+5 = 645.
+		 *
+		 * Block is 0 to set the threshold globally, or any positive
+		 * number under 2049 to set block-1 individually. */
+		if (block > 2049)
 			return -ERANGE;
 
 		if (block == 0) {
 			solo_enc->motion_thresh = value;
-			solo_set_motion_threshold(solo_dev, solo_enc->ch, value);
+			return solo_set_motion_threshold(solo_dev,
+			                                 solo_enc->ch, value);
 		} else {
-			solo_set_motion_block(solo_dev, solo_enc->ch, value,
-					      block - 1);
+			return solo_set_motion_block(solo_dev, solo_enc->ch,
+			                             value, block - 1);
 		}
 		break;
 	}

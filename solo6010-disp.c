@@ -31,8 +31,8 @@
 #define SOLO_MOT_THRESH_H		64
 #define SOLO_MOT_THRESH_SIZE		8192
 #define SOLO_MOT_THRESH_REAL		(SOLO_MOT_THRESH_W * SOLO_MOT_THRESH_H)
-#define SOLO_MOT_FLAG_SIZE		512
-#define SOLO_MOT_FLAG_AREA		(SOLO_MOT_FLAG_SIZE * 32)
+#define SOLO_MOT_FLAG_SIZE		1024
+#define SOLO_MOT_FLAG_AREA		(SOLO_MOT_FLAG_SIZE * 16)
 
 static unsigned video_type;
 module_param(video_type, uint, 0644);
@@ -169,38 +169,41 @@ static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,
 	return ret;
 }
 
-void solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
+int solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
 {
 	if (ch > solo_dev->nr_chans)
-		return;
+		return -EINVAL;
 
-	solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
-			    (ch * SOLO_MOT_THRESH_SIZE * 2),
-			    val, SOLO_MOT_THRESH_REAL);
+	return solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
+	                           (ch * SOLO_MOT_THRESH_SIZE * 2),
+	                           val, SOLO_MOT_THRESH_SIZE);
 }
 
-void solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
+int solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 			   u16 block)
 {
-	u32 addr, real_val;
+	u16 buf[64];
+	u32 addr;
+	int re;
 
 	addr = SOLO_MOTION_EXT_ADDR(solo_dev) +
 		SOLO_MOT_FLAG_AREA +
 		(SOLO_MOT_THRESH_SIZE * 2 * ch) +
 		(block * 2);
 
-	if (solo_p2m_dma(solo_dev, 0, &real_val, addr & ~0x3, 4, 0, 0))
-		return;
+	/* Read and write only on a 128-byte boundary; 4-byte writes with solo_p2m_dma
+	 * silently failed. Bluecherry bug #908. */
+	re = solo_p2m_dma(solo_dev, 0, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
+	if (re)
+		return re;
 
-	if (block & 0x1) {
-		real_val &= 0xffff0000;
-		real_val |= val;
-	} else {
-		real_val &= 0x0000ffff;
-		real_val |= (val << 16);
-	}
+	buf[(addr & 0x7f) / 2] = val;
 
-	solo_p2m_dma(solo_dev, 1, &real_val, addr & ~0x3, 4, 0, 0);
+	re = solo_p2m_dma(solo_dev, 1, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
+	if (re)
+		return re;
+
+	return 0;
 }
 
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
@@ -218,8 +221,9 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 
 		/* Clear working cache table */
 		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
-				    (i * SOLO_MOT_THRESH_SIZE * 2),
-				    0x0000, SOLO_MOT_THRESH_REAL);
+				    (i * SOLO_MOT_THRESH_SIZE * 2) +
+                                    SOLO_MOT_THRESH_SIZE, 0x0000,
+                                    SOLO_MOT_THRESH_SIZE);
 
 		/* Set default threshold table */
 		solo_set_motion_threshold(solo_dev, i, SOLO_DEF_MOT_THRESH);
