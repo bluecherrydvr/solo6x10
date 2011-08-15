@@ -1,3 +1,9 @@
+solo6010 (2.3.6-1) lucid; urgency=low
+
+  * Bug #905: Motion detection thresholds do not work
+
+ -- John Brooks <john.brooks@bluecherry.net>  Mon, 15 Aug 2011 14:26:00 -0600
+
 solo6010 (2.3.5-1) lucid; urgency=low
 
   * Bug #855: solo6010: Fix OSD on odd-numbered 6010 channels
