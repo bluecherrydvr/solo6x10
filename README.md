@@ -1,7 +1,7 @@
 Bluecherry solo6x10 Video4Linux2 driver
 ======================================
 This driver is released under the GPL for the line of Bluecherry MPEG-4 and H.264 capture cards (PCI, PCIe, Mini-PCI).
-www.bluecherrydvr.com [1]
+www.bluecherrydvr.com
 
 Requirements
 ------------
@@ -15,11 +15,11 @@ Simply download and run sudo make ; sudo make install ; sudo depmod -a
 Public bug / feature tracker
 ---------------------------
 The public bug and feature tracker for the solo6x10 driver can be found here:
-http://improve.bluecherrydvr.com/projects/solo6010-v2 [2]
+http://improve.bluecherrydvr.com/projects/solo6010-v2
 
 General questions, comments, suggestions
 ----------------------------------------
-Please visit our support page: http://support.bluecherrydvr.com/forums/214485-hardware-compression-mpeg-4-h-264-driver [3]
+Please visit our support page: http://support.bluecherrydvr.com/forums/214485-hardware-compression-mpeg-4-h-264-driver
 
 FAQs
 ====
@@ -92,10 +92,8 @@ You must convert G.723-24 (3-bit samples at 8khz) yourself.
 I'm a developer and I want to add support for the Bluecherry H.264 cards in my software, can I get a demo?
 ----------------------------------------------------------------------------------------------------------
 We are very interested in speaking with core developers of popular Video4Linux2 applications to add support for these cards.  
-Please contact support@bluecherry.net for information
+Please contact support@bluecherrydvr.com for more information.  Please make sure to include links to your project and work that you have done in the past.
 
-[1]: http://www.bluecherrydvr.com
-[2]: http://improve.bluecherrydvr.com/projects/solo6010-v2
-[3]: http://support.bluecherrydvr.com/forums/214485-hardware-compression-mpeg-4-h-264-driver
+
 
 
