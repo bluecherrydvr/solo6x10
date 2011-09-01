@@ -804,7 +804,7 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 		int rc = videobuf_iolock(vq, vb, NULL);
 		if (rc < 0) {
 			struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
 			videobuf_dma_unmap(vq, dma);
 #else
 			videobuf_dma_unmap(vq->dev, dma);
@@ -832,7 +832,7 @@ static void solo_enc_buf_release(struct videobuf_queue *vq,
 				 struct videobuf_buffer *vb)
 {
 	struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
 	videobuf_dma_unmap(vq, dma);
 #else
 	videobuf_dma_unmap(vq->dev, dma);
