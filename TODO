@@ -1,7 +1,3 @@
-- Setup 6110 to use manual descriptor mode
-
-- Fix tw2815 4-port
-
 - batch up desc requests for more efficient use of p2m?
 - encoder on/off controls
 - mpeg cid bitrate mode (vbr/cbr)
