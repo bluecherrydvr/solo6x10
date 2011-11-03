@@ -33,7 +33,7 @@
 
 #include "solo6x10.h"
 #include "tw28.h"
-#include "jpeg.h"
+#include "solo6x10-jpeg.h"
 
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(196 * 1024)
