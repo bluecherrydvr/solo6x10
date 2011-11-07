@@ -33,7 +33,7 @@
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(128 * 1024)
 #define MP4_QS			16
-#define DMA_ALIGN		128
+#define DMA_ALIGN		4096
 
 extern unsigned video_nr;
 
@@ -496,6 +496,7 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 		if (skip) {
 			len -= skip;
 			dma += skip;
+			size -= skip;
 			skip = 0;
 		}
 
