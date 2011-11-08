@@ -508,14 +508,19 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 					   len, 0, 0);
 		} else {
 			/* Buffer wrap */
-			solo_p2m_fill_desc(desc, 0, dma, base + off, left,
-					   0, 0);
+			/* Do these as separate DMA requests, to avoid timeout errors
+			 * triggered by awkwardly sized descriptors. Bug #878. */
+			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
+			                     left, 0, 0);
+			if (ret)
+				return ret;
 
-			/* Get another descriptor */
-			desc = &fh->desc_items[fh->desc_count++];
+			ret = solo_p2m_dma_t(solo_dev, 0, dma + left, base,
+			                     len - left, 0, 0);
+			if (ret)
+				return ret;
 
-			solo_p2m_fill_desc(desc, 0, dma + left, base,
-					   len - left, 0, 0);
+			fh->desc_count--;
 		}
 
 		size -= len;
