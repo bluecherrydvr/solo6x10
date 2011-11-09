@@ -1,5 +1,11 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
+ * 
+ * Original author: 
+ * Ben Collins <bcollins@ubuntu.com>
+ *
+ * Additional work by: 
+ * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
