@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010-2011 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
