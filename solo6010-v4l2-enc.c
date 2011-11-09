@@ -508,7 +508,8 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 		} else {
 			/* Buffer wrap */
 			/* Do these as separate DMA requests, to avoid timeout errors
-			 * triggered by awkwardly sized descriptors. Bug #878 (http://improve.bluecherrydvr.com/issues/878), #8 on Github https://github.com/bluecherrydvr/solo6x10/issues/8*/
+			 * triggered by awkwardly sized descriptors. 
+			 * Bug #878 (http://improve.bluecherrydvr.com/issues/878), #8 on Github https://github.com/bluecherrydvr/solo6x10/issues/8*/
 			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
 			                     left, 0, 0);
 			if (ret)
