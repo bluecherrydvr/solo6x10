@@ -1,6 +1,11 @@
 /*
- * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010-2011 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
+ * 
+ * Original author: 
+ * Ben Collins <bcollins@ubuntu.com>
+ *
+ * Additional work by: 
+ * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,7 +38,7 @@
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(128 * 1024)
 #define MP4_QS			16
-#define DMA_ALIGN		128
+#define DMA_ALIGN		4096
 
 extern unsigned video_nr;
 
@@ -496,6 +501,7 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 		if (skip) {
 			len -= skip;
 			dma += skip;
+			size -= skip;
 			skip = 0;
 		}
 
@@ -507,14 +513,20 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 					   len, 0, 0);
 		} else {
 			/* Buffer wrap */
-			solo_p2m_fill_desc(desc, 0, dma, base + off, left,
-					   0, 0);
+			/* Do these as separate DMA requests, to avoid timeout errors
+			 * triggered by awkwardly sized descriptors. 
+			 * Bug #878 (http://improve.bluecherrydvr.com/issues/878), #8 on Github https://github.com/bluecherrydvr/solo6x10/issues/8*/
+			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
+			                     left, 0, 0);
+			if (ret)
+				return ret;
 
-			/* Get another descriptor */
-			desc = &fh->desc_items[fh->desc_count++];
+			ret = solo_p2m_dma_t(solo_dev, 0, dma + left, base,
+			                     len - left, 0, 0);
+			if (ret)
+				return ret;
 
-			solo_p2m_fill_desc(desc, 0, dma + left, base,
-					   len - left, 0, 0);
+			fh->desc_count--;
 		}
 
 		size -= len;
@@ -564,7 +576,7 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 			    solo_enc->jpeg_header,
 			    solo_enc->jpeg_len);
 
-	frame_size = (vh->jpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
+	frame_size = (vh->jpeg_size + solo_enc->jpeg_len + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
 	return solo_send_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
 			      frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
@@ -603,7 +615,7 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 
 	/* Now get the actual mpeg payload */
 	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
-	frame_size = (vh->mpeg_size + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
+	frame_size = (vh->mpeg_size + skip + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
 
 	return solo_send_desc(fh, skip, vbuf, frame_off, frame_size,
 			      SOLO_MP4E_EXT_ADDR(solo_dev),

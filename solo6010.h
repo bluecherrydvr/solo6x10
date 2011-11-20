@@ -1,6 +1,11 @@
 /*
- * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
+ * 
+ * Original author: 
+ * Ben Collins <bcollins@ubuntu.com>
+ *
+ * Additional work by: 
+ * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -72,7 +77,7 @@
 /* Make sure these two match */
 #define SOLO6010_VER_MAJOR		2
 #define SOLO6010_VER_MINOR		3
-#define SOLO6010_VER_SUB		6
+#define SOLO6010_VER_SUB		7
 #define SOLO6010_VER_NUM \
     KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
 #define SOLO6010_VERSION \

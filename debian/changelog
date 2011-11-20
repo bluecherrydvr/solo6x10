@@ -1,3 +1,9 @@
+solo6010 (2.3.7-1) lucid; urgency=low
+
+  * Bug #8: solo6110: Encoded video freezes randomly, jumps forward and backwards, and has significant artifacting
+
+ -- Curtis Hall <curt@bluecherry.net>  Tue, 8 Nov 2011 19:13:00 -0600
+
 solo6010 (2.3.6-1) lucid; urgency=low
 
   * Bug #905: Motion detection thresholds do not work

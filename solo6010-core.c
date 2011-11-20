@@ -1,6 +1,11 @@
 /*
- * Copyright (C) 2010 Bluecherry, LLC www.bluecherrydvr.com
- * Copyright (C) 2010 Ben Collins <bcollins@bluecherry.net>
+ * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
+ * 
+ * Original author: 
+ * Ben Collins <bcollins@ubuntu.com>
+ *
+ * Additional work by: 
+ * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +32,8 @@
 #include "solo6010-tw28.h"
 
 MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 Encoder/Decoder V4L2/ALSA Driver");
-MODULE_AUTHOR("Ben Collins <bcollins@bluecherry.net>");
+MODULE_AUTHOR("Ben Collins <bcollins@ubuntu.com>, "
+			  "Bluecherry <maintainers@bluecherrydvr.com>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 

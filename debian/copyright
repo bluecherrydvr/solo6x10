@@ -1,6 +1,6 @@
 Format-Specification: http://dep.debian.net/deps/dep5/
 Name: Softlogic 6010 Video4Linux MPEG-4 Encoder/Decoder support
-Maintainer: Ben Collins <bcollins@bluecherry.net>
+Maintainer: Bluecherry <maintainer@bluecherrydvr.com>
 Source: http://launchpad.net/...
 
 Files: videobuf-dma-contig.c
@@ -8,8 +8,7 @@ Copyright: 2008, Magnus Damm
 License: GPL-2
 
 Files: *
-Copyright: 2010, Bluecherry, LLC www.bluecherrydvr.com
-Copyright: 2010, Ben Collins <bcollins@bluecherry.net>
+Copyright: 2011, Bluecherry, LLC www.bluecherrydvr.com
 License: GPL-2
 
 License: GPL-2
