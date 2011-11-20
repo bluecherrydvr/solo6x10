@@ -23,6 +23,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/delay.h>
 
 #include "solo6010.h"
 

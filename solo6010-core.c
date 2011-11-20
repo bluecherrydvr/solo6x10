@@ -27,6 +27,7 @@
 #include <linux/pci.h>
 #include <linux/interrupt.h>
 #include <linux/videodev2.h>
+#include <linux/delay.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
