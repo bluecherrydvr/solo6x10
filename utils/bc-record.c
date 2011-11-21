@@ -25,9 +25,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <time.h>
 
 #include <linux/videodev2.h>
+
+#include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libavformat/avio.h>
 
 #define reset_vbuf(__vb) do {				\
 	memset((__vb), 0, sizeof(*(__vb)));		\
@@ -66,8 +71,6 @@ static void usage(void)
 
 static void open_video_dev(const char *dev)
 {
-	struct v4l2_control vc;
-
 	if ((vfd = open(dev, O_RDWR)) < 0)
 		err_out("Opening video device");
 
@@ -91,7 +94,7 @@ static void open_video_dev(const char *dev)
 
 	/* Set FPS/GOP */
 	vparm.parm.capture.timeperframe.denominator = 30;
-	vparm.parm.capture.timeperframe.numerator = 2;
+	vparm.parm.capture.timeperframe.numerator = 1;
 	ioctl(vfd, VIDIOC_S_PARM, &vparm);
 
 	/* Set format */
@@ -180,7 +183,7 @@ static void av_prepare(void)
 	AVCodec *codec;
 
 	/* Get the output format */
-	fmt_out = guess_format(NULL, outfile, NULL);
+	fmt_out = av_guess_format(NULL, outfile, NULL);
 	if (!fmt_out)
 		err_out("Error guessing format for %s", outfile);
 
@@ -199,9 +202,9 @@ static void av_prepare(void)
 	video_st->time_base.num =
 		vparm.parm.capture.timeperframe.numerator;
 
-	if (strstr(vcap.card, "Softlogic 6010")) {
+	if (strstr((char *)vcap.card, "Softlogic 6010")) {
 		video_st->codec->codec_id = CODEC_ID_MPEG4;
-	} else if (strstr(vcap.card, "Softlogic 6110")) {
+	} else if (strstr((char *)vcap.card, "Softlogic 6110")) {
 		video_st->codec->codec_id = CODEC_ID_H264;
 		video_st->codec->crf = 20;
 		video_st->codec->me_range = 16;
@@ -216,7 +219,7 @@ static void av_prepare(void)
 		err_out("Unknown card: %s\n", vcap.card);
 	}
 
-	video_st->codec->codec_type = CODEC_TYPE_VIDEO;
+	video_st->codec->codec_type = AVMEDIA_TYPE_VIDEO;
 	video_st->codec->pix_fmt = PIX_FMT_YUV420P;
 	video_st->codec->width = vfmt.fmt.pix.width;
 	video_st->codec->height = vfmt.fmt.pix.height;
@@ -224,9 +227,6 @@ static void av_prepare(void)
 
 	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
 		video_st->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
-
-	if (av_set_parameters(oc, NULL) < 0)
-		err_out("Error setting av parameters");
 
 	/* Open Video output */
 	codec = avcodec_find_encoder(video_st->codec->codec_id);
@@ -237,10 +237,10 @@ static void av_prepare(void)
 		err_out("Error opening video encoder");
 
 	/* Open output file */
-	if (url_fopen(&oc->pb, outfile, URL_WRONLY) < 0)
+	if (avio_open(&oc->pb, outfile, URL_WRONLY) < 0)
 		err_out("Error opening out file");
 
-	av_write_header(oc);
+	avformat_write_header(oc, NULL);
 }
 
 static void video_out(struct v4l2_buffer *vb)
@@ -251,7 +251,7 @@ static void video_out(struct v4l2_buffer *vb)
 	av_init_packet(&pkt);
 
 	if (vb->flags & V4L2_BUF_FLAG_KEYFRAME)
-		pkt.flags |= PKT_FLAG_KEY;
+		pkt.flags |= AV_PKT_FLAG_KEY;
 
 	if (vb->bytesused < 100 || vb->bytesused > (128 * 1024))
 		err_out("Invalid size: %d\n", vb->bytesused);
@@ -285,12 +285,16 @@ int main(int argc, char **argv)
 
 	v4l_prepare();
 	av_prepare();
-	set_osd("Testing: %s", argv[1]);
 
 	/* Loop to capture video */
 	for (;;) {
 		struct v4l2_buffer vb;
 		int ret;
+		time_t tm = time(NULL);
+		char *tm_buf = ctime(&tm);
+
+		tm_buf[strlen(tm_buf) - 1] = '\0';
+		set_osd("%s", tm_buf);
 
 		reset_vbuf(&vb);
 		ret = ioctl(vfd, VIDIOC_DQBUF, &vb);
