@@ -293,12 +293,78 @@ static ssize_t solo_get_tw28xx(struct device *dev,
 static DEVICE_ATTR(tw28xx, S_IWUSR | S_IRUGO, solo_get_tw28xx,
                    NULL);
 
+static ssize_t solo_get_input_map(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned int val;
+	char *out = buf;
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_0);
+	out += sprintf(out, "Channel 0   => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 1   => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 2   => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 3   => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Channel 4   => Input %d\n", (val >> 20) & 0x1f);
+	out += sprintf(out, "Channel 5   => Input %d\n", (val >> 25) & 0x1f);
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_1);
+	out += sprintf(out, "Channel 6   => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 7   => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 8   => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 9   => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Channel 10  => Input %d\n", (val >> 20) & 0x1f);
+	out += sprintf(out, "Channel 11  => Input %d\n", (val >> 25) & 0x1f);
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_2);
+	out += sprintf(out, "Channel 12  => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 13  => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 14  => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 15  => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Spot Output => Input %d\n", (val >> 20) & 0x1f);
+
+	return out - buf;
+}
+static DEVICE_ATTR(input_map, S_IWUSR | S_IRUGO, solo_get_input_map,
+		   NULL);
+
+static ssize_t solo_set_p2m_timeout(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned long ms = simple_strtoul(buf, NULL, 10);
+
+	if (ms > 200)
+		return -EINVAL;
+	solo_dev->p2m_jiffies = msecs_to_jiffies(ms);
+
+	return 0;
+}
+
+static ssize_t solo_get_p2m_timeout(struct device *dev,
+                                 struct device_attribute *attr,
+                                 char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "%ums", jiffies_to_msecs(solo_dev->p2m_jiffies));
+}
+static DEVICE_ATTR(p2m_timeout, S_IWUSR | S_IRUGO, solo_get_p2m_timeout,
+                   solo_set_p2m_timeout);
+
 static struct device_attribute *const solo_dev_attrs[] = {
 	&dev_attr_eeprom,
 	&dev_attr_video_type,
 	&dev_attr_p2m_timeouts,
 	&dev_attr_sdram_size,
 	&dev_attr_tw28xx,
+	&dev_attr_input_map,
+	&dev_attr_p2m_timeout,
 };
 
 static void solo_device_release(struct device *dev)
