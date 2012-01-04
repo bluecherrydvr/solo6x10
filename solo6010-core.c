@@ -495,10 +495,11 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* Initial global settings */
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_dev->clock_mhz = 108;
-		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT |
-			       SOLO_SYS_CFG_INPUTDIV(25) |
-			       SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
-			       SOLO_SYS_CFG_OUTDIV(3));
+		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT |
+				SOLO_SYS_CFG_INPUTDIV(25) |
+				SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
+				SOLO_SYS_CFG_OUTDIV(3);
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
 	} else {
 		u32 divq, divf;
 
@@ -519,9 +520,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 			       (divf <<  4 ) |
 			       (1 <<  1)   /* PLL_FSEN */ );
 
-		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT);
+		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT;
 	}
 
+	solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
 	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM, solo_dev->clock_mhz - 1);
 
 	/* PLL locking time of 1ms */

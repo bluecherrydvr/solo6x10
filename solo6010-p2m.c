@@ -280,6 +280,10 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_DMA_CTRL_READ_CLK_SELECT |
 			       SOLO_DMA_CTRL_LATENCY(1));
 
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config |
+			       SOLO_SYS_CFG_RESET);
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
+
 		switch (i) {
 		case 2:
 			if (solo_p2m_test(solo_dev, 0x07ff0000, 0x00010000) ||
