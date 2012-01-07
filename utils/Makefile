@@ -1,12 +1,15 @@
 CFLAGS		= -Wall
 LIBS		= -lavcodec -lavformat -lavutil
 
-TARGET		= bc-record
+TARGETS		= bc-record bc-disp-input
 
-all: $(TARGET)
+all: $(TARGETS)
 
-$(TARGET): $(TARGET).c
+bc-record: bc-record.c
 	$(CC) $(CFLAGS) $< -o $@ $(LIBS)
 
+bc-disp-input: bc-disp-input.c
+	$(CC) $(CFLAGS) $< -o $@
+
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGETS)
