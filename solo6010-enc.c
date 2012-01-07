@@ -28,12 +28,10 @@
 
 #include "solo6010.h"
 
-#define CAPTURE_MAX_BANDWIDTH		32	// D1 4channel (D1 == 4)
-
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
 
-#define IRQ_LEVEL			2
+#define IRQ_LEVEL			0
 
 static void solo_capture_config(struct solo6010_dev *solo_dev)
 {
@@ -45,9 +43,17 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_CAP_BASE,
 		       SOLO_CAP_MAX_PAGE((SOLO_CAP_EXT_SIZE(solo_dev) - SOLO_CAP_PAGE_SIZE) >> 16) |
 		       SOLO_CAP_BASE_ADDR(SOLO_CAP_EXT_ADDR(solo_dev) >> 16));
-	solo_reg_write(solo_dev, SOLO_CAP_BTW,
-		       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
-		       SOLO_CAP_MAX_BANDWIDTH(CAPTURE_MAX_BANDWIDTH));
+
+	/* XXX Undocumented bits at b17 and b24 */
+	if (solo_dev->type == SOLO_DEV_6110) {
+		solo_reg_write(solo_dev, SOLO_CAP_BTW,
+			       (62 << 24) | (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
+			       SOLO_CAP_MAX_BANDWIDTH(36));
+	} else {
+		solo_reg_write(solo_dev, SOLO_CAP_BTW,
+			       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
+			       SOLO_CAP_MAX_BANDWIDTH(32));
+	}
 
 	/* Set scale 1, 9 dimension */
 	width = solo_dev->video_hsize;
