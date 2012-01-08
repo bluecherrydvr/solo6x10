@@ -46,8 +46,10 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 
 	/* XXX Undocumented bits at b17 and b24 */
 	if (solo_dev->type == SOLO_DEV_6110) {
+		/* Ref driver has (62 << 24) here as well, but it causes wacked out
+		 * frame timing on 4-port 6110. */
 		solo_reg_write(solo_dev, SOLO_CAP_BTW,
-			       (62 << 24) | (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
+			       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
 			       SOLO_CAP_MAX_BANDWIDTH(36));
 	} else {
 		solo_reg_write(solo_dev, SOLO_CAP_BTW,
