@@ -1,3 +1,22 @@
+solo6010 (2.4.0-1) lucid; urgency=low
+
+  * Lower initial P2M DMA transaction timeout to 10ms.
+  * Add new sysfs files and module params for debug and status:
+    - p2m_timeout: Set the P2M DMA transaction timeout in ms
+    - single_p2m: Enable/Disable use of multiple DMA channels (defaults
+      to single)
+    - no_desc_mode: Enable/Disable use of descriptor mode (default off)
+    - sdram: Binary attribute to read the entire contents of the sdram
+    - sdram_offsets: Show layout of SDRAM use
+  * Update offsets used for SDRAM layout. Apparently, the capture area was
+    being scribbled.
+  * Use ktime monotonic timer instead of do_gettimeofday for use in keeping
+    the internal clock synced.
+  * Increase capture bandwidth for 6110.
+  * Increase frame buffer size from 128k to 192k.
+
+ -- Ben Collins <benmcollins13@gmail.com>  Sat, 07 Jan 2012 22:50:55 -0600
+
 solo6010 (2.3.7-1) lucid; urgency=low
 
   * Bug #8: solo6110: Encoded video freezes randomly, jumps forward and backwards, and has significant artifacting
