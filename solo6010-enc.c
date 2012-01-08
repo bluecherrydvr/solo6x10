@@ -43,8 +43,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	int i;
 
 	solo_reg_write(solo_dev, SOLO_CAP_BASE,
-		       SOLO_CAP_MAX_PAGE(SOLO_CAP_EXT_MAX_PAGE *
-					 solo_dev->nr_chans) |
+		       SOLO_CAP_MAX_PAGE((SOLO_CAP_EXT_SIZE(solo_dev) - 0x00120000) >> 16) |
 		       SOLO_CAP_BASE_ADDR(SOLO_CAP_EXT_ADDR(solo_dev) >> 16));
 	solo_reg_write(solo_dev, SOLO_CAP_BTW,
 		       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
@@ -202,8 +201,8 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 			       SOLO_VE_INSERT_INDEX | SOLO_VE_MOTION_MODE(0));
 	} else {
 		solo_reg_write(solo_dev, SOLO_VE_CFG1,
-		  (SOLO_VE_MPEG_SIZE_H(SOLO_MP4E_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
-		  (SOLO_VE_JPEG_SIZE_H(SOLO_JPEG_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
+		  SOLO_VE_MPEG_SIZE_H((SOLO_MP4E_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
+		  SOLO_VE_JPEG_SIZE_H((SOLO_JPEG_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
 		  SOLO_VE_BYTE_ALIGN(2) | SOLO_VE_INSERT_INDEX |
 		  SOLO_VE_MOTION_MODE(0));
 	}

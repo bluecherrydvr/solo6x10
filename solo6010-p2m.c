@@ -280,19 +280,22 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_DMA_CTRL_READ_CLK_SELECT |
 			       SOLO_DMA_CTRL_LATENCY(1));
 
-		if (i == 2) {
+		switch (i) {
+		case 2:
 			if (solo_p2m_test(solo_dev, 0x07ff0000, 0x00010000) ||
 			    solo_p2m_test(solo_dev, 0x05ff0000, 0x00010000))
 				continue;
-		}
+			break;
 
-		if (i == 1) {
+		case 1:
 			if (solo_p2m_test(solo_dev, 0x03ff0000, 0x00010000))
 				continue;
-		}
+			break;
 
-		if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
-			continue;
+		default:
+			if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
+				continue;
+		}
 
 		solo_dev->sdram_size = (32 << 20) << i;
 		break;
@@ -304,7 +307,8 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	}
 
 	if (SOLO_SDRAM_END(solo_dev) > solo_dev->sdram_size) {
-		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough\n");
+		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough (%u < %u)\n",
+			solo_dev->sdram_size, SOLO_SDRAM_END(solo_dev));
 		return -EIO;
 	}
 
