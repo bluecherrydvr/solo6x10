@@ -342,7 +342,7 @@ static ssize_t solo_set_p2m_timeout(struct device *dev,
 		return -EINVAL;
 	solo_dev->p2m_jiffies = msecs_to_jiffies(ms);
 
-	return 0;
+	return count;
 }
 
 static ssize_t solo_get_p2m_timeout(struct device *dev,
@@ -562,7 +562,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Now that init is over, set this lower */
-	solo_dev->p2m_jiffies = msecs_to_jiffies(50);
+	solo_dev->p2m_jiffies = msecs_to_jiffies(10);
 
 	return 0;
 
