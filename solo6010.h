@@ -240,6 +240,7 @@ struct solo6010_dev {
 	/* sysfs stuffs */
 	struct device		dev;
 	int			sdram_size;
+	struct bin_attribute	sdram_attr;
 
 	/* Ring thread */
 	struct task_struct	*ring_thread;

@@ -28,6 +28,7 @@
 #include <linux/interrupt.h>
 #include <linux/videodev2.h>
 #include <linux/delay.h>
+#include <linux/sysfs.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
@@ -187,8 +188,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	kfree(solo_dev);
 }
 
-static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr,
-			       const char *buf, size_t count)
+static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -218,8 +219,9 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 
         return count;
 }
-static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr,
-			       char *buf)
+
+static ssize_t eeprom_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -232,18 +234,17 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 
 	return count;
 }
-static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
 
-static ssize_t solo_set_vid_type(struct device *dev,
-				 struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t video_type_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	return -EPERM;
 }
 
-static ssize_t solo_get_vid_type(struct device *dev,
-				 struct device_attribute *attr,
-				 char *buf)
+static ssize_t video_type_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -251,36 +252,30 @@ static ssize_t solo_get_vid_type(struct device *dev,
 	return sprintf(buf, "%s", solo_dev->video_type ==
 		       SOLO_VO_FMT_TYPE_NTSC ? "NTSC" : "PAL");
 }
-static DEVICE_ATTR(video_type, S_IWUSR | S_IRUGO, solo_get_vid_type,
-		   solo_set_vid_type);
 
-static ssize_t solo_get_p2m_timeouts(struct device *dev,
-				     struct device_attribute *attr,
-				     char *buf)
+static ssize_t p2m_timeouts_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 
 	return sprintf(buf, "%d\n", solo_dev->p2m_timeouts);
 }
-static DEVICE_ATTR(p2m_timeouts, S_IWUSR | S_IRUGO, solo_get_p2m_timeouts,
-		   NULL);
 
-static ssize_t solo_get_sdram_size(struct device *dev,
-				   struct device_attribute *attr,
-				   char *buf)
+static ssize_t sdram_size_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 
 	return sprintf(buf, "%dMegs\n", solo_dev->sdram_size >> 20);
 }
-static DEVICE_ATTR(sdram_size, S_IWUSR | S_IRUGO, solo_get_sdram_size,
-		   NULL);
 
-static ssize_t solo_get_tw28xx(struct device *dev,
-			       struct device_attribute *attr,
-			       char *buf)
+static ssize_t tw28xx_show(struct device *dev,
+			   struct device_attribute *attr,
+			   char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -290,12 +285,10 @@ static ssize_t solo_get_tw28xx(struct device *dev,
 		       hweight32(solo_dev->tw2864),
 		       hweight32(solo_dev->tw2865));
 }
-static DEVICE_ATTR(tw28xx, S_IWUSR | S_IRUGO, solo_get_tw28xx,
-                   NULL);
 
-static ssize_t solo_get_input_map(struct device *dev,
-				  struct device_attribute *attr,
-				  char *buf)
+static ssize_t input_map_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -327,12 +320,10 @@ static ssize_t solo_get_input_map(struct device *dev,
 
 	return out - buf;
 }
-static DEVICE_ATTR(input_map, S_IWUSR | S_IRUGO, solo_get_input_map,
-		   NULL);
 
-static ssize_t solo_set_p2m_timeout(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+static ssize_t p2m_timeout_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -345,26 +336,50 @@ static ssize_t solo_set_p2m_timeout(struct device *dev,
 	return count;
 }
 
-static ssize_t solo_get_p2m_timeout(struct device *dev,
-                                 struct device_attribute *attr,
-                                 char *buf)
+static ssize_t p2m_timeout_show(struct device *dev,
+                                struct device_attribute *attr,
+                                char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 
-	return sprintf(buf, "%ums", jiffies_to_msecs(solo_dev->p2m_jiffies));
+	return sprintf(buf, "%ums\n", jiffies_to_msecs(solo_dev->p2m_jiffies));
 }
-static DEVICE_ATTR(p2m_timeout, S_IWUSR | S_IRUGO, solo_get_p2m_timeout,
-                   solo_set_p2m_timeout);
 
-static struct device_attribute *const solo_dev_attrs[] = {
-	&dev_attr_eeprom,
-	&dev_attr_video_type,
-	&dev_attr_p2m_timeouts,
-	&dev_attr_sdram_size,
-	&dev_attr_tw28xx,
-	&dev_attr_input_map,
-	&dev_attr_p2m_timeout,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
+static ssize_t sdram_show(struct file *file, struct kobject *kobj,
+                          struct bin_attribute *a, char *buf,
+                          loff_t off, size_t count)
+#else
+static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
+			  char *buf, loff_t off, size_t count)
+#endif
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	const int size = solo_dev->sdram_size;
+
+	if (off >= size)
+		return 0;
+
+	if (off + count > size)
+		count = size - off;
+
+	if (solo_p2m_dma(solo_dev, 0, buf, off, count, 0, 0))
+		return -EIO;
+
+	return count;
+}
+
+static struct device_attribute solo_dev_attrs[] = {
+	__ATTR(eeprom, 0640, eeprom_show, eeprom_store),
+	__ATTR(video_type, 0644, video_type_show, video_type_store),
+	__ATTR_RO(p2m_timeouts),
+	__ATTR_RO(sdram_size),
+	__ATTR_RO(tw28xx),
+	__ATTR_RO(input_map),
+	__ATTR(p2m_timeout, 0644, p2m_timeout_show, p2m_timeout_store),
 };
 
 static void solo_device_release(struct device *dev)
@@ -374,6 +389,7 @@ static void solo_device_release(struct device *dev)
 
 static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 {
+	struct bin_attribute *sdram_attr = &solo_dev->sdram_attr;
 	struct device *dev = &solo_dev->dev;
 	const char *driver;
 	int i;
@@ -395,10 +411,20 @@ static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(solo_dev_attrs); i++) {
-		if (device_create_file(dev, solo_dev_attrs[i])) {
+		if (device_create_file(dev, &solo_dev_attrs[i])) {
 			device_unregister(dev);
 			return -ENOMEM;
 		}
+	}
+
+	sdram_attr->attr.name = "sdram";
+	sdram_attr->attr.mode = 0440;
+	sdram_attr->read = sdram_show;
+	sdram_attr->size = solo_dev->sdram_size;
+
+	if (device_create_bin_file(dev, sdram_attr)) {
+		device_unregister(dev);
+		return -ENOMEM;
 	}
 
 	return 0;
