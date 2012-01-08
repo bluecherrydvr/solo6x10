@@ -29,6 +29,7 @@
 #include <linux/videodev2.h>
 #include <linux/delay.h>
 #include <linux/sysfs.h>
+#include <linux/ktime.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
@@ -57,17 +58,18 @@ void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask)
 
 static void solo_set_time(struct solo6010_dev *solo_dev)
 {
-	struct timeval tv;
+	struct timespec ts;
 
-	do_gettimeofday(&tv);
-	solo_reg_write(solo_dev, SOLO_TIMER_SEC, tv.tv_sec);
-	solo_reg_write(solo_dev, SOLO_TIMER_USEC, tv.tv_usec);
+	ktime_get_ts(&ts);
+
+	solo_reg_write(solo_dev, SOLO_TIMER_SEC, ts.tv_sec);
+	solo_reg_write(solo_dev, SOLO_TIMER_USEC, ts.tv_nsec / NSEC_PER_USEC);
 }
 
 static void solo_timer_sync(struct solo6010_dev *solo_dev)
 {
 	u32 sec, usec;
-	struct timeval tv;
+	struct timespec ts;
 	long diff;
 
 	if (solo_dev->type != SOLO_DEV_6110)
@@ -80,10 +82,11 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 
 	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
 	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
-	do_gettimeofday(&tv);
 
-	diff = (long)tv.tv_sec - (long)sec;
-	diff = (diff * 1000000) + ((long)tv.tv_usec - (long)usec);
+	ktime_get_ts(&ts);
+
+	diff = (long)ts.tv_sec - (long)sec;
+	diff = (diff * 1000000) + ((long)(ts.tv_nsec / NSEC_PER_USEC) - (long)usec);
 
 	if (diff > 1000 || diff < -1000) {
 		solo_set_time(solo_dev);
@@ -346,6 +349,25 @@ static ssize_t p2m_timeout_show(struct device *dev,
 	return sprintf(buf, "%ums\n", jiffies_to_msecs(solo_dev->p2m_jiffies));
 }
 
+static ssize_t intervals_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	char *out = buf;
+	int fps = solo_dev->fps;
+	int i;
+
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		out += sprintf(out, "Channel %d: %d/%d (0x%08x)\n",
+			       i, solo_dev->v4l2_enc[i]->interval,
+			       fps, solo_reg_read(solo_dev, SOLO_CAP_CH_INTV(i)));
+	}
+
+	return out - buf;
+}
+
 static ssize_t sdram_offsets_show(struct device *dev,
 				  struct device_attribute *attr,
 				  char *buf)
@@ -430,6 +452,7 @@ static struct device_attribute solo_dev_attrs[] = {
 	__ATTR_RO(sdram_size),
 	__ATTR_RO(tw28xx),
 	__ATTR_RO(input_map),
+	__ATTR_RO(intervals),
 	__ATTR_RO(sdram_offsets),
 };
 

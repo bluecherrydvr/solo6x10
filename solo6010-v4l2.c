@@ -241,7 +241,6 @@ finish_buf:
 	} else {
 		vb->state = VIDEOBUF_DONE;
 		vb->field_count++;
-		do_gettimeofday(&vb->ts);
 	}
 
 	wake_up(&vb->done);
