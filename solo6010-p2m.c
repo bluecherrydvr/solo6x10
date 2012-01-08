@@ -26,6 +26,14 @@
 
 #include "solo6010.h"
 
+static int multi_p2m;
+module_param(multi_p2m, uint, 0644);
+MODULE_PARM_DESC(multi_p2m, "Allow 6010 to use multiple P2M DMA channels (default is single, does not affect 6110)");
+
+static int desc_mode;
+module_param(desc_mode, uint, 0644);
+MODULE_PARM_DESC(desc_mode, "Allow use of descriptor mode DMA (default is disabled, does not affect 6110)");
+
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
 		 int repeat, u32 ext_size)
@@ -59,15 +67,13 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	unsigned int timeout;
 	unsigned int config = 0;
 	int ret = 0;
-        int p2m_id;
+	int p2m_id = 0;
 
 	/* Get next ID. According to Softlogic, 6110 has problems on !=0 P2M */
-	if (solo_dev->type != SOLO_DEV_6110) {
+	if (solo_dev->type != SOLO_DEV_6110 && multi_p2m) {
 		p2m_id = atomic_inc_return(&solo_dev->p2m_count) % SOLO_NR_P2M;
 		if (p2m_id < 0)
 			p2m_id = -p2m_id;
-	} else {
-		p2m_id = 0;
 	}
 
 	p2m_dev = &solo_dev->p2m_dev[p2m_id];
@@ -78,7 +84,7 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 	INIT_COMPLETION(p2m_dev->completion);
 	p2m_dev->error = 0;
 
-	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110) {
+	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110 && desc_mode) {
 		/* For 6010 with more than one desc, we can do a one-shot */
 		p2m_dev->desc_count = p2m_dev->desc_idx = 0;
 		config = solo_reg_read(solo_dev, SOLO_P2M_CONFIG(p2m_id));
@@ -111,7 +117,9 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), 0);
 
-	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110)
+	/* Don't write here for the no_desc_mode case, because config is 0.
+	 * We can't test no_desc_mode again, it might race. */
+	if (desc_cnt > 1 && solo_dev->type != SOLO_DEV_6110 && config)
 		solo_reg_write(solo_dev, SOLO_P2M_CONFIG(p2m_id), config);
 
 	mutex_unlock(&p2m_dev->mutex);
@@ -272,19 +280,26 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_DMA_CTRL_READ_CLK_SELECT |
 			       SOLO_DMA_CTRL_LATENCY(1));
 
-		if (i == 2) {
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config |
+			       SOLO_SYS_CFG_RESET);
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
+
+		switch (i) {
+		case 2:
 			if (solo_p2m_test(solo_dev, 0x07ff0000, 0x00010000) ||
 			    solo_p2m_test(solo_dev, 0x05ff0000, 0x00010000))
 				continue;
-		}
+			break;
 
-		if (i == 1) {
+		case 1:
 			if (solo_p2m_test(solo_dev, 0x03ff0000, 0x00010000))
 				continue;
-		}
+			break;
 
-		if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
-			continue;
+		default:
+			if (solo_p2m_test(solo_dev, 0x01ff0000, 0x00010000))
+				continue;
+		}
 
 		solo_dev->sdram_size = (32 << 20) << i;
 		break;
@@ -296,7 +311,8 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	}
 
 	if (SOLO_SDRAM_END(solo_dev) > solo_dev->sdram_size) {
-		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough\n");
+		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough (%u < %u)\n",
+			solo_dev->sdram_size, SOLO_SDRAM_END(solo_dev));
 		return -EIO;
 	}
 

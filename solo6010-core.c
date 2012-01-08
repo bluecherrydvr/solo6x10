@@ -28,6 +28,8 @@
 #include <linux/interrupt.h>
 #include <linux/videodev2.h>
 #include <linux/delay.h>
+#include <linux/sysfs.h>
+#include <linux/ktime.h>
 
 #include "solo6010.h"
 #include "solo6010-tw28.h"
@@ -56,17 +58,18 @@ void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask)
 
 static void solo_set_time(struct solo6010_dev *solo_dev)
 {
-	struct timeval tv;
+	struct timespec ts;
 
-	do_gettimeofday(&tv);
-	solo_reg_write(solo_dev, SOLO_TIMER_SEC, tv.tv_sec);
-	solo_reg_write(solo_dev, SOLO_TIMER_USEC, tv.tv_usec);
+	ktime_get_ts(&ts);
+
+	solo_reg_write(solo_dev, SOLO_TIMER_SEC, ts.tv_sec);
+	solo_reg_write(solo_dev, SOLO_TIMER_USEC, ts.tv_nsec / NSEC_PER_USEC);
 }
 
 static void solo_timer_sync(struct solo6010_dev *solo_dev)
 {
 	u32 sec, usec;
-	struct timeval tv;
+	struct timespec ts;
 	long diff;
 
 	if (solo_dev->type != SOLO_DEV_6110)
@@ -79,10 +82,11 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 
 	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
 	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
-	do_gettimeofday(&tv);
 
-	diff = (long)tv.tv_sec - (long)sec;
-	diff = (diff * 1000000) + ((long)tv.tv_usec - (long)usec);
+	ktime_get_ts(&ts);
+
+	diff = (long)ts.tv_sec - (long)sec;
+	diff = (diff * 1000000) + ((long)(ts.tv_nsec / NSEC_PER_USEC) - (long)usec);
 
 	if (diff > 1000 || diff < -1000) {
 		solo_set_time(solo_dev);
@@ -187,8 +191,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 	kfree(solo_dev);
 }
 
-static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr,
-			       const char *buf, size_t count)
+static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
+			    const char *buf, size_t count)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -218,8 +222,9 @@ static ssize_t solo_set_eeprom(struct device *dev, struct device_attribute *attr
 
         return count;
 }
-static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr,
-			       char *buf)
+
+static ssize_t eeprom_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -232,18 +237,17 @@ static ssize_t solo_get_eeprom(struct device *dev, struct device_attribute *attr
 
 	return count;
 }
-static DEVICE_ATTR(eeprom, S_IWUSR | S_IRUGO, solo_get_eeprom, solo_set_eeprom);
 
-static ssize_t solo_set_vid_type(struct device *dev,
-				 struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t video_type_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	return -EPERM;
 }
 
-static ssize_t solo_get_vid_type(struct device *dev,
-				 struct device_attribute *attr,
-				 char *buf)
+static ssize_t video_type_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -251,36 +255,30 @@ static ssize_t solo_get_vid_type(struct device *dev,
 	return sprintf(buf, "%s", solo_dev->video_type ==
 		       SOLO_VO_FMT_TYPE_NTSC ? "NTSC" : "PAL");
 }
-static DEVICE_ATTR(video_type, S_IWUSR | S_IRUGO, solo_get_vid_type,
-		   solo_set_vid_type);
 
-static ssize_t solo_get_p2m_timeouts(struct device *dev,
-				     struct device_attribute *attr,
-				     char *buf)
+static ssize_t p2m_timeouts_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 
 	return sprintf(buf, "%d\n", solo_dev->p2m_timeouts);
 }
-static DEVICE_ATTR(p2m_timeouts, S_IWUSR | S_IRUGO, solo_get_p2m_timeouts,
-		   NULL);
 
-static ssize_t solo_get_sdram_size(struct device *dev,
-				   struct device_attribute *attr,
-				   char *buf)
+static ssize_t sdram_size_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
 
 	return sprintf(buf, "%dMegs\n", solo_dev->sdram_size >> 20);
 }
-static DEVICE_ATTR(sdram_size, S_IWUSR | S_IRUGO, solo_get_sdram_size,
-		   NULL);
 
-static ssize_t solo_get_tw28xx(struct device *dev,
-			       struct device_attribute *attr,
-			       char *buf)
+static ssize_t tw28xx_show(struct device *dev,
+			   struct device_attribute *attr,
+			   char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -290,15 +288,172 @@ static ssize_t solo_get_tw28xx(struct device *dev,
 		       hweight32(solo_dev->tw2864),
 		       hweight32(solo_dev->tw2865));
 }
-static DEVICE_ATTR(tw28xx, S_IWUSR | S_IRUGO, solo_get_tw28xx,
-                   NULL);
 
-static struct device_attribute *const solo_dev_attrs[] = {
-	&dev_attr_eeprom,
-	&dev_attr_video_type,
-	&dev_attr_p2m_timeouts,
-	&dev_attr_sdram_size,
-	&dev_attr_tw28xx,
+static ssize_t input_map_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned int val;
+	char *out = buf;
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_0);
+	out += sprintf(out, "Channel 0   => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 1   => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 2   => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 3   => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Channel 4   => Input %d\n", (val >> 20) & 0x1f);
+	out += sprintf(out, "Channel 5   => Input %d\n", (val >> 25) & 0x1f);
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_1);
+	out += sprintf(out, "Channel 6   => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 7   => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 8   => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 9   => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Channel 10  => Input %d\n", (val >> 20) & 0x1f);
+	out += sprintf(out, "Channel 11  => Input %d\n", (val >> 25) & 0x1f);
+
+	val = solo_reg_read(solo_dev, SOLO_VI_CH_SWITCH_2);
+	out += sprintf(out, "Channel 12  => Input %d\n", val & 0x1f);
+	out += sprintf(out, "Channel 13  => Input %d\n", (val >> 5) & 0x1f);
+	out += sprintf(out, "Channel 14  => Input %d\n", (val >> 10) & 0x1f);
+	out += sprintf(out, "Channel 15  => Input %d\n", (val >> 15) & 0x1f);
+	out += sprintf(out, "Spot Output => Input %d\n", (val >> 20) & 0x1f);
+
+	return out - buf;
+}
+
+static ssize_t p2m_timeout_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	unsigned long ms = simple_strtoul(buf, NULL, 10);
+
+	if (ms > 200)
+		return -EINVAL;
+	solo_dev->p2m_jiffies = msecs_to_jiffies(ms);
+
+	return count;
+}
+
+static ssize_t p2m_timeout_show(struct device *dev,
+                                struct device_attribute *attr,
+                                char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+
+	return sprintf(buf, "%ums\n", jiffies_to_msecs(solo_dev->p2m_jiffies));
+}
+
+static ssize_t intervals_show(struct device *dev,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	char *out = buf;
+	int fps = solo_dev->fps;
+	int i;
+
+	for (i = 0; i < solo_dev->nr_chans; i++) {
+		out += sprintf(out, "Channel %d: %d/%d (0x%08x)\n",
+			       i, solo_dev->v4l2_enc[i]->interval,
+			       fps, solo_reg_read(solo_dev, SOLO_CAP_CH_INTV(i)));
+	}
+
+	return out - buf;
+}
+
+static ssize_t sdram_offsets_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	char *out = buf;
+
+	out += sprintf(out, "DISP: 0x%08x @ 0x%08x\n",
+		       SOLO_DISP_EXT_ADDR(solo_dev),
+		       SOLO_DISP_EXT_SIZE);
+
+	out += sprintf(out, "EOSD: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_EOSD_EXT_ADDR(solo_dev),
+		       SOLO_EOSD_EXT_AREA(solo_dev),
+		       SOLO_EOSD_EXT_SIZE(solo_dev),
+		       SOLO_EOSD_EXT_AREA(solo_dev) /
+		       SOLO_EOSD_EXT_SIZE(solo_dev));
+
+	out += sprintf(out, "MOTI: 0x%08x @ 0x%08x\n",
+		       SOLO_MOTION_EXT_ADDR(solo_dev),
+		       SOLO_MOTION_EXT_SIZE);
+
+	out += sprintf(out, "G723: 0x%08x @ 0x%08x\n",
+		       SOLO_G723_EXT_ADDR(solo_dev),
+		       SOLO_G723_EXT_SIZE);
+
+	out += sprintf(out, "CAPT: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_CAP_EXT_ADDR(solo_dev),
+		       SOLO_CAP_EXT_SIZE(solo_dev),
+		       SOLO_CAP_PAGE_SIZE,
+		       SOLO_CAP_EXT_SIZE(solo_dev) / SOLO_CAP_PAGE_SIZE);
+
+	out += sprintf(out, "EREF: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_EREF_EXT_ADDR(solo_dev),
+		       SOLO_EREF_EXT_AREA(solo_dev),
+		       SOLO_EREF_EXT_SIZE,
+		       SOLO_EREF_EXT_AREA(solo_dev) / SOLO_EREF_EXT_SIZE);
+
+	out += sprintf(out, "MPEG: 0x%08x @ 0x%08x\n",
+		       SOLO_MP4E_EXT_ADDR(solo_dev),
+		       SOLO_MP4E_EXT_SIZE(solo_dev));
+
+	out += sprintf(out, "JPEG: 0x%08x @ 0x%08x\n",
+		       SOLO_JPEG_EXT_ADDR(solo_dev),
+		       SOLO_JPEG_EXT_SIZE(solo_dev));
+
+	return out - buf;
+}
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
+static ssize_t sdram_show(struct file *file, struct kobject *kobj,
+                          struct bin_attribute *a, char *buf,
+                          loff_t off, size_t count)
+#else
+static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
+			  char *buf, loff_t off, size_t count)
+#endif
+{
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	const int size = solo_dev->sdram_size;
+
+	if (off >= size)
+		return 0;
+
+	if (off + count > size)
+		count = size - off;
+
+	if (solo_p2m_dma(solo_dev, 0, buf, off, count, 0, 0))
+		return -EIO;
+
+	return count;
+}
+
+static struct device_attribute solo_dev_attrs[] = {
+	__ATTR(eeprom, 0640, eeprom_show, eeprom_store),
+	__ATTR(video_type, 0644, video_type_show, video_type_store),
+	__ATTR(p2m_timeout, 0644, p2m_timeout_show, p2m_timeout_store),
+	__ATTR_RO(p2m_timeouts),
+	__ATTR_RO(sdram_size),
+	__ATTR_RO(tw28xx),
+	__ATTR_RO(input_map),
+	__ATTR_RO(intervals),
+	__ATTR_RO(sdram_offsets),
 };
 
 static void solo_device_release(struct device *dev)
@@ -308,6 +463,7 @@ static void solo_device_release(struct device *dev)
 
 static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 {
+	struct bin_attribute *sdram_attr = &solo_dev->sdram_attr;
 	struct device *dev = &solo_dev->dev;
 	const char *driver;
 	int i;
@@ -329,10 +485,20 @@ static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(solo_dev_attrs); i++) {
-		if (device_create_file(dev, solo_dev_attrs[i])) {
+		if (device_create_file(dev, &solo_dev_attrs[i])) {
 			device_unregister(dev);
 			return -ENOMEM;
 		}
+	}
+
+	sdram_attr->attr.name = "sdram";
+	sdram_attr->attr.mode = 0440;
+	sdram_attr->read = sdram_show;
+	sdram_attr->size = solo_dev->sdram_size;
+
+	if (device_create_bin_file(dev, sdram_attr)) {
+		device_unregister(dev);
+		return -ENOMEM;
 	}
 
 	return 0;
@@ -403,10 +569,11 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* Initial global settings */
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_dev->clock_mhz = 108;
-		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT |
-			       SOLO_SYS_CFG_INPUTDIV(25) |
-			       SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
-			       SOLO_SYS_CFG_OUTDIV(3));
+		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT |
+				SOLO_SYS_CFG_INPUTDIV(25) |
+				SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
+				SOLO_SYS_CFG_OUTDIV(3);
+		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
 	} else {
 		u32 divq, divf;
 
@@ -427,9 +594,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 			       (divf <<  4 ) |
 			       (1 <<  1)   /* PLL_FSEN */ );
 
-		solo_reg_write(solo_dev, SOLO_SYS_CFG, SOLO_SYS_CFG_SDRAM64BIT);
+		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT;
 	}
 
+	solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
 	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM, solo_dev->clock_mhz - 1);
 
 	/* PLL locking time of 1ms */
@@ -496,7 +664,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Now that init is over, set this lower */
-	solo_dev->p2m_jiffies = msecs_to_jiffies(50);
+	solo_dev->p2m_jiffies = msecs_to_jiffies(10);
 
 	return 0;
 
