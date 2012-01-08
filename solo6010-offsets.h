@@ -33,9 +33,11 @@
 #define SOLO_EOSD_EXT_SIZE(__solo) \
 		(__solo->type == SOLO_DEV_6010 ? 0x10000 : 0x20000)
 #define SOLO_EOSD_EXT_SIZE_MAX			0x20000
+#define SOLO_EOSD_EXT_AREA(__solo) \
+		(SOLO_EOSD_EXT_SIZE(__solo) * 32)
 
 #define SOLO_MOTION_EXT_ADDR(__solo) \
-		(SOLO_EOSD_EXT_ADDR(__solo) + (SOLO_EOSD_EXT_SIZE(__solo) * 32))
+		(SOLO_EOSD_EXT_ADDR(__solo) + SOLO_EOSD_EXT_AREA(__solo))
 #define SOLO_MOTION_EXT_SIZE			0x00080000
 
 #define SOLO_G723_EXT_ADDR(__solo) \
@@ -44,7 +46,9 @@
 
 #define SOLO_CAP_EXT_ADDR(__solo) \
 		(SOLO_G723_EXT_ADDR(__solo) + SOLO_G723_EXT_SIZE)
-#define SOLO_CAP_EXT_SIZE(__solo)		((__solo->nr_chans + 1) * 0x00120000)
+/* 18 is the maximum number of pages required for PAL@D1, the largest frame possible */
+#define SOLO_CAP_PAGE_SIZE			(18 << 16)
+#define SOLO_CAP_EXT_SIZE(__solo)		((__solo->nr_chans + 1) * SOLO_CAP_PAGE_SIZE)
 
 #define SOLO_EREF_EXT_ADDR(__solo) \
 		(SOLO_CAP_EXT_ADDR(__solo) + SOLO_CAP_EXT_SIZE(__solo))

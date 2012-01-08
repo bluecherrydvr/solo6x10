@@ -346,6 +346,56 @@ static ssize_t p2m_timeout_show(struct device *dev,
 	return sprintf(buf, "%ums\n", jiffies_to_msecs(solo_dev->p2m_jiffies));
 }
 
+static ssize_t sdram_offsets_show(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct solo6010_dev *solo_dev =
+		container_of(dev, struct solo6010_dev, dev);
+	char *out = buf;
+
+	out += sprintf(out, "DISP: 0x%08x @ 0x%08x\n",
+		       SOLO_DISP_EXT_ADDR(solo_dev),
+		       SOLO_DISP_EXT_SIZE);
+
+	out += sprintf(out, "EOSD: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_EOSD_EXT_ADDR(solo_dev),
+		       SOLO_EOSD_EXT_AREA(solo_dev),
+		       SOLO_EOSD_EXT_SIZE(solo_dev),
+		       SOLO_EOSD_EXT_AREA(solo_dev) /
+		       SOLO_EOSD_EXT_SIZE(solo_dev));
+
+	out += sprintf(out, "MOTI: 0x%08x @ 0x%08x\n",
+		       SOLO_MOTION_EXT_ADDR(solo_dev),
+		       SOLO_MOTION_EXT_SIZE);
+
+	out += sprintf(out, "G723: 0x%08x @ 0x%08x\n",
+		       SOLO_G723_EXT_ADDR(solo_dev),
+		       SOLO_G723_EXT_SIZE);
+
+	out += sprintf(out, "CAPT: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_CAP_EXT_ADDR(solo_dev),
+		       SOLO_CAP_EXT_SIZE(solo_dev),
+		       SOLO_CAP_PAGE_SIZE,
+		       SOLO_CAP_EXT_SIZE(solo_dev) / SOLO_CAP_PAGE_SIZE);
+
+	out += sprintf(out, "EREF: 0x%08x @ 0x%08x (0x%08x * %d)\n",
+		       SOLO_EREF_EXT_ADDR(solo_dev),
+		       SOLO_EREF_EXT_AREA(solo_dev),
+		       SOLO_EREF_EXT_SIZE,
+		       SOLO_EREF_EXT_AREA(solo_dev) / SOLO_EREF_EXT_SIZE);
+
+	out += sprintf(out, "MPEG: 0x%08x @ 0x%08x\n",
+		       SOLO_MP4E_EXT_ADDR(solo_dev),
+		       SOLO_MP4E_EXT_SIZE(solo_dev));
+
+	out += sprintf(out, "JPEG: 0x%08x @ 0x%08x\n",
+		       SOLO_JPEG_EXT_ADDR(solo_dev),
+		       SOLO_JPEG_EXT_SIZE(solo_dev));
+
+	return out - buf;
+}
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
 static ssize_t sdram_show(struct file *file, struct kobject *kobj,
                           struct bin_attribute *a, char *buf,
@@ -375,11 +425,12 @@ static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
 static struct device_attribute solo_dev_attrs[] = {
 	__ATTR(eeprom, 0640, eeprom_show, eeprom_store),
 	__ATTR(video_type, 0644, video_type_show, video_type_store),
+	__ATTR(p2m_timeout, 0644, p2m_timeout_show, p2m_timeout_store),
 	__ATTR_RO(p2m_timeouts),
 	__ATTR_RO(sdram_size),
 	__ATTR_RO(tw28xx),
 	__ATTR_RO(input_map),
-	__ATTR(p2m_timeout, 0644, p2m_timeout_show, p2m_timeout_store),
+	__ATTR_RO(sdram_offsets),
 };
 
 static void solo_device_release(struct device *dev)
