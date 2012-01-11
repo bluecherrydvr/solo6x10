@@ -31,7 +31,7 @@
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)
 
-#define IRQ_LEVEL			0
+#define IRQ_LEVEL			2
 
 static void solo_capture_config(struct solo6010_dev *solo_dev)
 {
