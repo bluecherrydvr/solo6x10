@@ -48,7 +48,8 @@
 		(SOLO_G723_EXT_ADDR(__solo) + SOLO_G723_EXT_SIZE)
 /* 18 is the maximum number of pages required for PAL@D1, the largest frame possible */
 #define SOLO_CAP_PAGE_SIZE			(18 << 16)
-#define SOLO_CAP_EXT_SIZE(__solo)		((__solo->nr_chans + 1) * SOLO_CAP_PAGE_SIZE)
+/* Always allow the encoder enough for 16 channels, even if we have less */
+#define SOLO_CAP_EXT_SIZE(__solo)		((16 + 1) * SOLO_CAP_PAGE_SIZE)
 
 #define SOLO_EREF_EXT_ADDR(__solo) \
 		(SOLO_CAP_EXT_ADDR(__solo) + SOLO_CAP_EXT_SIZE(__solo))
