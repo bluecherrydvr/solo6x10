@@ -75,10 +75,10 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 	if (solo_dev->type != SOLO_DEV_6110)
 		return;
 
-	solo_dev->time_sync++;
-
-	if (solo_dev->time_sync % 60)
+	if (++solo_dev->time_sync < 60)
 		return;
+
+	solo_dev->time_sync = 0;
 
 	sec = solo_reg_read(solo_dev, SOLO_TIMER_SEC);
 	usec = solo_reg_read(solo_dev, SOLO_TIMER_USEC);
