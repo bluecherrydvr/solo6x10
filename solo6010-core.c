@@ -44,6 +44,10 @@ static int full_eeprom;
 module_param(full_eeprom, uint, 0644);
 MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous, default is only top 64B)");
 
+static int probing_finished;
+module_param(probing_finished, uint, 0444);
+MODULE_PARM_DESC(probing_finished, "Flag indicating if device probing has finished");
+
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask)
 {
 	solo_dev->irq_mask |= mask;
@@ -717,9 +721,12 @@ static struct pci_driver solo6010_pci_driver = {
 
 static int __init solo6010_module_init(void)
 {
+	int ret;
 	printk(KERN_INFO "Enabling Softlogic 6x10 Driver v%s\n",
 	       SOLO6010_VERSION);
-	return pci_register_driver(&solo6010_pci_driver);
+	ret = pci_register_driver(&solo6010_pci_driver);
+	probing_finished = 1;
+	return ret;
 }
 
 static void __exit solo6010_module_exit(void)
