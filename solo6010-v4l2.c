@@ -561,8 +561,14 @@ static int solo_enum_input(struct file *file, void *priv,
 static int solo_set_input(struct file *file, void *priv, unsigned int index)
 {
 	struct solo_filehandle *fh = priv;
+	int ret = solo_v4l2_set_ch(fh->solo_dev, index);
 
-	return solo_v4l2_set_ch(fh->solo_dev, index);
+	if (!ret) {
+		while(erase_off(fh->solo_dev))
+			; /* Do nothing */
+	}
+
+	return ret;
 }
 
 static int solo_get_input(struct file *file, void *priv, unsigned int *index)
