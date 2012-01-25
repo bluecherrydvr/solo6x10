@@ -1,14 +1,14 @@
 CFLAGS		= -Wall
 LIBS		= -lavcodec -lavformat -lavutil
 
-TARGETS		= bc-record bc-disp-input
+TARGETS		= bc-record bluecherry-display
 
 all: $(TARGETS)
 
 bc-record: bc-record.c
 	$(CC) $(CFLAGS) $< -o $@ $(LIBS)
 
-bc-disp-input: bc-disp-input.c
+bluecherry-display: bluecherry-display.c
 	$(CC) $(CFLAGS) $< -o $@
 
 clean:
