@@ -1,3 +1,16 @@
+solo6010 (2.4.1-1) oneiric; urgency=low
+
+  * Cleanup solo_timer_sync() to not use mod for checking sync timer
+  * Increase default running p2m_jiffies to 20ms. Alleviates rampant timeouts
+    on 4x16 setups
+  * Increase irq level back to 4/interrupt (errantly got lowered to 1 frame
+    per interrupt)
+  * Give capture card enough room for 16 inputs, even on 4/8 port cards (does
+    not affect cards with only 32Meg of SDRAM)
+  * display: Run forced erase cycle when switching displays
+
+ -- Ben Collins <bcollins@ubuntu.com>  Wed, 25 Jan 2012 13:23:14 -0500
+
 solo6010 (2.4.0-1) lucid; urgency=low
 
   * Lower initial P2M DMA transaction timeout to 10ms.
