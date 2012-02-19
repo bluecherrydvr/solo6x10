@@ -410,8 +410,12 @@ snd_error:
 
 void solo_g723_exit(struct solo6010_dev *solo_dev)
 {
+	if (!solo_dev->snd_card)
+		return;
+
 	solo_reg_write(solo_dev, SOLO_AUDIO_CONTROL, 0);
 	solo6010_irq_off(solo_dev, SOLO_IRQ_G723);
 
 	snd_card_free(solo_dev->snd_card);
+	solo_dev->snd_card = NULL;
 }

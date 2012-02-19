@@ -166,18 +166,18 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 		return;
 	}
 
-	/* Bring down the sub-devices first */
-	solo_g723_exit(solo_dev);
-	solo_enc_v4l2_exit(solo_dev);
-	solo_enc_exit(solo_dev);
-	solo_v4l2_exit(solo_dev);
-	solo_disp_exit(solo_dev);
-	solo_gpio_exit(solo_dev);
-	solo_p2m_exit(solo_dev);
-	solo_i2c_exit(solo_dev);
-
-	/* Now cleanup the PCI device */
 	if (solo_dev->reg_base) {
+		/* Bring down the sub-devices first */
+		solo_g723_exit(solo_dev);
+		solo_enc_v4l2_exit(solo_dev);
+		solo_enc_exit(solo_dev);
+		solo_v4l2_exit(solo_dev);
+		solo_disp_exit(solo_dev);
+		solo_gpio_exit(solo_dev);
+		solo_p2m_exit(solo_dev);
+		solo_i2c_exit(solo_dev);
+
+		/* Now cleanup the PCI device */
 		solo6010_irq_off(solo_dev, ~0);
 		pci_iounmap(pdev, solo_dev->reg_base);
 		if (pdev->irq)
