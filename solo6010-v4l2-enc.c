@@ -325,6 +325,9 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 	vop[SOF0_START + 6] = 0xff & solo_enc->height;
 	vop[SOF0_START + 7] = 0xff & (solo_enc->width >> 8);
 	vop[SOF0_START + 8] = 0xff & solo_enc->width;
+
+	memcpy(vop + DQT_START, jpeg_dqt[solo_g_jpeg_qp(solo_dev, solo_enc->ch)],
+	       DQT_LEN);
 }
 
 /* MUST be called with solo_enc->enable_lock held */

@@ -231,6 +231,10 @@ struct solo6010_dev {
 	u16			vin_hstart, vin_vstart;
 	u8			fps;
 
+	/* JPEG Qp setting */
+	spinlock_t      jpeg_qp_lock;
+	u8		jpeg_qp[2];
+
 	/* Audio components */
 	struct snd_card		*snd_card;
 	struct snd_pcm		*snd_pcm;
@@ -359,5 +363,9 @@ unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en);
 unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc);
 int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 		      unsigned short data);
+
+/* JPEG Qp functions */
+int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp);
+int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch);
 
 #endif /* __SOLO6010_H */

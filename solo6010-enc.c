@@ -181,11 +181,75 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 	return 0;
 }
 
+/* Set one of 4 Qp modes for the jpeg stream */
+int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp)
+{
+	unsigned long flags;
+	int idx;
+
+	if (solo_dev->type == SOLO_DEV_6010)
+ 		return 0;
+
+	if ((ch > 31) || (qp > 3))
+ 		return -EINVAL;
+
+	if (ch < 16) {
+		idx = 0;
+	} else {
+		ch -= 16;
+		idx = 1;
+	}
+	ch *= 2;
+
+	spin_lock_irqsave(&solo_dev->jpeg_qp_lock, flags);
+	solo_dev->jpeg_qp[idx] &= ~(3 << ch);
+	solo_dev->jpeg_qp[idx] |= (qp & 3) << ch;
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, solo_dev->jpeg_qp[idx]);
+	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
+
+	return 0;
+}
+
+int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
+{
+	unsigned long flags;
+	int qp, idx;
+
+	if (solo_dev->type == SOLO_DEV_6010)
+		return 0;
+       
+	if (ch > 31)
+		return -EINVAL;
+
+	if (ch < 16) {
+		idx = 0;
+	} else {
+		ch -= 16;
+		idx = 1;
+	}
+	ch *= 2;
+
+	spin_lock_irqsave(&solo_dev->jpeg_qp_lock, flags);
+	qp = (solo_dev->jpeg_qp[idx] >> ch) & 3;
+	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
+
+	return qp;
+}
+
 static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 {
+	if (solo_dev->type == SOLO_DEV_6010) {
+		solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
+			       (2 << 24) | (2 << 16) | (2 << 8) | 2);
+	} else {
+		solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
+			       (4 << 24) | (3 << 16) | (2 << 8) | 1);
+	}
+
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
 		       (2 << 24) | (2 << 16) | (2 << 8) | 2);
 
+	spin_lock_init(&solo_dev->jpeg_qp_lock);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, 0);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, 0);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG,
