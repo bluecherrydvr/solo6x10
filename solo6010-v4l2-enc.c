@@ -722,13 +722,17 @@ void solo_enc_v4l2_isr(struct solo6010_dev *solo_dev)
 
 static void solo_handle_ring(struct solo6010_dev *solo_dev)
 {
-	u8 cur_q = solo_reg_read(solo_dev, SOLO_VE_STATE(11)) & 0xff;
-
-	while (cur_q != solo_dev->enc_idx) {
+	for (;;) {
 		struct solo_enc_dev *solo_enc;
 		struct solo_enc_buf enc_buf;
 		u32 mpeg_current, off;
 		u8 ch;
+		u8 cur_q;
+
+		/* Check if the hardware has any new ones in the queue */
+		cur_q = solo_reg_read(solo_dev, SOLO_VE_STATE(11)) & 0xff;
+		if (cur_q == solo_dev->enc_idx)
+			break;
 
 		mpeg_current = solo_reg_read(solo_dev,
 					SOLO_VE_MPEG4_QUE(solo_dev->enc_idx));
@@ -784,7 +788,9 @@ static int solo_ring_thread(void *data)
 		long timeout = schedule_timeout_interruptible(HZ);
 		if (timeout == -ERESTARTSYS || kthread_should_stop())
 			break;
+		solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
 		solo_handle_ring(solo_dev);
+		solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
 		try_to_freeze();
 	}
 
