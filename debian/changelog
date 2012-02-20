@@ -1,3 +1,11 @@
+solo6010 (2.4.2-1) oneiric; urgency=low
+
+  * Added jpeg Qp patch from Junho (reworked to actually do things
+    correctly).
+  * Disable encoder interrupts while processing ring buffer.
+
+ -- Ben Collins <bcollins@ubuntu.com>  Mon, 20 Feb 2012 01:25:21 -0500
+
 solo6010 (2.4.1-1) oneiric; urgency=low
 
   * Cleanup solo_timer_sync() to not use mod for checking sync timer
