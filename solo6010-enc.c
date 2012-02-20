@@ -185,29 +185,37 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp)
 {
 	unsigned long flags;
-	int idx;
-
-	if (solo_dev->type == SOLO_DEV_6010)
- 		return 0;
+	int idx, last;
+	unsigned int reg;
 
 	if ((ch > 31) || (qp > 3))
  		return -EINVAL;
 
+	if (solo_dev->type == SOLO_DEV_6010)
+		return 2;
+
 	if (ch < 16) {
 		idx = 0;
+		reg = SOLO_VE_JPEG_QP_CH_L;
 	} else {
 		ch -= 16;
 		idx = 1;
+		reg = SOLO_VE_JPEG_QP_CH_H;
 	}
 	ch *= 2;
 
 	spin_lock_irqsave(&solo_dev->jpeg_qp_lock, flags);
+
+	last = (solo_dev->jpeg_qp[idx] >> ch) & 3;
+
 	solo_dev->jpeg_qp[idx] &= ~(3 << ch);
 	solo_dev->jpeg_qp[idx] |= (qp & 3) << ch;
-	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, solo_dev->jpeg_qp[idx]);
+
+	solo_reg_write(solo_dev, reg, solo_dev->jpeg_qp[idx]);
+
 	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
 
-	return 0;
+	return last;
 }
 
 int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
@@ -216,10 +224,10 @@ int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
 	int qp, idx;
 
 	if (solo_dev->type == SOLO_DEV_6010)
-		return 0;
-       
-	if (ch > 31)
-		return -EINVAL;
+		return 2;
+
+	if (WARN_ON_ONCE(ch > 31))
+		return 2;
 
 	if (ch < 16) {
 		idx = 0;
@@ -238,6 +246,8 @@ int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
 
 static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 {
+	int i;
+
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
 			       (2 << 24) | (2 << 16) | (2 << 8) | 2);
@@ -247,12 +257,19 @@ static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 	}
 
 	spin_lock_init(&solo_dev->jpeg_qp_lock);
-	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, 0);
-	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, 0);
+
+	/* Set this for all channels */
+	for (i = 0; i < 32; i++)
+		solo_s_jpeg_qp(solo_dev, i, 2);
+
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG,
 		(SOLO_JPEG_EXT_SIZE(solo_dev) & 0xffff0000) |
 		((SOLO_JPEG_EXT_ADDR(solo_dev) >> 16) & 0x0000ffff));
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_CTRL, 0xffffffff);
+	if (solo_dev->type == SOLO_DEV_6110) {
+		solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG1,
+			       (0 << 16) | (30 << 8) | 60);
+	}
 }
 
 static void solo_mp4e_config(struct solo6010_dev *solo_dev)
