@@ -246,9 +246,6 @@ static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 			       (4 << 24) | (3 << 16) | (2 << 8) | 1);
 	}
 
-	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
-		       (2 << 24) | (2 << 16) | (2 << 8) | 2);
-
 	spin_lock_init(&solo_dev->jpeg_qp_lock);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, 0);
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, 0);
