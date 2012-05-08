@@ -1,3 +1,9 @@
+solo6010 (2.4.1-2) precise; urgency=low
+
+  * Fix compile failures on 3.2+ kernels
+
+ -- Ben Collins <bcollins@ubuntu.com>  Tue, 08 May 2012 13:53:40 -0400
+
 solo6010 (2.4.1-1) oneiric; urgency=low
 
   * Cleanup solo_timer_sync() to not use mod for checking sync timer
