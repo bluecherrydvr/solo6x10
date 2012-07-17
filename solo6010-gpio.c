@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/delay.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include "solo6010.h"
 
