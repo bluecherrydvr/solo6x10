@@ -37,8 +37,8 @@
 #define EE_ENB		(0x80 | EE_CS)
 
 #define eeprom_delay()	udelay(100)
-//#define eeprom_delay()	solo_reg_read(solo_dev, SOLO_EEPROM_CTRL)
 #if 0
+#define eeprom_delay()	solo_reg_read(solo_dev, SOLO_EEPROM_CTRL)
 #define eeprom_delay()	({				\
 	int i, ret;					\
 	udelay(100);					\

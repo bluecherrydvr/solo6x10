@@ -565,7 +565,7 @@ static int solo_set_input(struct file *file, void *priv, unsigned int index)
 
 	if (!ret) {
 		while(erase_off(fh->solo_dev))
-			; /* Do nothing */
+			/* Do nothing */;
 	}
 
 	return ret;
@@ -870,13 +870,13 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		solo_v4l2_set_ch(solo_dev, i);
 		while (erase_off(solo_dev))
-			;// Do nothing
+			/* Do nothing */;
 	}
 
 	/* Set the default display channel */
 	solo_v4l2_set_ch(solo_dev, 0);
 	while (erase_off(solo_dev))
-		;// Do nothing
+		/* Do nothing */;
 
 	return 0;
 }

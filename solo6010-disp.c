@@ -240,8 +240,8 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VI_MOT_CTRL,
 		       SOLO_VI_MOTION_FRAME_COUNT(3) |
 		       SOLO_VI_MOTION_SAMPLE_LENGTH(solo_dev->video_hsize / 16)
-		       | //SOLO_VI_MOTION_INTR_START_STOP |
-		       SOLO_VI_MOTION_SAMPLE_COUNT(10));
+		       /* | SOLO_VI_MOTION_INTR_START_STOP */
+		       | SOLO_VI_MOTION_SAMPLE_COUNT(10));
 
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BORDER, 0);
 	solo_reg_write(solo_dev, SOLO_VI_MOTION_BAR, 0);

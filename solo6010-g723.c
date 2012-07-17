@@ -52,7 +52,7 @@
  * is broken down to 20 * 48 byte regions (one for each channel possible)
  * with the rest of the page being dummy data. */
 #define G723_MAX_BUFFER		(G723_PERIOD_BYTES * PERIODS_MAX)
-#define G723_INTR_ORDER		4 // 0 - 4
+#define G723_INTR_ORDER		4 /* 0 - 4 */
 #define PERIODS_MIN		(1 << G723_INTR_ORDER)
 #define PERIODS_MAX		G723_FDMA_PAGES
 
