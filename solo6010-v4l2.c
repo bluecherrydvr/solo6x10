@@ -506,12 +506,12 @@ static int solo_querycap(struct file *file, void  *priv,
 static int solo_enum_ext_input(struct solo6010_dev *solo_dev,
 			       struct v4l2_input *input)
 {
-	static const char *dispnames_1[] = { "4UP" };
-	static const char *dispnames_2[] = { "4UP-1", "4UP-2" };
-	static const char *dispnames_5[] = {
+	static const char * const dispnames_1[] = { "4UP" };
+	static const char * const dispnames_2[] = { "4UP-1", "4UP-2" };
+	static const char * const dispnames_5[] = {
 		"4UP-1", "4UP-2", "4UP-3", "4UP-4", "16UP"
 	};
-	const char **dispnames;
+	const char * const *dispnames;
 
 	if (input->index >= (solo_dev->nr_chans + solo_dev->nr_ext))
 		return -EINVAL;
