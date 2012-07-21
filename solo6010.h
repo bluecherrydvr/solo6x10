@@ -368,6 +368,6 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp);
 int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch);
 
-#define CHK_FLAGS(v, flags) ((v) & (flags) == (flags))
+#define CHK_FLAGS(v, flags) (((v) & (flags)) == (flags))
 
 #endif /* __SOLO6010_H */
