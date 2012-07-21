@@ -309,13 +309,13 @@ void solo_i2c_exit(struct solo6010_dev *solo_dev);
 int solo_p2m_init(struct solo6010_dev *solo_dev);
 void solo_p2m_exit(struct solo6010_dev *solo_dev);
 
-int solo_v4l2_init(struct solo6010_dev *solo_dev);
+int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr);
 void solo_v4l2_exit(struct solo6010_dev *solo_dev);
 
 int solo_enc_init(struct solo6010_dev *solo_dev);
 void solo_enc_exit(struct solo6010_dev *solo_dev);
 
-int solo_enc_v4l2_init(struct solo6010_dev *solo_dev);
+int solo_enc_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr);
 void solo_enc_v4l2_exit(struct solo6010_dev *solo_dev);
 
 int solo_g723_init(struct solo6010_dev *solo_dev);

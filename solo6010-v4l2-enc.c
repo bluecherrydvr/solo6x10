@@ -40,8 +40,6 @@
 #define MP4_QS			16
 #define DMA_ALIGN		4096
 
-extern unsigned video_nr;
-
 enum solo_enc_types {
 	SOLO_ENC_TYPE_STD,
 	SOLO_ENC_TYPE_EXT,
@@ -1688,7 +1686,7 @@ static struct video_device solo_enc_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
+static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch, unsigned nr)
 {
 	struct solo_enc_dev *solo_enc;
 	int ret;
@@ -1708,8 +1706,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 
 	*solo_enc->vfd = solo_enc_template;
 	solo_enc->vfd->parent = &solo_dev->pdev->dev;
-	ret = video_register_device(solo_enc->vfd, VFL_TYPE_GRABBER,
-				    video_nr);
+	ret = video_register_device(solo_enc->vfd, VFL_TYPE_GRABBER, nr);
 	if (ret < 0) {
 		video_device_release(solo_enc->vfd);
 		kfree(solo_enc);
@@ -1755,7 +1752,7 @@ static void solo_enc_free(struct solo_enc_dev *solo_enc)
 	kfree(solo_enc);
 }
 
-int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
+int solo_enc_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 {
 	int i;
 
@@ -1770,7 +1767,7 @@ int solo_enc_v4l2_init(struct solo6010_dev *solo_dev)
 		return -ENOMEM;
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
-		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i);
+		solo_dev->v4l2_enc[i] = solo_enc_alloc(solo_dev, i, nr);
 		if (IS_ERR(solo_dev->v4l2_enc[i]))
 			break;
 	}

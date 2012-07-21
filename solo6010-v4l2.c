@@ -55,10 +55,6 @@ struct solo_filehandle {
 	struct list_head	vidq_active;
 };
 
-unsigned video_nr = -1;
-module_param(video_nr, uint, 0644);
-MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
-
 static void erase_on(struct solo6010_dev *solo_dev)
 {
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
@@ -832,7 +828,7 @@ static struct video_device solo_v4l2_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-int solo_v4l2_init(struct solo6010_dev *solo_dev)
+int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 {
 	int ret;
 	int i;
@@ -847,7 +843,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	*solo_dev->vfd = solo_v4l2_template;
 	solo_dev->vfd->parent = &solo_dev->pdev->dev;
 
-	ret = video_register_device(solo_dev->vfd, VFL_TYPE_GRABBER, video_nr);
+	ret = video_register_device(solo_dev->vfd, VFL_TYPE_GRABBER, nr);
 	if (ret < 0) {
 		video_device_release(solo_dev->vfd);
 		solo_dev->vfd = NULL;

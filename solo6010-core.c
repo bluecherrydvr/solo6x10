@@ -40,6 +40,10 @@ MODULE_AUTHOR("Ben Collins <bcollins@ubuntu.com>, "
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 
+unsigned video_nr = -1;
+module_param(video_nr, uint, 0644);
+MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
+
 static int full_eeprom;
 module_param(full_eeprom, uint, 0644);
 MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous, default is only top 64B)");
@@ -648,13 +652,13 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	if ((ret = solo_tw28_init(solo_dev)))
 		goto fail_probe;
 
-	if ((ret = solo_v4l2_init(solo_dev)))
+	if ((ret = solo_v4l2_init(solo_dev, video_nr)))
 		goto fail_probe;
 
 	if ((ret = solo_enc_init(solo_dev)))
 		goto fail_probe;
 
-	if ((ret = solo_enc_v4l2_init(solo_dev)))
+	if ((ret = solo_enc_v4l2_init(solo_dev, video_nr)))
 		goto fail_probe;
 
 	if ((ret = solo_g723_init(solo_dev)))
