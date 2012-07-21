@@ -1722,9 +1722,6 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch)
 		 "%s-enc (%i/%i)", SOLO6010_NAME, solo_dev->vfd->num,
 		 solo_enc->vfd->num);
 
-	if (video_nr >= 0)
-		video_nr++;
-
 	INIT_LIST_HEAD(&solo_enc->listeners);
 	mutex_init(&solo_enc->enable_lock);
 	spin_lock_init(&solo_enc->motion_lock);

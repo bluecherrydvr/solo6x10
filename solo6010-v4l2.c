@@ -859,9 +859,6 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev)
 	snprintf(solo_dev->vfd->name, sizeof(solo_dev->vfd->name), "%s (%i)",
 		 SOLO6010_NAME, solo_dev->vfd->num);
 
-	if (video_nr >= 0)
-		video_nr++;
-
 	dev_info(&solo_dev->pdev->dev, "Display as /dev/video%d with "
 		 "%d inputs (%d extended)\n", solo_dev->vfd->num,
 		 solo_dev->nr_chans, solo_dev->nr_ext);
