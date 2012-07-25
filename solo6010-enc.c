@@ -41,13 +41,13 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 	int i;
 
 	solo_reg_write(solo_dev, SOLO_CAP_BASE,
-		       SOLO_CAP_MAX_PAGE((SOLO_CAP_EXT_SIZE(solo_dev) - SOLO_CAP_PAGE_SIZE) >> 16) |
-		       SOLO_CAP_BASE_ADDR(SOLO_CAP_EXT_ADDR(solo_dev) >> 16));
+		       SOLO_CAP_MAX_PAGE((SOLO_CAP_EXT_SIZE(solo_dev) - SOLO_CAP_PAGE_SIZE) >> 16)
+		       | SOLO_CAP_BASE_ADDR(SOLO_CAP_EXT_ADDR(solo_dev) >> 16));
 
-	/* XXX Undocumented bits at b17 and b24 */
+	/* XXX: Undocumented bits at b17 and b24 */
 	if (solo_dev->type == SOLO_DEV_6110) {
-		/* Ref driver has (62 << 24) here as well, but it causes wacked out
-		 * frame timing on 4-port 6110. */
+		/* NOTE: Ref driver has (62 << 24) here as well, but it causes
+		 * wacked out frame timing on 4-port 6110. */
 		solo_reg_write(solo_dev, SOLO_CAP_BTW,
 			       (1 << 17) | SOLO_CAP_PROG_BANDWIDTH(2) |
 			       SOLO_CAP_MAX_BANDWIDTH(36));
@@ -116,8 +116,8 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT,
 			       SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
 	else
-		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, SOLO_VE_OSD_V_DOUBLE |
-			       SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
+		solo_reg_write(solo_dev, SOLO_VE_OSD_OPT, SOLO_VE_OSD_V_DOUBLE
+			       | SOLO_VE_OSD_H_SHADOW | SOLO_VE_OSD_V_SHADOW);
 
 	/* Clear OSG buffer */
 	buf = kzalloc(SOLO_EOSD_EXT_SIZE(solo_dev), GFP_KERNEL);
@@ -287,10 +287,10 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 			       SOLO_VE_INSERT_INDEX | SOLO_VE_MOTION_MODE(0));
 	} else {
 		solo_reg_write(solo_dev, SOLO_VE_CFG1,
-		  SOLO_VE_MPEG_SIZE_H((SOLO_MP4E_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
-		  SOLO_VE_JPEG_SIZE_H((SOLO_JPEG_EXT_SIZE(solo_dev) >> 24) & 0x0f) |
-		  SOLO_VE_BYTE_ALIGN(2) | SOLO_VE_INSERT_INDEX |
-		  SOLO_VE_MOTION_MODE(0));
+		  SOLO_VE_MPEG_SIZE_H((SOLO_MP4E_EXT_SIZE(solo_dev) >> 24) & 0x0f)
+		  | SOLO_VE_JPEG_SIZE_H((SOLO_JPEG_EXT_SIZE(solo_dev) >> 24) & 0x0f)
+		  | SOLO_VE_BYTE_ALIGN(2) | SOLO_VE_INSERT_INDEX
+		  | SOLO_VE_MOTION_MODE(0));
 	}
 
 	solo_reg_write(solo_dev, SOLO_VE_WMRK_POLY, 0);

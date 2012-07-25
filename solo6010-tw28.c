@@ -588,7 +588,8 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 			break;
 		default:
 			value = solo_i2c_readbyte(solo_dev, SOLO_I2C_TW,
-						  TW_CHIP_OFFSET_ADDR(i), 0x59);
+						  TW_CHIP_OFFSET_ADDR(i),
+						  0x59);
 			if ((value >> 3) == 0x04) {
 				solo_dev->tw2815 |= 1 << i;
 				solo_dev->tw28_cnt++;

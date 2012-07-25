@@ -68,20 +68,23 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 {
 	int clk_div;
 
-	clk_div = (solo_dev->clock_mhz * 1000000) / (SAMPLERATE * (BITRATE * 2) * 2);
+	clk_div = (solo_dev->clock_mhz * 1000000)
+		/ (SAMPLERATE * (BITRATE * 2) * 2);
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_SAMPLE,
-		       SOLO_AUDIO_BITRATE(BITRATE) |
-		       SOLO_AUDIO_CLK_DIV(clk_div));
+		       SOLO_AUDIO_BITRATE(BITRATE)
+		       | SOLO_AUDIO_CLK_DIV(clk_div));
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_FDMA_INTR,
-		      SOLO_AUDIO_FDMA_INTERVAL(1) |
-		      SOLO_AUDIO_INTR_ORDER(G723_INTR_ORDER) |
-		      SOLO_AUDIO_FDMA_BASE(SOLO_G723_EXT_ADDR(solo_dev) >> 16));
+		       SOLO_AUDIO_FDMA_INTERVAL(1)
+		       | SOLO_AUDIO_INTR_ORDER(G723_INTR_ORDER)
+		       | SOLO_AUDIO_FDMA_BASE(SOLO_G723_EXT_ADDR(solo_dev) >> 16));
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_CONTROL,
-		       SOLO_AUDIO_ENABLE | SOLO_AUDIO_I2S_MODE |
-		       SOLO_AUDIO_I2S_MULTI(3) | SOLO_AUDIO_MODE(OUTMODE_MASK));
+		       SOLO_AUDIO_ENABLE
+		       | SOLO_AUDIO_I2S_MODE
+		       | SOLO_AUDIO_I2S_MULTI(3)
+		       | SOLO_AUDIO_MODE(OUTMODE_MASK));
 }
 
 void solo_g723_isr(struct solo6010_dev *solo_dev)

@@ -310,7 +310,8 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 
 		/* Frame rate and interval */
 		vop[22] = fps >> 4;
-		vop[23] = ((fps << 4) & 0xf0) | 0x0c | ((interval >> 13) & 0x3);
+		vop[23] = ((fps << 4) & 0xf0) | 0x0c
+			| ((interval >> 13) & 0x3);
 		vop[24] = (interval >> 5) & 0xff;
 		vop[25] = ((interval << 3) & 0xf8) | 0x04;
 	}
@@ -324,8 +325,8 @@ static void solo_update_mode(struct solo_enc_dev *solo_enc)
 	vop[SOF0_START + 7] = 0xff & (solo_enc->width >> 8);
 	vop[SOF0_START + 8] = 0xff & solo_enc->width;
 
-	memcpy(vop + DQT_START, jpeg_dqt[solo_g_jpeg_qp(solo_dev, solo_enc->ch)],
-	       DQT_LEN);
+	memcpy(vop + DQT_START,
+	       jpeg_dqt[solo_g_jpeg_qp(solo_dev, solo_enc->ch)], DQT_LEN);
 }
 
 /* MUST be called with solo_enc->enable_lock held */
@@ -514,9 +515,11 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 					   len, 0, 0);
 		} else {
 			/* Buffer wrap */
-			/* Do these as separate DMA requests, to avoid timeout errors
-			 * triggered by awkwardly sized descriptors.
-			 * Bug #878 (http://improve.bluecherrydvr.com/issues/878), #8 on Github https://github.com/bluecherrydvr/solo6x10/issues/8*/
+			/* XXX: Do these as separate DMA requests, to avoid
+			   timeout errors triggered by awkwardly sized
+			   descriptors. See
+			   <https://github.com/bluecherrydvr/solo6x10/issues/8>
+			 */
 			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
 			                     left, 0, 0);
 			if (ret)
@@ -577,7 +580,8 @@ static int solo_fill_jpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 			    solo_enc->jpeg_header,
 			    solo_enc->jpeg_len);
 
-	frame_size = (vh->jpeg_size + solo_enc->jpeg_len + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
+	frame_size = (vh->jpeg_size + solo_enc->jpeg_len + (DMA_ALIGN - 1))
+		& ~(DMA_ALIGN - 1);
 
 	return solo_send_desc(fh, solo_enc->jpeg_len, vbuf, vh->jpeg_off,
 			      frame_size, SOLO_JPEG_EXT_ADDR(solo_dev),
@@ -615,8 +619,10 @@ static int solo_fill_mpeg(struct solo_enc_fh *fh, struct videobuf_buffer *vb,
 	}
 
 	/* Now get the actual mpeg payload */
-	frame_off = (vh->mpeg_off + sizeof(*vh)) % SOLO_MP4E_EXT_SIZE(solo_dev);
-	frame_size = (vh->mpeg_size + skip + (DMA_ALIGN - 1)) & ~(DMA_ALIGN - 1);
+	frame_off = (vh->mpeg_off + sizeof(*vh))
+		% SOLO_MP4E_EXT_SIZE(solo_dev);
+	frame_size = (vh->mpeg_size + skip + (DMA_ALIGN - 1))
+		& ~(DMA_ALIGN - 1);
 
 	return solo_send_desc(fh, skip, vbuf, frame_off, frame_size,
 			      SOLO_MP4E_EXT_ADDR(solo_dev),
@@ -747,8 +753,8 @@ static void solo_handle_ring(struct solo6010_dev *solo_dev)
 
 		solo_enc = solo_dev->v4l2_enc[ch];
 		if (solo_enc == NULL) {
-			dev_err(&solo_dev->pdev->dev, "Got spurious packet for "
-				"channel %d\n", ch);
+			dev_err(&solo_dev->pdev->dev,
+				"Got spurious packet for channel %d\n", ch);
 			continue;
 		}
 
@@ -1055,7 +1061,8 @@ static int solo_enc_enum_input(struct file *file, void *priv,
 	return 0;
 }
 
-static int solo_enc_set_input(struct file *file, void *priv, unsigned int index)
+static int solo_enc_set_input(struct file *file, void *priv,
+			      unsigned int index)
 {
 	if (index)
 		return -EINVAL;
@@ -1200,7 +1207,8 @@ static int solo_enc_querybuf(struct file *file, void *priv,
 	return videobuf_querybuf(&fh->vidq, buf);
 }
 
-static int solo_enc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
+static int solo_enc_qbuf(struct file *file, void *priv,
+			 struct v4l2_buffer *buf)
 {
 	struct solo_enc_fh *fh = priv;
 
@@ -1686,7 +1694,8 @@ static struct video_device solo_enc_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev, u8 ch, unsigned nr)
+static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev,
+					   u8 ch, unsigned nr)
 {
 	struct solo_enc_dev *solo_enc;
 	int ret;

@@ -251,8 +251,8 @@ static void solo_thread_try(struct solo_filehandle *fh)
 	for (;;) {
 		unsigned int cur_write;
 
-		cur_write = SOLO_VI_STATUS0_PAGE(solo_reg_read(fh->solo_dev,
-							       SOLO_VI_STATUS0));
+		cur_write = SOLO_VI_STATUS0_PAGE(
+			solo_reg_read(fh->solo_dev, SOLO_VI_STATUS0));
 		if (cur_write == fh->old_write)
 			return;
 
@@ -655,7 +655,8 @@ static int solo_reqbufs(struct file *file, void *priv,
 	return videobuf_reqbufs(&fh->vidq, req);
 }
 
-static int solo_querybuf(struct file *file, void *priv, struct v4l2_buffer *buf)
+static int solo_querybuf(struct file *file, void *priv,
+			 struct v4l2_buffer *buf)
 {
 	struct solo_filehandle *fh = priv;
 

@@ -34,9 +34,9 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
-MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 Encoder/Decoder V4L2/ALSA Driver");
+MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 CODEC V4L2/ALSA Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@ubuntu.com>, "
-			  "Bluecherry <maintainers@bluecherrydvr.com>");
+	      "Bluecherry <maintainers@bluecherrydvr.com>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 
@@ -46,7 +46,8 @@ MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
 
 static int full_eeprom;
 module_param(full_eeprom, uint, 0644);
-MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous, default is only top 64B)");
+MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM"
+		 " (dangerous, default is only top 64B)");
 
 void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask)
 {
@@ -90,7 +91,8 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 	ktime_get_ts(&ts);
 
 	diff = (long)ts.tv_sec - (long)sec;
-	diff = (diff * 1000000) + ((long)(ts.tv_nsec / NSEC_PER_USEC) - (long)usec);
+	diff = (diff * 1000000)
+		+ ((long)(ts.tv_nsec / NSEC_PER_USEC) - (long)usec);
 
 	if (diff > 1000 || diff < -1000) {
 		solo_set_time(solo_dev);
@@ -104,7 +106,8 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 			usec_lsb = 255;
 
 		solo_dev->usec_lsb = usec_lsb;
-		solo_reg_write(solo_dev, SOLO_TIMER_USEC_LSB, solo_dev->usec_lsb);
+		solo_reg_write(solo_dev, SOLO_TIMER_USEC_LSB,
+			       solo_dev->usec_lsb);
 	}
 }
 
@@ -365,8 +368,8 @@ static ssize_t intervals_show(struct device *dev,
 
 	for (i = 0; i < solo_dev->nr_chans; i++) {
 		out += sprintf(out, "Channel %d: %d/%d (0x%08x)\n",
-			       i, solo_dev->v4l2_enc[i]->interval,
-			       fps, solo_reg_read(solo_dev, SOLO_CAP_CH_INTV(i)));
+			       i, solo_dev->v4l2_enc[i]->interval, fps,
+			       solo_reg_read(solo_dev, SOLO_CAP_CH_INTV(i)));
 	}
 
 	return out - buf;
@@ -528,7 +531,9 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	solo_dev->pdev = pdev;
 	spin_lock_init(&solo_dev->reg_io_lock);
 	pci_set_drvdata(pdev, solo_dev);
-	solo_dev->p2m_jiffies = msecs_to_jiffies(100); /* Only for during init */
+
+	/* Only for during init */
+	solo_dev->p2m_jiffies = msecs_to_jiffies(100);
 
 	if ((ret = pci_enable_device(pdev)))
 		goto fail_probe;
@@ -573,10 +578,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	/* Initial global settings */
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_dev->clock_mhz = 108;
-		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT |
-				SOLO_SYS_CFG_INPUTDIV(25) |
-				SOLO_SYS_CFG_FEEDBACKDIV((solo_dev->clock_mhz * 2) - 2) |
-				SOLO_SYS_CFG_OUTDIV(3);
+		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT
+			| SOLO_SYS_CFG_INPUTDIV(25)
+			| SOLO_SYS_CFG_FEEDBACKDIV(solo_dev->clock_mhz * 2 - 2)
+			| SOLO_SYS_CFG_OUTDIV(3);
 		solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
 	} else {
 		u32 divq, divf;
@@ -602,7 +607,8 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	}
 
 	solo_reg_write(solo_dev, SOLO_SYS_CFG, solo_dev->sys_config);
-	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM, solo_dev->clock_mhz - 1);
+	solo_reg_write(solo_dev, SOLO_TIMER_CLOCK_NUM,
+		       solo_dev->clock_mhz - 1);
 
 	/* PLL locking time of 1ms */
 	mdelay(1);

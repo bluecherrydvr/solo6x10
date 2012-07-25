@@ -150,7 +150,8 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
 
 	/* Enable channels we support */
-	solo_reg_write(solo_dev, SOLO_VI_CH_ENA, (1 << solo_dev->nr_chans) - 1);
+	solo_reg_write(solo_dev, SOLO_VI_CH_ENA,
+		       (1 << solo_dev->nr_chans) - 1);
 
 	/* Disable the watchdog */
 	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
@@ -196,8 +197,8 @@ int solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
 		(SOLO_MOT_THRESH_SIZE * 2 * ch) +
 		(block * 2);
 
-	/* Read and write only on a 128-byte boundary; 4-byte writes with solo_p2m_dma
-	 * silently failed. Bluecherry bug #908. */
+	/* Read and write only on a 128-byte boundary; 4-byte writes with
+	   solo_p2m_dma silently failed. Bluecherry bug #908. */
 	re = solo_p2m_dma(solo_dev, 0, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
 	if (re)
 		return re;

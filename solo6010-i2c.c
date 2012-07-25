@@ -244,7 +244,8 @@ static int solo_i2c_master_xfer(struct i2c_adapter *adap,
 	timeout = HZ / 2;
 
 	for (;;) {
-		prepare_to_wait(&solo_dev->i2c_wait, &wait, TASK_INTERRUPTIBLE);
+		prepare_to_wait(&solo_dev->i2c_wait, &wait,
+				TASK_INTERRUPTIBLE);
 
 		if (solo_dev->i2c_state == IIC_STATE_STOP)
 			break;

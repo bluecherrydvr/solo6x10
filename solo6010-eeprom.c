@@ -31,8 +31,6 @@
 #define EE_SHIFT_CLK	0x04
 #define EE_CS		0x08
 #define EE_DATA_WRITE	0x02
-#define EE_WRITE_0	0x00
-#define EE_WRITE_1	0x02
 #define EE_DATA_READ	0x01
 #define EE_ENB		(0x80 | EE_CS)
 
@@ -57,7 +55,7 @@
 
 static unsigned int solo_eeprom_reg_read(struct solo6010_dev *solo_dev)
 {
-	return ((solo_reg_read(solo_dev, SOLO_EEPROM_CTRL) & EE_DATA_READ) ? 1 : 0);
+	return solo_reg_read(solo_dev, SOLO_EEPROM_CTRL) & EE_DATA_READ;
 }
 
 static void solo_eeprom_reg_write(struct solo6010_dev *solo_dev, u32 data)
@@ -136,10 +134,11 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 	solo_eeprom_cmd(solo_dev, write_cmd);
 
 	for (i = 15; i >= 0; i--) {
-		unsigned int dataval = (data & (1 << i)) ? EE_WRITE_1 : EE_WRITE_0;
+		unsigned int dataval = (data >> i) & 1;
 
 		solo_eeprom_reg_write(solo_dev, EE_ENB);
-		solo_eeprom_reg_write(solo_dev, EE_ENB | dataval | EE_SHIFT_CLK);
+		solo_eeprom_reg_write(solo_dev,
+				      EE_ENB | (dataval << 1) | EE_SHIFT_CLK);
 	}
 
 	solo_eeprom_reg_write(solo_dev, EE_ENB);

@@ -29,11 +29,13 @@
 
 static int multi_p2m;
 module_param(multi_p2m, uint, 0644);
-MODULE_PARM_DESC(multi_p2m, "Allow 6010 to use multiple P2M DMA channels (default is single, does not affect 6110)");
+MODULE_PARM_DESC(multi_p2m, "Allow 6010 to use multiple P2M DMA channels"
+		 " (default is single, does not affect 6110)");
 
 static int desc_mode;
 module_param(desc_mode, uint, 0644);
-MODULE_PARM_DESC(desc_mode, "Allow use of descriptor mode DMA (default is disabled, does not affect 6110)");
+MODULE_PARM_DESC(desc_mode, "Allow use of descriptor mode DMA"
+		 " (default is disabled, does not affect 6110)");
 
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
@@ -100,10 +102,14 @@ int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
 		p2m_dev->desc_idx = 1;
 		p2m_dev->descs = desc;
 
-		solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id), desc[1].dma_addr);
-		solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id), desc[1].ext_addr);
-		solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id), desc[1].cfg);
-		solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id), desc[1].ctrl);
+		solo_reg_write(solo_dev, SOLO_P2M_TAR_ADR(p2m_id),
+			       desc[1].dma_addr);
+		solo_reg_write(solo_dev, SOLO_P2M_EXT_ADR(p2m_id),
+			       desc[1].ext_addr);
+		solo_reg_write(solo_dev, SOLO_P2M_EXT_CFG(p2m_id),
+			       desc[1].cfg);
+		solo_reg_write(solo_dev, SOLO_P2M_CONTROL(p2m_id),
+			       desc[1].ctrl);
 	}
 
 	timeout = wait_for_completion_timeout(&p2m_dev->completion,
@@ -312,7 +318,8 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 	}
 
 	if (SOLO_SDRAM_END(solo_dev) > solo_dev->sdram_size) {
-		dev_err(&solo_dev->pdev->dev, "SDRAM is not large enough (%u < %u)\n",
+		dev_err(&solo_dev->pdev->dev,
+			"SDRAM is not large enough (%u < %u)\n",
 			solo_dev->sdram_size, SOLO_SDRAM_END(solo_dev));
 		return -EIO;
 	}
