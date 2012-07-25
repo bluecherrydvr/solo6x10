@@ -1,10 +1,10 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
- * 
- * Original author: 
+ *
+ * Original author:
  * Ben Collins <bcollins@ubuntu.com>
  *
- * Additional work by: 
+ * Additional work by:
  * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -616,7 +616,7 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-/* 
+/*
  * We accessed the video status signal in the Techwell chip through
  * iic/i2c because the video status reported by register REG_VI_STATUS1
  * (address 0x012C) of the SOLO6010 chip doesn't give the correct video
@@ -771,7 +771,7 @@ int tw28_get_ctrl_val(struct solo6010_dev *solo_dev, u32 ctrl, u8 ch,
 		rval = tw_readbyte(solo_dev, chip_num,
 				   TW286x_BRIGHTNESS_ADDR(ch),
 				   TW_BRIGHTNESS_ADDR(ch));
-		if (is_tw286x(solo_dev, chip_num)) 
+		if (is_tw286x(solo_dev, chip_num))
 			*val = (s32)((char)rval) + 128;
 		else
 			*val = rval;

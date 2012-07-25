@@ -1,10 +1,10 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
- * 
- * Original author: 
+ *
+ * Original author:
  * Ben Collins <bcollins@ubuntu.com>
  *
- * Additional work by: 
+ * Additional work by:
  * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -515,7 +515,7 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 		} else {
 			/* Buffer wrap */
 			/* Do these as separate DMA requests, to avoid timeout errors
-			 * triggered by awkwardly sized descriptors. 
+			 * triggered by awkwardly sized descriptors.
 			 * Bug #878 (http://improve.bluecherrydvr.com/issues/878), #8 on Github https://github.com/bluecherrydvr/solo6x10/issues/8*/
 			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
 			                     left, 0, 0);
@@ -1184,7 +1184,7 @@ static int solo_enc_get_fmt_cap(struct file *file, void *priv,
 	return 0;
 }
 
-static int solo_enc_reqbufs(struct file *file, void *priv, 
+static int solo_enc_reqbufs(struct file *file, void *priv,
 			    struct v4l2_requestbuffers *req)
 {
 	struct solo_enc_fh *fh = priv;
@@ -1563,7 +1563,7 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
                                 err = -ERANGE;
 			else {
 				mutex_lock(&solo_enc->enable_lock);
-                        	err = copy_from_user(solo_enc->osd_text,
+				err = copy_from_user(solo_enc->osd_text,
 						     ctrl->string,
 						     OSD_TEXT_MAX);
 				solo_enc->osd_text[OSD_TEXT_MAX] = '\0';

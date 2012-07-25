@@ -1,10 +1,10 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
- * 
- * Original author: 
+ *
+ * Original author:
  * Ben Collins <bcollins@ubuntu.com>
  *
- * Additional work by: 
+ * Additional work by:
  * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -299,7 +299,7 @@ void solo_disp_exit(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_CTRL(0), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_START(0), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_STOP(0), 0);
-	
+
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_CTRL(1), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_START(1), 0);
 	solo_reg_write(solo_dev, SOLO_VO_RECTANGLE_STOP(1), 0);

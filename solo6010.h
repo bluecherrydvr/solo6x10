@@ -1,10 +1,10 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
- * 
- * Original author: 
+ *
+ * Original author:
  * Ben Collins <bcollins@ubuntu.com>
  *
- * Additional work by: 
+ * Additional work by:
  * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -225,7 +225,7 @@ struct solo6010_dev {
 	u8			enc_idx;
 
 	/* Current video settings */
-	u32 			video_type;
+	u32			video_type;
 	u16			video_hsize, video_vsize;
 	u16			vout_hstart, vout_vstart;
 	u16			vin_hstart, vin_vstart;

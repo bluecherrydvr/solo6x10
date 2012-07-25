@@ -1,10 +1,10 @@
 /*
  * Copyright (C) 2011 Bluecherry, LLC www.bluecherrydvr.com
- * 
- * Original author: 
+ *
+ * Original author:
  * Ben Collins <bcollins@ubuntu.com>
  *
- * Additional work by: 
+ * Additional work by:
  * John Brooks <john.brooks@bluecherry.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -647,7 +647,7 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 	return 0;
 }
 
-static int solo_reqbufs(struct file *file, void *priv, 
+static int solo_reqbufs(struct file *file, void *priv,
 			struct v4l2_requestbuffers *req)
 {
 	struct solo_filehandle *fh = priv;
