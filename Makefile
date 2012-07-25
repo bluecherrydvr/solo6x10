@@ -1,4 +1,5 @@
-KERNELDIR	= /lib/modules/$(shell uname -r)/build
+KERNELVER := $(shell uname -r)
+KERNELDIR = /lib/modules/$(KERNELVER)/build
 
 # For my local crud
 -include make.extras
