@@ -16,12 +16,13 @@ endif
 
 obj-m		:= solo6x10.o
 
-all:
-	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) modules
+modules modules_install clean: FORCE
+	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) $@
 
-install:
-	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) modules_install
+install: modules_install FORCE
+clean: clean_local
 
-clean:
-	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) clean
+clean_local: FORCE
 	rm -f Module.markers modules.order
+
+FORCE:
