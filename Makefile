@@ -1,5 +1,6 @@
 KERNELVER := $(shell uname -r)
 KERNELDIR = /lib/modules/$(KERNELVER)/build
+KERNELSRC = /lib/modules/$(KERNELVER)/source
 
 # For my local crud
 -include make.extras
@@ -23,6 +24,10 @@ install: modules_install FORCE
 clean: clean_local
 
 clean_local: FORCE
-	rm -f Module.markers modules.order
+	rm -f Module.markers modules.order videobuf-dma-contig.c
+
+$(obj)/videobuf-dma-contig.c: $(KERNELSRC)/drivers/media/video/videobuf-dma-contig.c
+	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $(@F))
+	$(Q)sed '/^MODULE_/d' $< > $@
 
 FORCE:
