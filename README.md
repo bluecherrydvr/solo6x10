@@ -19,9 +19,6 @@ The public bug and feature tracker for the solo6x10 driver can be found on
 Github:
 https://github.com/bluecherrydvr/solo6x10/issues
 
-Please feel free to also add and vote on any features to our UserVoice page
-here: http://ideas.bluecherrydvr.com/forums/132933-bluecherry-solo6x10-driver
-
 General questions, comments, suggestions
 ----------------------------------------
 Please visit our support page:
