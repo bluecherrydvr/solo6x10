@@ -34,6 +34,8 @@
 #include "solo6010.h"
 #include "solo6010-tw28.h"
 
+#include "compat.h"
+
 MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 CODEC V4L2/ALSA Driver");
 MODULE_AUTHOR("Ben Collins <bcollins@ubuntu.com>, "
 	      "Bluecherry <maintainers@bluecherrydvr.com>");
