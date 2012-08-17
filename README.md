@@ -11,7 +11,12 @@ Requirements
 
 Compiling
 ---------
-Simply download and run: sudo make && sudo make install && sudo depmod -a
+Simply run: make
+
+Before installing, please remember to uninstall any previously installed
+version, as it might install to a different location and interfere.
+
+To install, run: sudo make install && sudo depmod -a
 
 Public bug / feature tracker
 ---------------------------
