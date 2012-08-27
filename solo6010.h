@@ -365,8 +365,9 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 		      unsigned short data);
 
 /* JPEG Qp functions */
-int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp);
-int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch);
+void solo_s_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch,
+		    unsigned int qp);
+int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch);
 
 #define CHK_FLAGS(v, flags) (((v) & (flags)) == (flags))
 

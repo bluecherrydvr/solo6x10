@@ -181,18 +181,20 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 	return 0;
 }
 
-/* Set one of 4 Qp modes for the jpeg stream */
-int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp)
+/**
+ * Set channel Quality Profile (0-3).
+ */
+void solo_s_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch,
+		    unsigned int qp)
 {
 	unsigned long flags;
-	int idx, last;
-	unsigned int reg;
+	unsigned int idx, reg;
 
 	if ((ch > 31) || (qp > 3))
-		return -EINVAL;
+		return;
 
 	if (solo_dev->type == SOLO_DEV_6010)
-		return 2;
+		return;
 
 	if (ch < 16) {
 		idx = 0;
@@ -206,22 +208,17 @@ int solo_s_jpeg_qp(struct solo6010_dev *solo_dev, u8 ch, u8 qp)
 
 	spin_lock_irqsave(&solo_dev->jpeg_qp_lock, flags);
 
-	last = (solo_dev->jpeg_qp[idx] >> ch) & 3;
-
 	solo_dev->jpeg_qp[idx] &= ~(3 << ch);
 	solo_dev->jpeg_qp[idx] |= (qp & 3) << ch;
 
 	solo_reg_write(solo_dev, reg, solo_dev->jpeg_qp[idx]);
 
 	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
-
-	return last;
 }
 
-int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
+int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch)
 {
-	unsigned long flags;
-	int qp, idx;
+	int idx;
 
 	if (solo_dev->type == SOLO_DEV_6010)
 		return 2;
@@ -237,19 +234,13 @@ int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
 	}
 	ch *= 2;
 
-	spin_lock_irqsave(&solo_dev->jpeg_qp_lock, flags);
-	qp = (solo_dev->jpeg_qp[idx] >> ch) & 3;
-	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
-
-	return qp;
+	return (solo_dev->jpeg_qp[idx] >> ch) & 3;
 }
 
 #define SOLO_QP_INIT 0xaaaaaaaa
 
 static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 {
-	int i;
-
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
 			       (2 << 24) | (2 << 16) | (2 << 8) | 2);
