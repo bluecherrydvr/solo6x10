@@ -244,6 +244,8 @@ int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, int ch)
 	return qp;
 }
 
+#define SOLO_QP_INIT 0xaaaaaaaa
+
 static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 {
 	int i;
@@ -258,9 +260,10 @@ static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 
 	spin_lock_init(&solo_dev->jpeg_qp_lock);
 
-	/* Set this for all channels */
-	for (i = 0; i < 32; i++)
-		solo_s_jpeg_qp(solo_dev, i, 2);
+	/* Initialize Quality Profile for all channels */
+	solo_dev->jpeg_qp[0] = solo_dev->jpeg_qp[1] = SOLO_QP_INIT;
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_L, SOLO_QP_INIT);
+	solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_CH_H, SOLO_QP_INIT);
 
 	solo_reg_write(solo_dev, SOLO_VE_JPEG_CFG,
 		(SOLO_JPEG_EXT_SIZE(solo_dev) & 0xffff0000) |
