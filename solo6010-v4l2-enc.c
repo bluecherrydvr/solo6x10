@@ -196,15 +196,8 @@ struct solo_enc_buf {
 static int solo_is_motion_on(struct solo_enc_dev *solo_enc)
 {
 	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
-	u8 ch = solo_enc->ch;
-	unsigned long flags;
-	int res;
 
-	spin_lock_irqsave(&solo_enc->motion_lock, flags);
-	res = (solo_dev->motion_mask & (1 << ch)) ? 1 : 0;
-	spin_unlock_irqrestore(&solo_enc->motion_lock, flags);
-
-	return res;
+	return (solo_dev->motion_mask >> solo_enc->ch) & 1;
 }
 
 static int solo_motion_detected(struct solo_enc_dev *solo_enc)
