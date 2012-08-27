@@ -233,7 +233,7 @@ struct solo6010_dev {
 
 	/* JPEG Qp setting */
 	spinlock_t      jpeg_qp_lock;
-	u8		jpeg_qp[2];
+	u32		jpeg_qp[2];
 
 	/* Audio components */
 	struct snd_card		*snd_card;
