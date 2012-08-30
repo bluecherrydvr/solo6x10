@@ -1,3 +1,11 @@
+solo6010 (2.4.3-1) precise; urgency=high
+
+  * Fixed compilation with newer kernels.
+  * Fixed Quality Profile setup.
+  * Code cleanup and misc. fixes.
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 30 Aug 2012 20:28:53 -0300
+
 solo6010 (2.4.2-1) oneiric; urgency=low
 
   * Added jpeg Qp patch from Junho (reworked to actually do things
