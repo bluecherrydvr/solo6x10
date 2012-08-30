@@ -691,12 +691,11 @@ static void solo_enc_handle_one(struct solo_enc_dev *solo_enc,
 		if (fh->type != enc_buf->type)
 			continue;
 
-		spin_lock_irqsave(&fh->av_lock, flags);
 
-		if (list_empty(&fh->vidq_active)) {
-			spin_unlock_irqrestore(&fh->av_lock, flags);
+		if (list_empty(&fh->vidq_active))
 			continue;
-		}
+
+		spin_lock_irqsave(&fh->av_lock, flags);
 
 		vb = list_first_entry(&fh->vidq_active,
 				      struct videobuf_buffer, queue);
