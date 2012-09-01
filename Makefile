@@ -24,10 +24,28 @@ install: modules_install FORCE
 clean: clean_local
 
 clean_local: FORCE
-	rm -f Module.markers modules.order videobuf-dma-contig.c
+	rm -f Module.markers modules.order videobuf-dma-contig.c videobuf-dma-contig.c.in
 
-$(obj)/videobuf-dma-contig.c: $(KERNELSRC)/drivers/media/video/videobuf-dma-contig.c
-	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $(@F))
+
+# Workaround for Debian et al
+ifeq ($(wildcard $(KERNELSRC)/drivers),)
+kerneltar := $(wildcard /usr/src/linux-source-*.tar.bz2)
+ifeq ($(kerneltar),)
+$(error Missing files on the kernel source directory, and no tarball found)
+endif
+kerneltar := $(firstword $(shell ls -rv $(kerneltar)))
+
+$(obj)/%.in: $(kerneltar)
+	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
+	$(Q)tar -Oxf $< --wildcards '*/$(@F:.in=)' > $@
+else
+$(obj)/%.in: $(KERNELSRC)/drivers/media/video/%
+	$(if $(KBUILD_VERBOSE:1=),@echo '  LN' $@)
+	$(Q)ln -s $< $@
+endif
+
+$(obj)/videobuf-dma-contig.c: %:%.in
+	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $@)
 	$(Q)sed '/^MODULE_/d' $< > $@
 
 FORCE:
