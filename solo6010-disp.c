@@ -108,6 +108,21 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 		       SOLO_VI_PB_HSTOP(16 + 720));
 }
 
+static void solo_vout_config_cursor(struct solo6010_dev *dev)
+{
+	int i;
+
+	/* Load (blank) cursor bitmap mask (2bpp) */
+	for (i = 0; i < 20; i++) {
+		solo_reg_write(dev, SOLO_VO_CURSOR_MASK(i), 0);
+	}
+
+	solo_reg_write(dev, SOLO_VO_CURSOR_POS, 0);
+
+	solo_reg_write(dev, SOLO_VO_CURSOR_CLR, (0x80 <<24) |(0x80 <<16) |(0x10 <<8) |0x80);
+	solo_reg_write(dev, SOLO_VO_CURSOR_CLR2, (0xe0 <<8) |0x80);
+}
+
 static void solo_vout_config(struct solo6010_dev *solo_dev)
 {
 	solo_dev->vout_hstart = 6;
@@ -155,6 +170,7 @@ static void solo_vout_config(struct solo6010_dev *solo_dev)
 		       SOLO_VO_DISP_BASE(SOLO_DISP_EXT_ADDR(solo_dev)));
 
 
+	solo_vout_config_cursor(solo_dev);
 
 	/* Enable channels we support */
 	solo_reg_write(solo_dev, SOLO_VI_CH_ENA,
