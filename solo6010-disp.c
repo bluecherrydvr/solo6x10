@@ -147,6 +147,9 @@ static void solo_vout_config(struct solo6010_dev *solo_dev)
 
 	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 0);
 
+	solo_reg_write(solo_dev, SOLO_VO_ZOOM_CTRL, 0);
+	solo_reg_write(solo_dev, SOLO_VO_FREEZE_CTRL, 0);
+
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, SOLO_VO_DISP_ON |
 		       SOLO_VO_DISP_ERASE_COUNT(8) |
 		       SOLO_VO_DISP_BASE(SOLO_DISP_EXT_ADDR(solo_dev)));
