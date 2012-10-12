@@ -144,7 +144,8 @@ static void solo_vout_config(struct solo6010_dev *solo_dev)
 		       (16 << 24) | (128 << 16) | (16 << 8) | 128);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
-	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 5);
+
+	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 0);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, SOLO_VO_DISP_ON |
 		       SOLO_VO_DISP_ERASE_COUNT(8) |
