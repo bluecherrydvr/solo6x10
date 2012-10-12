@@ -108,17 +108,10 @@ static void solo_vin_config(struct solo6010_dev *solo_dev)
 		       SOLO_VI_PB_HSTOP(16 + 720));
 }
 
-static void solo_disp_config(struct solo6010_dev *solo_dev)
+static void solo_vout_config(struct solo6010_dev *solo_dev)
 {
 	solo_dev->vout_hstart = 6;
 	solo_dev->vout_vstart = 8;
-
-	solo_reg_write(solo_dev, SOLO_VO_BORDER_LINE_COLOR,
-		       (0xa0 << 24) | (0x88 << 16) | (0xa0 << 8) | 0x88);
-	solo_reg_write(solo_dev, SOLO_VO_BORDER_FILL_COLOR,
-		       (0x10 << 24) | (0x8f << 16) | (0x10 << 8) | 0x8f);
-	solo_reg_write(solo_dev, SOLO_VO_BKG_COLOR,
-		       (16 << 24) | (128 << 16) | (16 << 8) | 128);
 
 	solo_reg_write(solo_dev, SOLO_VO_FMT_ENC,
 		       solo_dev->video_type |
@@ -141,13 +134,22 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 		       SOLO_VO_H_LEN(solo_dev->video_hsize) |
 		       SOLO_VO_V_LEN(solo_dev->video_vsize));
 
+	/* Border & background colors */
+	solo_reg_write(solo_dev, SOLO_VO_BORDER_LINE_COLOR,
+		       (0xa0 << 24) | (0x88 << 16) | (0xa0 << 8) | 0x88);
+	solo_reg_write(solo_dev, SOLO_VO_BORDER_FILL_COLOR,
+		       (0x10 << 24) | (0x8f << 16) | (0x10 << 8) | 0x8f);
+	solo_reg_write(solo_dev, SOLO_VO_BKG_COLOR,
+		       (16 << 24) | (128 << 16) | (16 << 8) | 128);
+
+	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
 	solo_reg_write(solo_dev, SOLO_VI_WIN_SW, 5);
 
 	solo_reg_write(solo_dev, SOLO_VO_DISP_CTRL, SOLO_VO_DISP_ON |
 		       SOLO_VO_DISP_ERASE_COUNT(8) |
 		       SOLO_VO_DISP_BASE(SOLO_DISP_EXT_ADDR(solo_dev)));
 
-	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
+
 
 	/* Enable channels we support */
 	solo_reg_write(solo_dev, SOLO_VI_CH_ENA,
@@ -262,7 +264,7 @@ int solo_disp_init(struct solo6010_dev *solo_dev)
 
 	solo_vin_config(solo_dev);
 	solo_motion_config(solo_dev);
-	solo_disp_config(solo_dev);
+	solo_vout_config(solo_dev);
 
 	for (i = 0; i < solo_dev->nr_chans; i++)
 		solo_reg_write(solo_dev, SOLO_VI_WIN_ON(i), 1);
