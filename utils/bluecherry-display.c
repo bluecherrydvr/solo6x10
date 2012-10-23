@@ -27,36 +27,28 @@
 
 #include <linux/videodev2.h>
 
-#define err_out(__msg, args...) do {			\
-	fprintf(stderr, __msg ": %m\n", ## args);	\
-	exit(1);					\
-} while(0)
-
-extern char *__progname;
-
-static void usage(void)
-{
-	fprintf(stderr, "Usage: %s <viddev> <input>\n", __progname);
-	exit(1);
-}
 
 int main(int argc, char **argv)
 {
-	const char *dev;
-	int input, vfd;
+	if (argc != 3) {
+		fprintf(stderr, "Usage: %s <viddev> <input>\n", argv[0]);
+		return 1;
+	}
 
-	if (argc != 3)
-		usage();
+	int input = atoi(argv[2]);
 
-	dev = argv[1];
-	input = atoi(argv[2]);
-
-	if ((vfd = open(dev, O_RDWR)) < 0)
-		err_out("Opening video device");
+	int vfd = open(argv[1], O_RDWR);
+	if (vfd < 0) {
+		perror(argv[1]);
+		return 1;
+	}
 
 	/* Verify this is the correct type */
-	if (ioctl(vfd, VIDIOC_S_INPUT, &input) < 0)
-		err_out("Error setting video input");
+	int ret = ioctl(vfd, VIDIOC_S_INPUT, &input);
+	if (ret < 0) {
+		perror("Error setting video input");
+		return 1;
+	}
 
-	exit(0);
+	return 0;
 }

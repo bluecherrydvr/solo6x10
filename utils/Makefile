@@ -1,4 +1,4 @@
-CFLAGS		= -Wall
+CFLAGS		= -O2 -Wall
 LIBS		= -lavcodec -lavformat -lavutil
 
 TARGETS		= bc-record bluecherry-display
