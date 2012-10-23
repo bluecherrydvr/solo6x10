@@ -1,14 +1,24 @@
 KERNELVER := $(shell uname -r)
-KERNELDIR = /lib/modules/$(KERNELVER)/build
-KERNELSRC = /lib/modules/$(KERNELVER)/source
+MODDIR = /lib/modules/$(KERNELVER)
 
-# For my local crud
--include make.extras
+KERNELDIR = $(MODDIR)/build
+KERNELSRC = $(MODDIR)/source
 
 solo6x10-objs	:= solo6010-core.o solo6010-i2c.o solo6010-p2m.o \
 		   solo6010-v4l2.o solo6010-tw28.o solo6010-gpio.o \
 		   solo6010-disp.o solo6010-enc.o solo6010-v4l2-enc.o \
 		   solo6010-g723.o solo6010-eeprom.o
+
+
+# Check for conflicting modules
+mod_paths =	kernel/drivers/staging/media/solo6x10 \
+		extra
+
+conflicts = $(wildcard $(patsubst %,$(MODDIR)/%/solo6x10.ko,$(mod_paths)))
+ifneq ($(conflicts),)
+$(error Found conflicting module(s) installed: $(conflicts))
+endif
+
 
 # For when the kernel isn't compiled with it
 ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)
@@ -49,3 +59,6 @@ $(obj)/videobuf-dma-contig.c: %:%.in
 	$(Q)sed '/^MODULE_/d' $< > $@
 
 FORCE:
+
+# For my local crud
+-include make.extras
