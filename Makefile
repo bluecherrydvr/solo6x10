@@ -39,11 +39,12 @@ clean_local: FORCE
 
 # Workaround for Debian et al
 ifeq ($(wildcard $(KERNELSRC)/drivers),)
-kerneltar := $(wildcard /usr/src/linux-source-*.tar.bz2)
+kerneltar := $(firstword \
+		$(wildcard $(patsubst %,/usr/src/linux-source-%.tar.bz2,\
+			$(shell uname -r | sed 's@-.*@@;p;s@\.[^.]*$@@'))))
 ifeq ($(kerneltar),)
 $(error Missing files on the kernel source directory, and no tarball found)
 endif
-kerneltar := $(firstword $(shell ls -rv $(kerneltar)))
 
 $(obj)/%.in: $(kerneltar)
 	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
