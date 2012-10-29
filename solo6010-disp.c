@@ -152,9 +152,6 @@ static void solo_disp_config(struct solo6010_dev *solo_dev)
 	/* Enable channels we support */
 	solo_reg_write(solo_dev, SOLO_VI_CH_ENA,
 		       (1 << solo_dev->nr_chans) - 1);
-
-	/* Disable the watchdog */
-	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
 }
 
 static int solo_dma_vin_region(struct solo6010_dev *solo_dev, u32 off,

@@ -644,7 +644,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	}
 
 	/* Disable watchdog */
-	solo_reg_write(solo_dev, SOLO_TIMER_WATCHDOG, 0xff);
+	solo_reg_write(solo_dev, SOLO_WATCHDOG, 0);
 
 	/* Initialize sub components */
 

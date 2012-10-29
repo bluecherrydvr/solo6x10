@@ -600,7 +600,6 @@
 #define	  SOLO_UART_RX_DATA_POP			(1<<8)
 
 #define SOLO_TIMER_CLOCK_NUM			0x0be0
-#define SOLO_TIMER_WATCHDOG			0x0be4
 #define SOLO_TIMER_USEC				0x0be8
 #define SOLO_TIMER_SEC				0x0bec
 #define SOLO_TIMER_USEC_LSB			0x0d20 /* 6110 Only */
@@ -631,9 +630,10 @@
 #define	  SOLO_AUDIO_EVOL(ch, value)		((value)<<((ch)%10))
 #define SOLO_AUDIO_STA				0x0D14
 
-
-#define SOLO_WATCHDOG				0x0BE4
-#define WATCHDOG_STAT(status)			(status<<8)
-#define WATCHDOG_TIME(sec)			(sec&0xff)
+/*
+ * Watchdog configuration
+ */
+#define SOLO_WATCHDOG				0x0be4
+#define SOLO_WATCHDOG_SET(status, sec)		(status << 8 | (sec & 0xff))
 
 #endif /* __SOLO6010_REGISTERS_H */
