@@ -211,7 +211,7 @@ void solo_p2m_exit(struct solo6010_dev *solo_dev)
 	int i;
 
 	for (i = 0; i < SOLO_NR_P2M; i++)
-		solo6010_irq_off(solo_dev, SOLO_IRQ_P2M(i));
+		solo_irq_off(solo_dev, SOLO_IRQ_P2M(i));
 }
 
 static int solo_p2m_test(struct solo6010_dev *solo_dev, int base, int size)
@@ -275,7 +275,7 @@ int solo_p2m_init(struct solo6010_dev *solo_dev)
 			       SOLO_P2M_DESC_INTR_OPT |
 			       SOLO_P2M_DMA_INTERVAL(0) |
 			       SOLO_P2M_PCI_MASTER_MODE);
-		solo6010_irq_on(solo_dev, SOLO_IRQ_P2M(i));
+		solo_irq_on(solo_dev, SOLO_IRQ_P2M(i));
 	}
 
 	/* Find correct SDRAM size */

@@ -784,9 +784,9 @@ static int solo_ring_thread(void *data)
 		long timeout = schedule_timeout_interruptible(HZ);
 		if (timeout == -ERESTARTSYS || kthread_should_stop())
 			break;
-		solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
+		solo_irq_off(solo_dev, SOLO_IRQ_ENCODER);
 		solo_handle_ring(solo_dev);
-		solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
+		solo_irq_on(solo_dev, SOLO_IRQ_ENCODER);
 		try_to_freeze();
 	}
 
@@ -893,7 +893,7 @@ static int solo_ring_start(struct solo6010_dev *solo_dev)
 		return err;
 	}
 
-	solo6010_irq_on(solo_dev, SOLO_IRQ_ENCODER);
+	solo_irq_on(solo_dev, SOLO_IRQ_ENCODER);
 
 	return 0;
 }
@@ -908,7 +908,7 @@ static void solo_ring_stop(struct solo6010_dev *solo_dev)
 		solo_dev->ring_thread = NULL;
 	}
 
-	solo6010_irq_off(solo_dev, SOLO_IRQ_ENCODER);
+	solo_irq_off(solo_dev, SOLO_IRQ_ENCODER);
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)

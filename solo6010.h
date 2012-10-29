@@ -293,8 +293,17 @@ static inline void solo_reg_write(struct solo6010_dev *solo_dev, int reg,
 	spin_unlock_irqrestore(&solo_dev->reg_io_lock, flags);
 }
 
-void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask);
-void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask);
+static inline void solo_irq_on(struct solo6010_dev *dev, u32 mask)
+{
+	dev->irq_mask |= mask;
+	solo_reg_write(dev, SOLO_IRQ_MASK, dev->irq_mask);
+}
+
+static inline void solo_irq_off(struct solo6010_dev *dev, u32 mask)
+{
+	dev->irq_mask &= ~mask;
+	solo_reg_write(dev, SOLO_IRQ_MASK, dev->irq_mask);
+}
 
 /* Init/exit routeines for subsystems */
 int solo_disp_init(struct solo6010_dev *solo_dev);

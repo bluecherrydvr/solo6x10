@@ -68,7 +68,7 @@
 #define	  SOLO_VCLK_VIN0001_DELAY(n)		((n)<<0)
 
 #define SOLO_IRQ_STAT				0x0010
-#define SOLO_IRQ_ENABLE				0x0014
+#define SOLO_IRQ_MASK				0x0014
 #define	  SOLO_IRQ_P2M(n)			(1<<((n)+17))
 #define	  SOLO_IRQ_GPIO				(1<<16)
 #define	  SOLO_IRQ_VIDEO_LOSS			(1<<15)

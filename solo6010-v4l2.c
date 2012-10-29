@@ -307,7 +307,7 @@ static int solo_start_thread(struct solo_filehandle *fh)
 	int ret = 0;
 
 	if (atomic_inc_return(&fh->solo_dev->disp_users) == 1)
-		solo6010_irq_on(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
+		solo_irq_on(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
 
 	fh->kthread = kthread_run(solo_thread, fh, SOLO6010_NAME "_disp");
 
@@ -328,7 +328,7 @@ static void solo_stop_thread(struct solo_filehandle *fh)
 	fh->kthread = NULL;
 
 	if (atomic_dec_return(&fh->solo_dev->disp_users) == 0)
-		solo6010_irq_off(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
+		solo_irq_off(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
 }
 
 static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,

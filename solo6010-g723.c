@@ -191,7 +191,7 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 		if (solo_pcm->on == 0) {
 			/* If this is the first user, switch on interrupts */
 			if (atomic_inc_return(&solo_dev->snd_users) == 1)
-				solo6010_irq_on(solo_dev, SOLO_IRQ_G723);
+				solo_irq_on(solo_dev, SOLO_IRQ_G723);
 			solo_pcm->on = 1;
 		}
 		break;
@@ -199,7 +199,7 @@ static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 		if (solo_pcm->on) {
 			/* If this was our last user, switch them off */
 			if (atomic_dec_return(&solo_dev->snd_users) == 0)
-				solo6010_irq_off(solo_dev, SOLO_IRQ_G723);
+				solo_irq_off(solo_dev, SOLO_IRQ_G723);
 			solo_pcm->on = 0;
 		}
 		break;
@@ -418,7 +418,7 @@ void solo_g723_exit(struct solo6010_dev *solo_dev)
 		return;
 
 	solo_reg_write(solo_dev, SOLO_AUDIO_CONTROL, 0);
-	solo6010_irq_off(solo_dev, SOLO_IRQ_G723);
+	solo_irq_off(solo_dev, SOLO_IRQ_G723);
 
 	snd_card_free(solo_dev->snd_card);
 	solo_dev->snd_card = NULL;

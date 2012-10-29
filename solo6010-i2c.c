@@ -107,7 +107,7 @@ static void solo_i2c_start(struct solo6010_dev *solo_dev)
 
 static void solo_i2c_stop(struct solo6010_dev *solo_dev)
 {
-	solo6010_irq_off(solo_dev, SOLO_IRQ_IIC);
+	solo_irq_off(solo_dev, SOLO_IRQ_IIC);
 	solo_reg_write(solo_dev, SOLO_IIC_CTRL, 0);
 	solo_dev->i2c_state = IIC_STATE_STOP;
 	wake_up(&solo_dev->i2c_wait);
@@ -238,7 +238,7 @@ static int solo_i2c_master_xfer(struct i2c_adapter *adap,
 	solo_dev->i2c_msg_ptr = 0;
 
 	solo_reg_write(solo_dev, SOLO_IIC_CTRL, 0);
-	solo6010_irq_on(solo_dev, SOLO_IRQ_IIC);
+	solo_irq_on(solo_dev, SOLO_IRQ_IIC);
 	solo_i2c_start(solo_dev);
 
 	timeout = HZ / 2;

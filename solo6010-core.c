@@ -51,17 +51,6 @@ module_param(full_eeprom, uint, 0644);
 MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM"
 		 " (dangerous, default is only top 64B)");
 
-void solo6010_irq_on(struct solo6010_dev *solo_dev, u32 mask)
-{
-	solo_dev->irq_mask |= mask;
-	solo_reg_write(solo_dev, SOLO_IRQ_ENABLE, solo_dev->irq_mask);
-}
-
-void solo6010_irq_off(struct solo6010_dev *solo_dev, u32 mask)
-{
-	solo_dev->irq_mask &= ~mask;
-	solo_reg_write(solo_dev, SOLO_IRQ_ENABLE, solo_dev->irq_mask);
-}
 
 static void solo_set_time(struct solo6010_dev *solo_dev)
 {
@@ -187,7 +176,7 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 		solo_i2c_exit(solo_dev);
 
 		/* Now cleanup the PCI device */
-		solo6010_irq_off(solo_dev, ~0);
+		solo_irq_off(solo_dev, ~0);
 		pci_iounmap(pdev, solo_dev->reg_base);
 		if (pdev->irq)
 			free_irq(pdev->irq, solo_dev);
@@ -575,7 +564,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 	}
 
 	/* Disable all interrupts to start */
-	solo6010_irq_off(solo_dev, ~0);
+	solo_irq_off(solo_dev, ~0);
 
 	/* Initial global settings */
 	if (solo_dev->type == SOLO_DEV_6010) {
@@ -621,7 +610,7 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		goto fail_probe;
 
 	/* Handle this from the start */
-	solo6010_irq_on(solo_dev, SOLO_IRQ_PCI_ERR);
+	solo_irq_on(solo_dev, SOLO_IRQ_PCI_ERR);
 
 	if ((ret = solo_i2c_init(solo_dev)))
 		goto fail_probe;
