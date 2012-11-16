@@ -1573,6 +1573,8 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 				solo_enc->osd_text[OSD_TEXT_MAX] = '\0';
 				if (!err)
 					err = solo_osd_print(solo_enc);
+				else
+					err = -EFAULT;
 				mutex_unlock(&solo_enc->enable_lock);
 			}
 			break;
@@ -1612,6 +1614,8 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 				err = copy_to_user(ctrl->string,
 						   solo_enc->osd_text,
 						   OSD_TEXT_MAX);
+				if (err)
+					err = -EFAULT;
 				mutex_unlock(&solo_enc->enable_lock);
 			}
 			break;
