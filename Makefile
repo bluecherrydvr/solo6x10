@@ -51,7 +51,10 @@ $(obj)/%.in: $(kerneltar)
 	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
 	$(Q)tar -Oxf $< --wildcards '*/$(@F:.in=)' > $@
 else
-$(obj)/%.in: $(KERNELSRC)/drivers/media/video/%
+V4L2SRC = $(wildcard \
+	$(KERNELSRC)/drivers/media/video \
+	$(KERNELSRC)/drivers/media/v4l2-core)
+$(obj)/%.in: $(V4L2SRC)/%
 	$(if $(KBUILD_VERBOSE:1=),@echo '  LN' $@)
 	$(Q)ln -s $< $@
 endif
