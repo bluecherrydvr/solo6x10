@@ -56,7 +56,7 @@ V4L2SRC = $(wildcard \
 	$(KERNELSRC)/drivers/media/v4l2-core)
 $(obj)/%.in: $(V4L2SRC)/%
 	$(if $(KBUILD_VERBOSE:1=),@echo '  LN' $@)
-	$(Q)ln -s $< $@
+	$(Q)ln -sf $< $@
 endif
 
 $(obj)/videobuf-dma-contig.c: %:%.in
