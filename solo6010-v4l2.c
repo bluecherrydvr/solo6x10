@@ -55,14 +55,14 @@ struct solo_filehandle {
 	struct list_head	vidq_active;
 };
 
-static void erase_on(struct solo6010_dev *solo_dev)
+static inline void erase_on(struct solo6010_dev *solo_dev)
 {
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
 	solo_dev->erasing = 1;
 	solo_dev->frame_blank = 0;
 }
 
-static int erase_off(struct solo6010_dev *solo_dev)
+static inline int erase_off(struct solo6010_dev *solo_dev)
 {
 	if (!solo_dev->erasing)
 		return 0;
