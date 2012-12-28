@@ -624,10 +624,10 @@ static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
 		       SOLO_DMA_CTRL_LATENCY(1));
 
 	/* Undocumented crap */
-	if (solo_dev->type == SOLO_DEV_6010) {
-		solo_reg_write(solo_dev, SOLO_DMA_CTRL1, 1 << 8);
-	} else {
-		solo_reg_write(solo_dev, SOLO_DMA_CTRL1, 3 << 8);
+	solo_reg_write(solo_dev, SOLO_DMA_CTRL1,
+		       solo_dev->type == SOLO_DEV_6010 ? 0x100 : 0x300);
+
+	if (solo_dev->type != SOLO_DEV_6010) {
 		solo_dev->usec_lsb = 0x3f;
 		solo_set_time(solo_dev);
 	}
