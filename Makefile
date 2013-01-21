@@ -61,7 +61,7 @@ endif
 
 $(obj)/videobuf-dma-contig.c: %:%.in
 	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $@)
-	$(Q)sed '/^MODULE_/d' $< > $@
+	$(Q)sed '/^MODULE_/d;/^EXPORT_SYMBOL_GPL/d' $< > $@
 
 FORCE:
 
