@@ -70,7 +70,7 @@
 #define SOLO_DEV_6010			0
 #define SOLO_DEV_6110			1
 
-#define SOLO6010_NAME			"solo6x10"
+#define SOLO6010_NAME			"solo6x10-edge"
 
 #define SOLO_MAX_CHANNELS		16
 
