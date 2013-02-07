@@ -25,6 +25,10 @@ ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)
 solo6x10-objs += videobuf-dma-contig.o
 endif
 
+ifeq ($(CONFIG_VIDEOBUF_DMA_SG),)
+solo6x10-objs += videobuf-dma-sg.o
+endif
+
 obj-m		:= solo6x10.o
 
 modules modules_install clean: FORCE
@@ -35,7 +39,7 @@ clean: clean_local
 
 clean_local: FORCE
 	rm -f Module.markers modules.order videobuf-dma-contig.c \
-	      videobuf-dma-contig.c.in
+	      videobuf-dma-contig.c.in videobuf-dma-sg.c.in
 
 
 # Workaround for Debian et al
@@ -59,7 +63,7 @@ $(obj)/%.in: $(V4L2SRC)/%
 	$(Q)ln -sf $< $@
 endif
 
-$(obj)/videobuf-dma-contig.c: %:%.in
+$(obj)/videobuf-dma-contig.c $(obj)/videobuf-dma-sg.c: %:%.in
 	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $@)
 	$(Q)sed '/^MODULE_/d;/^EXPORT_SYMBOL_GPL/d' $< > $@
 

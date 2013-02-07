@@ -6,4 +6,4 @@ modules.order
 .*
 *.ko
 /make.extras
-/videobuf-dma-contig.c*
+/videobuf-dma-*
