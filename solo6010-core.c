@@ -459,7 +459,7 @@ static void solo_device_release(struct device *dev)
 	/* Do nothing */
 }
 
-static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
+static int solo_sysfs_init(struct solo6010_dev *solo_dev)
 {
 	struct bin_attribute *sdram_attr = &solo_dev->sdram_attr;
 	struct device *dev = &solo_dev->dev;
@@ -502,8 +502,8 @@ static int __devinit solo_sysfs_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-static int __devinit solo6010_pci_probe(struct pci_dev *pdev,
-					const struct pci_device_id *id)
+static int solo6010_pci_probe(struct pci_dev *pdev,
+			      const struct pci_device_id *id)
 {
 	struct solo6010_dev *solo_dev;
 	int ret;
@@ -674,7 +674,7 @@ fail_probe:
 	return ret;
 }
 
-static void __devexit solo6010_pci_remove(struct pci_dev *pdev)
+static void solo6010_pci_remove(struct pci_dev *pdev)
 {
 	struct solo6010_dev *solo_dev = pci_get_drvdata(pdev);
 
