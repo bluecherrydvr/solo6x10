@@ -1,5 +1,5 @@
-KERNELVER := $(shell uname -r)
-MODDIR = /lib/modules/$(KERNELVER)
+KVERS := $(shell uname -r)
+MODDIR = /lib/modules/$(KVERS)
 
 KERNELDIR = $(MODDIR)/build
 KERNELSRC = $(MODDIR)/source
