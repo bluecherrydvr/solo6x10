@@ -51,12 +51,12 @@ V4L2SRC = $(wildcard \
 	$(KERNELSRC)/drivers/media/video \
 	$(KERNELSRC)/drivers/media/v4l2-core)
 $(obj)/%.in: $(V4L2SRC)/%
-	$(if $(KBUILD_VERBOSE:1=),@echo '  LN' $@)
+	$(if $(KBUILD_VERBOSE:1=),@echo '  LN     ' $@)
 	$(Q)ln -sf $< $@
 endif
 
 $(obj)/videobuf-dma-contig.c $(obj)/videobuf-dma-sg.c: %:%.in
-	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE' $@)
+	$(if $(KBUILD_VERBOSE:1=),@echo '  MERGE  ' $@)
 	$(Q)sed '/^MODULE_/d;/^EXPORT_SYMBOL_GPL/d' $< > $@
 
 FORCE:
