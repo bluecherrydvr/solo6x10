@@ -122,7 +122,7 @@ static int snd_solo_hw_free(struct snd_pcm_substream *ss)
 	return snd_pcm_lib_free_pages(ss);
 }
 
-static struct snd_pcm_hardware snd_solo_pcm_hw = {
+static const struct snd_pcm_hardware snd_solo_pcm_hw = {
 	.info			= (SNDRV_PCM_INFO_MMAP |
 				   SNDRV_PCM_INFO_INTERLEAVED |
 				   SNDRV_PCM_INFO_BLOCK_TRANSFER |

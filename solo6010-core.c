@@ -442,7 +442,7 @@ static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
 	return count;
 }
 
-static struct device_attribute solo_dev_attrs[] = {
+static const struct device_attribute solo_dev_attrs[] = {
 	__ATTR(eeprom, 0640, eeprom_show, eeprom_store),
 	__ATTR(video_type, 0644, video_type_show, video_type_store),
 	__ATTR(p2m_timeout, 0644, p2m_timeout_show, p2m_timeout_store),

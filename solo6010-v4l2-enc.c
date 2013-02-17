@@ -858,7 +858,7 @@ static void solo_enc_buf_release(struct videobuf_queue *vq,
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
-static struct videobuf_queue_ops solo_enc_video_qops = {
+static const struct videobuf_queue_ops solo_enc_video_qops = {
 	.buf_setup	= solo_enc_buf_setup,
 	.buf_prepare	= solo_enc_buf_prepare,
 	.buf_queue	= solo_enc_buf_queue,
@@ -1675,7 +1675,7 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	.vidioc_s_ext_ctrls		= solo_s_ext_ctrls,
 };
 
-static struct video_device solo_enc_template = {
+static const struct video_device solo_enc_template = {
 	.name			= SOLO6010_NAME,
 	.fops			= &solo_enc_fops,
 	.ioctl_ops		= &solo_enc_ioctl_ops,

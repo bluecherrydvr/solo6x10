@@ -392,7 +392,7 @@ static void solo_buf_release(struct videobuf_queue *vq,
 	vb->state = VIDEOBUF_NEEDS_INIT;
 }
 
-static struct videobuf_queue_ops solo_video_qops = {
+static const struct videobuf_queue_ops solo_video_qops = {
 	.buf_setup	= solo_buf_setup,
 	.buf_prepare	= solo_buf_prepare,
 	.buf_queue	= solo_buf_queue,

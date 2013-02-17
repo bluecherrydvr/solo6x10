@@ -273,7 +273,7 @@ static u32 solo_i2c_functionality(struct i2c_adapter *adap)
 	return I2C_FUNC_I2C;
 }
 
-static struct i2c_algorithm solo_i2c_algo = {
+static const struct i2c_algorithm solo_i2c_algo = {
 	.master_xfer	= solo_i2c_master_xfer,
 	.functionality	= solo_i2c_functionality,
 };
