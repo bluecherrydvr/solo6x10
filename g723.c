@@ -147,15 +147,13 @@ static int snd_solo_pcm_open(struct snd_pcm_substream *ss)
 
 	solo_pcm = kzalloc(sizeof(*solo_pcm), GFP_KERNEL);
 	if (solo_pcm == NULL)
-		return -ENOMEM;
+		goto oom;
 
 	solo_pcm->g723_buf = pci_alloc_consistent(solo_dev->pdev,
 						  G723_PERIOD_BYTES,
 						  &solo_pcm->g723_dma);
-	if (solo_pcm->g723_buf == NULL) {
-		kfree(solo_pcm);
-		return -ENOMEM;
-	}
+	if (solo_pcm->g723_buf == NULL)
+		goto oom;
 
 	spin_lock_init(&solo_pcm->lock);
 	solo_pcm->solo_dev = solo_dev;
@@ -164,6 +162,10 @@ static int snd_solo_pcm_open(struct snd_pcm_substream *ss)
 	snd_pcm_substream_chip(ss) = solo_pcm;
 
 	return 0;
+
+oom:
+	kfree(solo_pcm);
+	return -ENOMEM;
 }
 
 static int snd_solo_pcm_close(struct snd_pcm_substream *ss)
