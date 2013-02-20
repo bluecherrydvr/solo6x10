@@ -48,3 +48,24 @@ module_exit(__driver##_exit);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,28)
 #define v4l2_file_operations file_operations
 #endif
+
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,29) && defined(__SOUND_CORE_H)
+static inline
+int snd_card_create(int idx, const char *id,
+		    struct module *module, int extra_size,
+		    struct snd_card **card_ret)
+{
+	struct snd_card *card;
+
+	if (BUG_ON(!card_ret))
+		return -EINVAL;
+
+	card = snd_card_new(idx, id, module, extra_size);
+	if (card == NULL)
+		return -ENOMEM;
+
+	*card_ret = card;
+	return 0;
+}
+#endif
