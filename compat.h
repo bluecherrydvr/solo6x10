@@ -44,3 +44,7 @@ module_exit(__driver##_exit);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
 #define videobuf_queue_to_vaddr videobuf_queue_to_vmalloc
 #endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,28)
+#define v4l2_file_operations file_operations
+#endif

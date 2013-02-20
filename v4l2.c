@@ -781,11 +781,7 @@ static int solo_disp_s_ctrl(struct file *file, void *priv,
 	return -EINVAL;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_v4l2_fops = {
-#else
-static const struct file_operations solo_v4l2_fops = {
-#endif
 	.owner			= THIS_MODULE,
 	.open			= solo_v4l2_open,
 	.release		= solo_v4l2_release,
