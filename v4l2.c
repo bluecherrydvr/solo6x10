@@ -215,7 +215,7 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 		goto finish_buf;
 
 	if (erase_off(solo_dev)) {
-		void *p = videobuf_queue_to_vmalloc(&fh->vidq, vb);
+		void *p = videobuf_queue_to_vaddr(&fh->vidq, vb);
 		int image_size = solo_image_size(solo_dev);
 		for (i = 0; i < image_size; i += 2) {
 			((u8 *)p)[i] = 0x80;

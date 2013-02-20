@@ -39,3 +39,8 @@ module_exit(__driver##_exit);
 	module_driver(__pci_driver, pci_register_driver, \
 		       pci_unregister_driver)
 #endif
+
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+#define videobuf_queue_to_vaddr videobuf_queue_to_vmalloc
+#endif
