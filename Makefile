@@ -16,7 +16,7 @@ solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_SG)	+= videobuf-dma-sg.o
 obj-m		:= solo6x10-edge.o
 
 modules modules_install clean: FORCE
-	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) $@
+	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(CURDIR) $@
 
 install: modules_install FORCE
 	$(if $(KBUILD_VERBOSE:1=),@echo '  BLACKLIST solo6x10')
