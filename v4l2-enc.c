@@ -632,7 +632,8 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 	struct vop_header *vh = enc_buf->vh;
 	int ret;
 
-	if (WARN_ON_ONCE(!(vbuf = videobuf_to_dma(vb)))) {
+	vbuf = videobuf_to_dma(vb);
+	if (WARN_ON_ONCE(!vbuf)) {
 		ret = -EIO;
 		goto vbuf_error;
 	}

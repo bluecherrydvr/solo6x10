@@ -211,7 +211,8 @@ static void solo_fillbuf(struct solo_filehandle *fh,
 	int error = -1;
 	int i;
 
-	if (!(vbuf = videobuf_to_dma_contig(vb)))
+	vbuf = videobuf_to_dma_contig(vb);
+	if (!vbuf)
 		goto finish_buf;
 
 	if (erase_off(solo_dev)) {

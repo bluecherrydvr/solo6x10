@@ -222,10 +222,12 @@ static int solo_p2m_test(struct solo6010_dev *solo_dev, int base, int size)
 	int ret = -EIO;
 	int order = get_order(size);
 
-	if ((wr_buf = (u32 *)__get_free_pages(GFP_KERNEL, order)) == NULL)
+	wr_buf = (u32 *)__get_free_pages(GFP_KERNEL, order);
+	if (wr_buf == NULL)
 		return -1;
 
-	if ((rd_buf = (u32 *)__get_free_pages(GFP_KERNEL, order)) == NULL) {
+	rd_buf = (u32 *)__get_free_pages(GFP_KERNEL, order);
+	if (rd_buf == NULL) {
 		free_pages((unsigned long)wr_buf, order);
 		return -1;
 	}
