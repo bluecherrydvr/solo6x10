@@ -324,9 +324,10 @@ static ssize_t p2m_timeout_store(struct device *dev,
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
-	unsigned long ms = simple_strtoul(buf, NULL, 10);
+	unsigned long ms;
 
-	if (ms > 200)
+	int ret = kstrtoul(buf, 10, &ms);
+	if (ret < 0 || ms > 200)
 		return -EINVAL;
 	solo_dev->p2m_jiffies = msecs_to_jiffies(ms);
 
