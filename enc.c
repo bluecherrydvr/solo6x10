@@ -175,8 +175,8 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 		     SOLO_EOSD_EXT_SIZE(solo_dev), 0, 0);
 
 	/* Enable OSD on this channel */
-        reg |= (1 << solo_enc->ch);
-        solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
+	reg |= (1 << solo_enc->ch);
+	solo_reg_write(solo_dev, SOLO_VE_OSD_CH, reg);
 
 	return 0;
 }

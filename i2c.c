@@ -51,7 +51,7 @@ u8 solo_i2c_readbyte(struct solo6010_dev *solo_dev, int id, u8 addr, u8 off)
 
 	i2c_transfer(&solo_dev->i2c_adap[id], msgs, 2);
 
-        return data;
+	return data;
 }
 
 void solo_i2c_writebyte(struct solo6010_dev *solo_dev, int id, u8 addr,

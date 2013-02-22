@@ -218,7 +218,7 @@ static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
 
 	solo_eeprom_ewen(solo_dev, 0);
 
-        return count;
+	return count;
 }
 
 static ssize_t eeprom_show(struct device *dev, struct device_attribute *attr,
@@ -338,8 +338,8 @@ static ssize_t p2m_timeout_store(struct device *dev,
 }
 
 static ssize_t p2m_timeout_show(struct device *dev,
-                                struct device_attribute *attr,
-                                char *buf)
+				struct device_attribute *attr,
+				char *buf)
 {
 	struct solo6010_dev *solo_dev =
 		container_of(dev, struct solo6010_dev, dev);
@@ -418,8 +418,8 @@ static ssize_t sdram_offsets_show(struct device *dev,
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
 static ssize_t sdram_show(struct file *file, struct kobject *kobj,
-                          struct bin_attribute *a, char *buf,
-                          loff_t off, size_t count)
+			  struct bin_attribute *a, char *buf,
+			  loff_t off, size_t count)
 #else
 static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
 			  char *buf, loff_t off, size_t count)

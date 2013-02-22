@@ -201,8 +201,8 @@ int solo_set_motion_threshold(struct solo6010_dev *solo_dev, u8 ch, u16 val)
 		return -EINVAL;
 
 	return solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
-	                           (ch * SOLO_MOT_THRESH_SIZE * 2),
-	                           val, SOLO_MOT_THRESH_SIZE);
+				   (ch * SOLO_MOT_THRESH_SIZE * 2),
+				   val, SOLO_MOT_THRESH_SIZE);
 }
 
 int solo_set_motion_block(struct solo6010_dev *solo_dev, u8 ch, u16 val,
@@ -248,15 +248,15 @@ static void solo_motion_config(struct solo6010_dev *solo_dev)
 		/* Clear working cache table */
 		solo_dma_vin_region(solo_dev, SOLO_MOT_FLAG_AREA +
 				    (i * SOLO_MOT_THRESH_SIZE * 2) +
-                                    SOLO_MOT_THRESH_SIZE, 0x0000,
-                                    SOLO_MOT_THRESH_SIZE);
+				    SOLO_MOT_THRESH_SIZE, 0x0000,
+				    SOLO_MOT_THRESH_SIZE);
 
 		/* Set default threshold table */
 		solo_set_motion_threshold(solo_dev, i, SOLO_DEF_MOT_THRESH);
 	}
 
 	/* Default motion settings */
-        solo_reg_write(solo_dev, SOLO_VI_MOT_ADR, SOLO_VI_MOTION_EN(0) |
+	solo_reg_write(solo_dev, SOLO_VI_MOT_ADR, SOLO_VI_MOTION_EN(0) |
 		       (SOLO_MOTION_EXT_ADDR(solo_dev) >> 16));
 	solo_reg_write(solo_dev, SOLO_VI_MOT_CTRL,
 		       SOLO_VI_MOTION_FRAME_COUNT(3) |

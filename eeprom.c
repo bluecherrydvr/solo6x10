@@ -84,7 +84,7 @@ static void solo_eeprom_cmd(struct solo6010_dev *solo_dev, int cmd)
 
 unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en)
 {
-        int ewen_cmd = (w_en ? 0x3f : 0) | (EE_EWEN_CMD << ADDR_LEN);
+	int ewen_cmd = (w_en ? 0x3f : 0) | (EE_EWEN_CMD << ADDR_LEN);
 	unsigned int retval = 0;
 	int i;
 
@@ -101,7 +101,7 @@ unsigned int solo_eeprom_ewen(struct solo6010_dev *solo_dev, int w_en)
 	solo_eeprom_reg_write(solo_dev, ~EE_CS);
 	retval = (retval << 1) | solo_eeprom_reg_read(solo_dev);
 
-        return retval;
+	return retval;
 }
 
 unsigned short solo_eeprom_read(struct solo6010_dev *solo_dev, int loc)
@@ -150,5 +150,5 @@ int solo_eeprom_write(struct solo6010_dev *solo_dev, int loc,
 
 	solo_eeprom_reg_write(solo_dev, ~EE_CS);
 
-        return !retval;
+	return !retval;
 }

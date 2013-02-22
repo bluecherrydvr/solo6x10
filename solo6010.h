@@ -255,7 +255,7 @@ struct solo6010_dev {
 	atomic_t		disp_users;
 
 	/* VOP_HEADER handling */
-        void                    *vh_buf;
+	void                    *vh_buf;
 	dma_addr_t		vh_dma;
 	int			vh_size;
 };

@@ -54,7 +54,7 @@ struct solo_enc_fh {
 	struct list_head	vidq_active;
 	int			desc_count;
 	int			desc_nelts;
-        struct solo_p2m_desc	*desc_items;
+	struct solo_p2m_desc	*desc_items;
 	dma_addr_t		desc_dma;
 	spinlock_t		av_lock;
 	struct list_head	list;
@@ -514,12 +514,12 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 			   <https://github.com/bluecherrydvr/solo6x10/issues/8>
 			 */
 			ret = solo_p2m_dma_t(solo_dev, 0, dma, base + off,
-			                     left, 0, 0);
+					     left, 0, 0);
 			if (ret)
 				return ret;
 
 			ret = solo_p2m_dma_t(solo_dev, 0, dma + left, base,
-			                     len - left, 0, 0);
+					     len - left, 0, 0);
 			if (ret)
 				return ret;
 
@@ -798,12 +798,12 @@ static int solo_ring_thread(void *data)
 static int solo_enc_buf_setup(struct videobuf_queue *vq, unsigned int *count,
 			      unsigned int *size)
 {
-        *size = FRAME_BUF_SIZE;
+	*size = FRAME_BUF_SIZE;
 
-        if (*count < MIN_VID_BUFFERS)
+	if (*count < MIN_VID_BUFFERS)
 		*count = MIN_VID_BUFFERS;
 
-        return 0;
+	return 0;
 }
 
 static int solo_enc_buf_prepare(struct videobuf_queue *vq,
@@ -1328,7 +1328,7 @@ static int solo_g_parm(struct file *file, void *priv,
 	/* XXX: Shouldn't we be able to get/set this from videobuf? */
 	cp->readbuffers = 2;
 
-        return 0;
+	return 0;
 }
 
 static int solo_s_parm(struct file *file, void *priv,
@@ -1367,7 +1367,7 @@ static int solo_s_parm(struct file *file, void *priv,
 
 	mutex_unlock(&solo_enc->enable_lock);
 
-        return 0;
+	return 0;
 }
 
 static int solo_queryctrl(struct file *file, void *priv,
@@ -1433,7 +1433,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 #endif
 	}
 
-        return -EINVAL;
+	return -EINVAL;
 }
 
 static int solo_querymenu(struct file *file, void *priv,
@@ -1529,10 +1529,10 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		if (block == 0) {
 			solo_enc->motion_thresh = value;
 			return solo_set_motion_threshold(solo_dev,
-			                                 solo_enc->ch, value);
+							 solo_enc->ch, value);
 		} else {
 			return solo_set_motion_block(solo_dev, solo_enc->ch,
-			                             value, block - 1);
+						     value, block - 1);
 		}
 		break;
 	}
@@ -1561,7 +1561,7 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
 		case V4L2_CID_RDS_TX_RADIO_TEXT:
 			if (ctrl->size - 1 > OSD_TEXT_MAX)
-                                err = -ERANGE;
+				err = -ERANGE;
 			else {
 				mutex_lock(&solo_enc->enable_lock);
 				err = copy_from_user(solo_enc->osd_text,
@@ -1729,7 +1729,7 @@ static struct solo_enc_dev *solo_enc_alloc(struct solo6010_dev *solo_dev,
 	atomic_set(&solo_enc->mpeg_readers, 0);
 
 	solo_enc->qp = SOLO_DEFAULT_QP;
-        solo_enc->gop = solo_dev->fps;
+	solo_enc->gop = solo_dev->fps;
 	solo_enc->interval = 1;
 	solo_enc->mode = SOLO_ENC_MODE_CIF;
 	solo_enc->motion_thresh = SOLO_DEF_MOT_THRESH;
