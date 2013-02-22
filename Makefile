@@ -4,19 +4,14 @@ MODDIR = /lib/modules/$(KVERS)
 KERNELDIR = $(MODDIR)/build
 KERNELSRC = $(MODDIR)/source
 
-solo6x10-edge-objs := core.o i2c.o p2m.o \
+solo6x10-edge-y := core.o i2c.o p2m.o \
 		   v4l2.o tw28.o gpio.o \
 		   disp.o enc.o v4l2-enc.o \
 		   g723.o eeprom.o
 
 # For when the kernel isn't compiled with it
-ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)
-solo6x10-edge-objs += videobuf-dma-contig.o
-endif
-
-ifeq ($(CONFIG_VIDEOBUF_DMA_SG),)
-solo6x10-edge-objs += videobuf-dma-sg.o
-endif
+solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_CONTIG)	+= videobuf-dma-contig.o
+solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_SG)	+= videobuf-dma-sg.o
 
 obj-m		:= solo6x10-edge.o
 
