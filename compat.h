@@ -41,16 +41,16 @@ module_exit(__driver##_exit);
 #endif
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 #define videobuf_queue_to_vaddr videobuf_queue_to_vmalloc
 #endif
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 28)
 #define v4l2_file_operations file_operations
 #endif
 
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,29) && defined(__SOUND_CORE_H)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 29) && defined(__SOUND_CORE_H)
 static inline
 int snd_card_create(int idx, const char *id,
 		    struct module *module, int extra_size,

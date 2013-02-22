@@ -76,7 +76,7 @@
 #define SOLO6010_VER_MINOR		4
 #define SOLO6010_VER_SUB		4
 #define SOLO6010_VER_NUM \
-    KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
+	KERNEL_VERSION(SOLO6010_VER_MAJOR, SOLO6010_VER_MINOR, SOLO6010_VER_SUB)
 #define SOLO6010_VERSION \
 	__stringify(SOLO6010_VER_MAJOR) "." \
 	__stringify(SOLO6010_VER_MINOR) "." \
@@ -161,7 +161,7 @@ struct solo_enc_dev {
 	/* OSD buffers */
 	char			osd_text[OSD_TEXT_MAX + 1];
 	u8			osd_buf[SOLO_EOSD_EXT_SIZE_MAX]
-					__attribute__((__aligned__(4)));
+					__aligned(4);
 
 	/* VOP stuff */
 	unsigned char		vop[64];

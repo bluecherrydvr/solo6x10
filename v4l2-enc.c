@@ -125,7 +125,7 @@ static const u32 solo_user_ctrls[] = {
 	V4L2_CID_CONTRAST,
 	V4L2_CID_SATURATION,
 	V4L2_CID_HUE,
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28)
 	V4L2_CID_SHARPNESS,
 #endif
 	0
@@ -144,7 +144,7 @@ static const u32 solo_private_ctrls[] = {
 };
 
 static const u32 solo_fmtx_ctrls[] = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	V4L2_CID_RDS_TX_RADIO_TEXT,
 #endif
 	0
@@ -185,7 +185,7 @@ struct vop_header {
 	u32 mpeg_size_alt:20, nop3:12;
 
 	u32 end_nops[5];
-} __attribute__((packed));
+} __packed;
 
 struct solo_enc_buf {
 	enum solo_enc_types	type;
@@ -821,7 +821,7 @@ static int solo_enc_buf_prepare(struct videobuf_queue *vq,
 		int rc = videobuf_iolock(vq, vb, NULL);
 		if (rc < 0) {
 			struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 			videobuf_dma_unmap(vq, dma);
 #else
 			videobuf_dma_unmap(vq->dev, dma);
@@ -849,7 +849,7 @@ static void solo_enc_buf_release(struct videobuf_queue *vq,
 				 struct videobuf_buffer *vb)
 {
 	struct videobuf_dmabuf *dma = videobuf_to_dma(vb);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	videobuf_dma_unmap(vq, dma);
 #else
 	videobuf_dma_unmap(vq->dev, dma);
@@ -911,7 +911,7 @@ static void solo_ring_stop(struct solo6010_dev *solo_dev)
 	solo_irq_off(solo_dev, SOLO_IRQ_ENCODER);
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28)
 static int solo_enc_open(struct file *file)
 #else
 static int solo_enc_open(struct inode *ino, struct file *file)
@@ -949,7 +949,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	fh->fmt = V4L2_PIX_FMT_MPEG;
 	fh->type = SOLO_ENC_TYPE_STD;
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,37)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 37)
 	videobuf_queue_sg_init(&fh->vidq, &solo_enc_video_qops,
 				&solo_dev->pdev->dev,
 				&fh->av_lock,
@@ -984,7 +984,7 @@ static ssize_t solo_enc_read(struct file *file, char __user *data,
 				    file->f_flags & O_NONBLOCK);
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28)
 static int solo_enc_release(struct file *file)
 #else
 static int solo_enc_release(struct inode *ino, struct file *file)
@@ -1120,9 +1120,8 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 
 	if (pix->field == V4L2_FIELD_ANY)
 		pix->field = V4L2_FIELD_INTERLACED;
-	else if (pix->field != V4L2_FIELD_INTERLACED) {
+	else if (pix->field != V4L2_FIELD_INTERLACED)
 		pix->field = V4L2_FIELD_INTERLACED;
-	}
 
 	/* Just set these */
 	pix->colorspace = V4L2_COLORSPACE_SMPTE170M;
@@ -1261,7 +1260,7 @@ static int solo_enc_s_std(struct file *file, void *priv, v4l2_std_id *i)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 31)
 static int solo_enum_framesizes(struct file *file, void *priv,
 				struct v4l2_frmsizeenum *fsize)
 {
@@ -1421,7 +1420,7 @@ static int solo_queryctrl(struct file *file, void *priv,
 	case V4L2_CID_MOTION_ENABLE:
 		return v4l2_ctrl_query_fill(qc, 0, 1, 1, 0);
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	case V4L2_CID_RDS_TX_RADIO_TEXT:
 		qc->type = V4L2_CTRL_TYPE_STRING;
 		qc->minimum = 0;
@@ -1558,7 +1557,7 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 		int err;
 
 		switch (ctrl->id) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 		case V4L2_CID_RDS_TX_RADIO_TEXT:
 			if (ctrl->size - 1 > OSD_TEXT_MAX)
 				err = -ERANGE;
@@ -1599,7 +1598,7 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 		int err;
 
 		switch (ctrl->id) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 		case V4L2_CID_RDS_TX_RADIO_TEXT:
 			if (ctrl->size < OSD_TEXT_MAX) {
 				ctrl->size = OSD_TEXT_MAX;
@@ -1626,11 +1625,7 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 static const struct v4l2_file_operations solo_enc_fops = {
-#else
-static const struct file_operations solo_enc_fops = {
-#endif
 	.owner			= THIS_MODULE,
 	.open			= solo_enc_open,
 	.release		= solo_enc_release,
@@ -1660,7 +1655,7 @@ static const struct v4l2_ioctl_ops solo_enc_ioctl_ops = {
 	.vidioc_streamon		= solo_enc_streamon,
 	.vidioc_streamoff		= solo_enc_streamoff,
 	/* Frame size and interval */
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 31)
 	.vidioc_enum_framesizes		= solo_enum_framesizes,
 	.vidioc_enum_frameintervals	= solo_enum_frameintervals,
 #endif

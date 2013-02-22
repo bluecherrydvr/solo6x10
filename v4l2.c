@@ -414,7 +414,7 @@ static int solo_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
 	return videobuf_mmap_mapper(&fh->vidq, vma);
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28)
 static int solo_v4l2_open(struct file *file)
 #else
 static int solo_v4l2_open(struct inode *ino, struct file *file)
@@ -439,7 +439,7 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 		return ret;
 	}
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,37)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 37)
 	videobuf_queue_dma_contig_init(&fh->vidq, &solo_video_qops,
 				       &solo_dev->pdev->dev, &fh->slock,
 				       V4L2_BUF_TYPE_VIDEO_CAPTURE,
@@ -466,7 +466,7 @@ static ssize_t solo_v4l2_read(struct file *file, char __user *data,
 				    file->f_flags & O_NONBLOCK);
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 28)
 static int solo_v4l2_release(struct file *file)
 #else
 static int solo_v4l2_release(struct inode *ino, struct file *file)
@@ -562,7 +562,7 @@ static int solo_set_input(struct file *file, void *priv, unsigned int index)
 	int ret = solo_v4l2_set_ch(fh->solo_dev, index);
 
 	if (!ret) {
-		while(erase_off(fh->solo_dev))
+		while (erase_off(fh->solo_dev))
 			/* Do nothing */;
 	}
 
@@ -854,9 +854,9 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 	snprintf(solo_dev->vfd->name, sizeof(solo_dev->vfd->name), "%s (%i)",
 		 SOLO6010_NAME, solo_dev->vfd->num);
 
-	dev_info(&solo_dev->pdev->dev, "Display as /dev/video%d with "
-		 "%d inputs (%d extended)\n", solo_dev->vfd->num,
-		 solo_dev->nr_chans, solo_dev->nr_ext);
+	dev_info(&solo_dev->pdev->dev,
+		 "Display as /dev/video%d with %d inputs (%d extended)\n",
+		 solo_dev->vfd->num, solo_dev->nr_chans, solo_dev->nr_ext);
 
 	/* Cycle all the channels and clear */
 	for (i = 0; i < solo_dev->nr_chans; i++) {

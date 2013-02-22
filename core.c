@@ -37,8 +37,7 @@
 #include "compat.h"
 
 MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 CODEC V4L2/ALSA Driver");
-MODULE_AUTHOR("Ben Collins <bcollins@ubuntu.com>, "
-	      "Bluecherry <maintainers@bluecherrydvr.com>");
+MODULE_AUTHOR("Bluecherry <maintainers@bluecherrydvr.com>");
 MODULE_VERSION(SOLO6010_VERSION);
 MODULE_LICENSE("GPL");
 
@@ -46,10 +45,9 @@ unsigned video_nr = -1;
 module_param(video_nr, uint, 0644);
 MODULE_PARM_DESC(video_nr, "videoX start number, -1 is autodetect (default)");
 
-static int full_eeprom;
+static int full_eeprom; /* default is only top 64B */
 module_param(full_eeprom, uint, 0644);
-MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM"
-		 " (dangerous, default is only top 64B)");
+MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous)");
 
 
 static void solo_set_time(struct solo6010_dev *solo_dev)
@@ -197,10 +195,8 @@ static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
 	unsigned short *p = (unsigned short *)buf;
 	int i;
 
-	if (count & 0x1) {
-		dev_warn(dev, "EEPROM Write is not 2 byte aligned "
-			 "(truncating 1 byte)\n");
-	}
+	if (count & 0x1)
+		dev_warn(dev, "EEPROM Write not aligned (truncating)\n");
 
 	if (!full_eeprom && count > 64) {
 		dev_warn(dev, "EEPROM Write truncated to 64 bytes\n");
@@ -416,7 +412,7 @@ static ssize_t sdram_offsets_show(struct device *dev,
 	return out - buf;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
 static ssize_t sdram_show(struct file *file, struct kobject *kobj,
 			  struct bin_attribute *a, char *buf,
 			  loff_t off, size_t count)
@@ -549,21 +545,20 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	chip_id = solo_reg_read(solo_dev, SOLO_CHIP_OPTION) &
 				SOLO_CHIP_ID_MASK;
 	switch (chip_id) {
-		case 7:
-			solo_dev->nr_chans = 16;
-			solo_dev->nr_ext = 5;
-			break;
-		case 6:
-			solo_dev->nr_chans = 8;
-			solo_dev->nr_ext = 2;
-			break;
-		default:
-			dev_warn(&pdev->dev, "Invalid chip_id 0x%02x, "
-				 "defaulting to 4 channels\n",
-				 chip_id);
-		case 5:
-			solo_dev->nr_chans = 4;
-			solo_dev->nr_ext = 1;
+	case 7:
+		solo_dev->nr_chans = 16;
+		solo_dev->nr_ext = 5;
+		break;
+	case 6:
+		solo_dev->nr_chans = 8;
+		solo_dev->nr_ext = 2;
+		break;
+	default:
+		dev_warn(&pdev->dev, "Invalid chip_id 0x%02x, assuming 4 ch\n",
+			 chip_id);
+	case 5:
+		solo_dev->nr_chans = 4;
+		solo_dev->nr_ext = 1;
 	}
 
 	/* Disable all interrupts to start */
@@ -593,9 +588,9 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 		solo_reg_write(solo_dev, SOLO_PLL_CONFIG,
 			       (1 << 20) | /* PLL_RANGE */
 			       (8 << 15) | /* PLL_DIVR  */
-			       (divq << 12 ) |
-			       (divf <<  4 ) |
-			       (1 <<  1)   /* PLL_FSEN */ );
+			       (divq << 12) |
+			       (divf <<  4) |
+			       (1 <<  1)   /* PLL_FSEN */);
 
 		solo_dev->sys_config = SOLO_SYS_CFG_SDRAM64BIT;
 	}

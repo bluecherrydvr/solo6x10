@@ -257,16 +257,17 @@ static int tw2865_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 
 	for (i = 0; i < 0xff; i++) {
 		/* Skip read only registers */
-		if (i >= 0xb8 && i <= 0xc1 )
+		switch (i) {
+		case 0xb8 ... 0xc1:
+		case 0xc4 ... 0xc7:
+		case 0xfd:
 			continue;
-		if ((i & ~0x30) == 0x00 ||
-		    (i & ~0x30) == 0x0c ||
-		    (i & ~0x30) == 0x0d)
+		}
+		switch (i & ~0x30) {
+		case 0x00:
+		case 0x0c ... 0x0d:
 			continue;
-		if (i >= 0xc4 && i <= 0xc7)
-			continue;
-		if (i == 0xfd)
-			continue;
+		}
 
 		tw_write_and_verify(solo_dev, dev_addr, i,
 				    tbl_tw2865_common[i]);
@@ -332,14 +333,17 @@ static int tw2864_setup(struct solo6010_dev *solo_dev, u8 dev_addr)
 
 	for (i = 0; i < 0xff; i++) {
 		/* Skip read only registers */
-		if (i >= 0xb8 && i <= 0xc1 )
+		switch (i) {
+		case 0xb8 ... 0xc1:
+		case 0xfd:
 			continue;
-		if ((i & ~0x30) == 0x00 ||
-		    (i & ~0x30) == 0x0c ||
-		    (i & ~0x30) == 0x0d)
+		}
+		switch (i & ~0x30) {
+		case 0x00:
+		case 0x0c:
+		case 0x0d:
 			continue;
-		if (i == 0xfd)
-			continue;
+		}
 
 		tw_write_and_verify(solo_dev, dev_addr, i,
 				    tbl_tw2864_common[i]);
@@ -597,9 +601,9 @@ int solo_tw28_init(struct solo6010_dev *solo_dev)
 		}
 	}
 
-	if (solo_dev->tw28_cnt != solo_dev->nr_chans / 4) {
-		dev_err(&solo_dev->pdev->dev, "Could not initialize any "
-			"(or all) techwell chips\n");
+	if (solo_dev->tw28_cnt != (solo_dev->nr_chans >> 2)) {
+		dev_err(&solo_dev->pdev->dev,
+			"Could not initialize any techwell chips\n");
 		return -EINVAL;
 	}
 

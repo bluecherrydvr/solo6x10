@@ -29,13 +29,13 @@
 
 static int multi_p2m;
 module_param(multi_p2m, uint, 0644);
-MODULE_PARM_DESC(multi_p2m, "Allow 6010 to use multiple P2M DMA channels"
-		 " (default is single, does not affect 6110)");
+MODULE_PARM_DESC(multi_p2m,
+		 "Use multiple P2M DMA channels (default: no, 6010-only)");
 
 static int desc_mode;
 module_param(desc_mode, uint, 0644);
-MODULE_PARM_DESC(desc_mode, "Allow use of descriptor mode DMA"
-		 " (default is disabled, does not affect 6110)");
+MODULE_PARM_DESC(desc_mode,
+		 "Allow use of descriptor mode DMA (default: no, 6010-only)");
 
 int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
@@ -230,10 +230,10 @@ static int solo_p2m_test(struct solo6010_dev *solo_dev, int base, int size)
 		return -1;
 	}
 
-	for (i = 0; i < ((size / 2) >> 2); i++)
+	for (i = 0; i < (size >> 3); i++)
 		*(wr_buf + i) = (i << 16) | (i + 1);
 
-	for(i = ((size / 2) >> 2); i < (size >> 2); i++)
+	for (i = (size >> 3); i < (size >> 2); i++)
 		*(wr_buf + i) = ~((i << 16) | (i + 1));
 
 	memset(rd_buf, 0x55, size);
