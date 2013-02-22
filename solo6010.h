@@ -33,7 +33,7 @@
 #include <linux/wait.h>
 #include <linux/stringify.h>
 #include <linux/io.h>
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 
 #include <linux/videodev2.h>
 #include <media/v4l2-dev.h>
