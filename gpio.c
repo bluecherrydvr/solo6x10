@@ -27,7 +27,7 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 
 static void solo_gpio_mode(struct solo6010_dev *solo_dev,
 			   unsigned int port_mask, unsigned int mode)

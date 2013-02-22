@@ -26,7 +26,7 @@
 #include <linux/font.h>
 #include <linux/bitrev.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 
 #define VI_PROG_HSIZE			(1280 - 16)
 #define VI_PROG_VSIZE			(1024 - 16)

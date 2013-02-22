@@ -31,7 +31,7 @@
 #include <linux/sysfs.h>
 #include <linux/ktime.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 #include "tw28.h"
 
 #include "compat.h"

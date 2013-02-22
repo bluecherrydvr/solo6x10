@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/delay.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 
 /* Control */
 #define EE_SHIFT_CLK	0x04

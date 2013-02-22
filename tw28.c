@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/delay.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 #include "tw28.h"
 
 #define DEFAULT_HDELAY_NTSC		(32 - 8)

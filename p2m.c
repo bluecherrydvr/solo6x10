@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 
 static int multi_p2m;
 module_param(multi_p2m, uint, 0644);

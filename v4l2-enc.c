@@ -31,7 +31,7 @@
 #include <media/v4l2-common.h>
 #include <media/videobuf-dma-sg.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 #include "tw28.h"
 #include "jpeg.h"
 

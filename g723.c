@@ -34,7 +34,7 @@
 #include <sound/pcm.h>
 #include <sound/control.h>
 
-#include "solo6010.h"
+#include "solo6x10.h"
 #include "tw28.h"
 
 #define G723_FDMA_PAGES		32
