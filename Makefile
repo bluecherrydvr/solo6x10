@@ -4,10 +4,10 @@ MODDIR = /lib/modules/$(KVERS)
 KERNELDIR = $(MODDIR)/build
 KERNELSRC = $(MODDIR)/source
 
-solo6x10-edge-objs := solo6010-core.o solo6010-i2c.o solo6010-p2m.o \
-		   solo6010-v4l2.o solo6010-tw28.o solo6010-gpio.o \
-		   solo6010-disp.o solo6010-enc.o solo6010-v4l2-enc.o \
-		   solo6010-g723.o solo6010-eeprom.o
+solo6x10-edge-objs := core.o i2c.o p2m.o \
+		   v4l2.o tw28.o gpio.o \
+		   disp.o enc.o v4l2-enc.o \
+		   g723.o eeprom.o
 
 # For when the kernel isn't compiled with it
 ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)

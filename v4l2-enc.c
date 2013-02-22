@@ -32,8 +32,8 @@
 #include <media/videobuf-dma-sg.h>
 
 #include "solo6010.h"
-#include "solo6010-tw28.h"
-#include "solo6010-jpeg.h"
+#include "tw28.h"
+#include "jpeg.h"
 
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(196 * 1024)

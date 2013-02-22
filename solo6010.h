@@ -39,7 +39,7 @@
 #include <media/v4l2-dev.h>
 #include <media/videobuf-core.h>
 
-#include "solo6010-registers.h"
+#include "registers.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
 #define videobuf_queue_to_vmalloc videobuf_queue_to_vaddr

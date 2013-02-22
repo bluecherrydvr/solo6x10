@@ -32,7 +32,7 @@
 #include <linux/ktime.h>
 
 #include "solo6010.h"
-#include "solo6010-tw28.h"
+#include "tw28.h"
 
 #include "compat.h"
 

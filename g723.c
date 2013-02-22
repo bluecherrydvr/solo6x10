@@ -35,7 +35,7 @@
 #include <sound/control.h>
 
 #include "solo6010.h"
-#include "solo6010-tw28.h"
+#include "tw28.h"
 
 #define G723_FDMA_PAGES		32
 #define G723_PERIOD_BYTES	48
