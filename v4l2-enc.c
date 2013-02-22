@@ -926,7 +926,8 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	if (ret)
 		return ret;
 
-	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL) {
+	fh = kzalloc(sizeof(*fh), GFP_KERNEL);
+	if (fh == NULL) {
 		solo_ring_stop(solo_dev);
 		return -ENOMEM;
 	}
@@ -1442,7 +1443,9 @@ static int solo_querymenu(struct file *file, void *priv,
 	int err;
 
 	qctrl.id = qmenu->id;
-	if ((err = solo_queryctrl(file, priv, &qctrl)))
+
+	err = solo_queryctrl(file, priv, &qctrl);
+	if (err)
 		return err;
 
 	return v4l2_ctrl_query_menu(qmenu, &qctrl, NULL);

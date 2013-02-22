@@ -424,7 +424,8 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 	struct solo_filehandle *fh;
 	int ret;
 
-	if ((fh = kzalloc(sizeof(*fh), GFP_KERNEL)) == NULL)
+	fh = kzalloc(sizeof(*fh), GFP_KERNEL);
+	if (fh == NULL)
 		return -ENOMEM;
 
 	spin_lock_init(&fh->slock);
@@ -432,7 +433,8 @@ static int solo_v4l2_open(struct inode *ino, struct file *file)
 	fh->solo_dev = solo_dev;
 	file->private_data = fh;
 
-	if ((ret = solo_start_thread(fh))) {
+	ret = solo_start_thread(fh);
+	if (ret) {
 		kfree(fh);
 		return ret;
 	}

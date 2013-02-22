@@ -391,14 +391,17 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 	strcpy(card->mixername, "SOLO-6010");
 	kctl = snd_solo_capture_volume;
 	kctl.count = solo_dev->nr_chans;
-        ret = snd_ctl_add(card, snd_ctl_new1(&kctl, solo_dev));
+
+	ret = snd_ctl_add(card, snd_ctl_new1(&kctl, solo_dev));
 	if (ret < 0)
 		return ret;
 
-	if ((ret = solo_snd_pcm_init(solo_dev)) < 0)
+	ret = solo_snd_pcm_init(solo_dev);
+	if (ret < 0)
 		goto snd_error;
 
-	if ((ret = snd_card_register(card)) < 0)
+	ret = snd_card_register(card);
+	if (ret < 0)
 		goto snd_error;
 
 	solo_g723_config(solo_dev);

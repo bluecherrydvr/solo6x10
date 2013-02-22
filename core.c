@@ -526,7 +526,8 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	/* Only for during init */
 	solo_dev->p2m_jiffies = msecs_to_jiffies(100);
 
-	if ((ret = pci_enable_device(pdev)))
+	ret = pci_enable_device(pdev);
+	if (ret)
 		goto fail_probe;
 
 	pci_set_master(pdev);
@@ -535,10 +536,12 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	pci_write_config_byte(pdev, 0x40, 0x00);
 	pci_write_config_byte(pdev, 0x41, 0x00);
 
-	if ((ret = pci_request_regions(pdev, SOLO6010_NAME)))
+	ret = pci_request_regions(pdev, SOLO6010_NAME);
+	if (ret)
 		goto fail_probe;
 
-	if ((solo_dev->reg_base = pci_ioremap_bar(pdev, 0)) == NULL) {
+	solo_dev->reg_base = pci_ioremap_bar(pdev, 0);
+	if (solo_dev->reg_base == NULL) {
 		ret = -ENOMEM;
 		goto fail_probe;
 	}
@@ -612,7 +615,8 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	/* Handle this from the start */
 	solo_irq_on(solo_dev, SOLO_IRQ_PCI_ERR);
 
-	if ((ret = solo_i2c_init(solo_dev)))
+	ret = solo_i2c_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
 	/* Setup the DMA engine */
@@ -637,31 +641,40 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 
 	/* Initialize sub components */
 
-	if ((ret = solo_p2m_init(solo_dev)))
+	ret = solo_p2m_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_disp_init(solo_dev)))
+	ret = solo_disp_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_gpio_init(solo_dev)))
+	ret = solo_gpio_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_tw28_init(solo_dev)))
+	ret = solo_tw28_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_v4l2_init(solo_dev, video_nr)))
+	ret = solo_v4l2_init(solo_dev, video_nr);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_enc_init(solo_dev)))
+	ret = solo_enc_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_enc_v4l2_init(solo_dev, video_nr)))
+	ret = solo_enc_v4l2_init(solo_dev, video_nr);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_g723_init(solo_dev)))
+	ret = solo_g723_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
-	if ((ret = solo_sysfs_init(solo_dev)))
+	ret = solo_sysfs_init(solo_dev);
+	if (ret)
 		goto fail_probe;
 
 	/* Now that init is over, set this lower */

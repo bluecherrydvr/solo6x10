@@ -301,7 +301,8 @@ int solo_i2c_init(struct solo6010_dev *solo_dev)
 		adap->retries = 1;
 		adap->dev.parent = &solo_dev->pdev->dev;
 
-		if ((ret = i2c_add_adapter(adap))) {
+		ret = i2c_add_adapter(adap);
+		if (ret) {
 			adap->algo_data = NULL;
 			break;
 		}
