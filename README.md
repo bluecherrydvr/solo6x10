@@ -18,6 +18,16 @@ version, as it might install to a different location and interfere.
 
 To install, run: sudo make install && sudo depmod -a
 
+
+Releases
+--------
+Releases can be downloaded at:
+http://downloads.bluecherrydvr.com/solo6x10/
+
+GPG Signing Key fingerprint:
+7DD6 2E5E BCBB 6181 F7AE  CF97 1AC2 2DC0 4001 5F86
+
+
 Public bug / feature tracker
 ---------------------------
 The public bug and feature tracker for the solo6x10 driver can be found on
