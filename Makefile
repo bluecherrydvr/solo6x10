@@ -21,7 +21,8 @@ install: modules_install FORCE
 clean: clean_local
 
 clean_local: FORCE
-	rm -f Module.markers modules.order videobuf-dma-contig.c \
+	rm -f Module.markers modules.order \
+	      videobuf-dma-contig.c videobuf-dma-sg.c \
 	      videobuf-dma-contig.c.in videobuf-dma-sg.c.in
 
 
