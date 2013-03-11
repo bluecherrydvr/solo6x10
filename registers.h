@@ -22,8 +22,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#ifndef __SOLO6010_REGISTERS_H
-#define __SOLO6010_REGISTERS_H
+#ifndef __SOLO6X10_REGISTERS_H
+#define __SOLO6X10_REGISTERS_H
 
 #include "offsets.h"
 
@@ -636,4 +636,4 @@
 #define SOLO_WATCHDOG				0x0be4
 #define SOLO_WATCHDOG_SET(status, sec)		(status << 8 | (sec & 0xff))
 
-#endif /* __SOLO6010_REGISTERS_H */
+#endif /* __SOLO6X10_REGISTERS_H */

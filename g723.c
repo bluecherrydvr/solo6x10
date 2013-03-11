@@ -59,12 +59,12 @@
 struct solo_snd_pcm {
 	int				on;
 	spinlock_t			lock;
-	struct solo6010_dev		*solo_dev;
+	struct solo_dev		*solo_dev;
 	unsigned char			*g723_buf;
 	dma_addr_t			g723_dma;
 };
 
-static void solo_g723_config(struct solo6010_dev *solo_dev)
+static void solo_g723_config(struct solo_dev *solo_dev)
 {
 	int clk_div;
 
@@ -87,7 +87,7 @@ static void solo_g723_config(struct solo6010_dev *solo_dev)
 		       | SOLO_AUDIO_MODE(OUTMODE_MASK));
 }
 
-void solo_g723_isr(struct solo6010_dev *solo_dev)
+void solo_g723_isr(struct solo_dev *solo_dev)
 {
 	struct snd_pcm_str *pstr =
 		&solo_dev->snd_pcm->streams[SNDRV_PCM_STREAM_CAPTURE];
@@ -142,7 +142,7 @@ static const struct snd_pcm_hardware snd_solo_pcm_hw = {
 
 static int snd_solo_pcm_open(struct snd_pcm_substream *ss)
 {
-	struct solo6010_dev *solo_dev = snd_pcm_substream_chip(ss);
+	struct solo_dev *solo_dev = snd_pcm_substream_chip(ss);
 	struct solo_snd_pcm *solo_pcm;
 
 	solo_pcm = kzalloc(sizeof(*solo_pcm), GFP_KERNEL);
@@ -183,7 +183,7 @@ static int snd_solo_pcm_close(struct snd_pcm_substream *ss)
 static int snd_solo_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 {
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
-	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
+	struct solo_dev *solo_dev = solo_pcm->solo_dev;
 	int ret = 0;
 
 	spin_lock(&solo_pcm->lock);
@@ -222,7 +222,7 @@ static int snd_solo_pcm_prepare(struct snd_pcm_substream *ss)
 static snd_pcm_uframes_t snd_solo_pcm_pointer(struct snd_pcm_substream *ss)
 {
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
-	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
+	struct solo_dev *solo_dev = solo_pcm->solo_dev;
 	snd_pcm_uframes_t idx = solo_reg_read(solo_dev, SOLO_AUDIO_STA) & 0x1f;
 
 	return idx * G723_FRAMES_PER_PAGE;
@@ -233,7 +233,7 @@ static int snd_solo_pcm_copy(struct snd_pcm_substream *ss, int channel,
 			     snd_pcm_uframes_t count)
 {
 	struct solo_snd_pcm *solo_pcm = snd_pcm_substream_chip(ss);
-	struct solo6010_dev *solo_dev = solo_pcm->solo_dev;
+	struct solo_dev *solo_dev = solo_pcm->solo_dev;
 	int err, i;
 
 	for (i = 0; i < (count / G723_FRAMES_PER_PAGE); i++) {
@@ -284,7 +284,7 @@ static int snd_solo_capture_volume_info(struct snd_kcontrol *kcontrol,
 static int snd_solo_capture_volume_get(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *value)
 {
-	struct solo6010_dev *solo_dev = snd_kcontrol_chip(kcontrol);
+	struct solo_dev *solo_dev = snd_kcontrol_chip(kcontrol);
 	u8 ch = value->id.numid - 1;
 
 	value->value.integer.value[0] = tw28_get_audio_gain(solo_dev, ch);
@@ -295,7 +295,7 @@ static int snd_solo_capture_volume_get(struct snd_kcontrol *kcontrol,
 static int snd_solo_capture_volume_put(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *value)
 {
-	struct solo6010_dev *solo_dev = snd_kcontrol_chip(kcontrol);
+	struct solo_dev *solo_dev = snd_kcontrol_chip(kcontrol);
 	u8 ch = value->id.numid - 1;
 	u8 old_val;
 
@@ -316,7 +316,7 @@ static struct snd_kcontrol_new snd_solo_capture_volume = {
 	.put = snd_solo_capture_volume_put,
 };
 
-static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
+static int solo_snd_pcm_init(struct solo_dev *solo_dev)
 {
 	struct snd_card *card = solo_dev->snd_card;
 	struct snd_pcm *pcm;
@@ -352,7 +352,7 @@ static int solo_snd_pcm_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-int solo_g723_init(struct solo6010_dev *solo_dev)
+int solo_g723_init(struct solo_dev *solo_dev)
 {
 	static struct snd_device_ops ops = { NULL };
 	struct snd_card *card;
@@ -372,8 +372,8 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 
 	card = solo_dev->snd_card;
 
-	strcpy(card->driver, SOLO6010_NAME);
-	strcpy(card->shortname, "SOLO-6010 Audio");
+	strcpy(card->driver, SOLO6X10_NAME);
+	strcpy(card->shortname, "SOLO-6x10 Audio");
 	sprintf(card->longname, "%s on %s IRQ %d", card->shortname,
 		pci_name(solo_dev->pdev), solo_dev->pdev->irq);
 	snd_card_set_dev(card, &solo_dev->pdev->dev);
@@ -383,7 +383,7 @@ int solo_g723_init(struct solo6010_dev *solo_dev)
 		goto snd_error;
 
 	/* Mixer controls */
-	strcpy(card->mixername, "SOLO-6010");
+	strcpy(card->mixername, "SOLO-6x10");
 	kctl = snd_solo_capture_volume;
 	kctl.count = solo_dev->nr_chans;
 
@@ -410,7 +410,7 @@ snd_error:
 	return ret;
 }
 
-void solo_g723_exit(struct solo6010_dev *solo_dev)
+void solo_g723_exit(struct solo_dev *solo_dev)
 {
 	if (!solo_dev->snd_card)
 		return;

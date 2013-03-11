@@ -33,7 +33,7 @@
 
 #define IRQ_LEVEL			2
 
-static void solo_capture_config(struct solo6010_dev *solo_dev)
+static void solo_capture_config(struct solo_dev *solo_dev)
 {
 	unsigned long height;
 	unsigned long width;
@@ -137,7 +137,7 @@ static void solo_capture_config(struct solo6010_dev *solo_dev)
 /* Should be called with enable_lock held */
 int solo_osd_print(struct solo_enc_dev *solo_enc)
 {
-	struct solo6010_dev *solo_dev = solo_enc->solo_dev;
+	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	unsigned char *str = solo_enc->osd_text;
 	u8 *buf = solo_enc->osd_buf;
 	u32 reg = solo_reg_read(solo_dev, SOLO_VE_OSD_CH);
@@ -185,7 +185,7 @@ int solo_osd_print(struct solo_enc_dev *solo_enc)
 /**
  * Set channel Quality Profile (0-3).
  */
-void solo_s_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch,
+void solo_s_jpeg_qp(struct solo_dev *solo_dev, unsigned int ch,
 		    unsigned int qp)
 {
 	unsigned long flags;
@@ -217,7 +217,7 @@ void solo_s_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch,
 	spin_unlock_irqrestore(&solo_dev->jpeg_qp_lock, flags);
 }
 
-int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch)
+int solo_g_jpeg_qp(struct solo_dev *solo_dev, unsigned int ch)
 {
 	int idx;
 
@@ -240,7 +240,7 @@ int solo_g_jpeg_qp(struct solo6010_dev *solo_dev, unsigned int ch)
 
 #define SOLO_QP_INIT 0xaaaaaaaa
 
-static void solo_jpeg_config(struct solo6010_dev *solo_dev)
+static void solo_jpeg_config(struct solo_dev *solo_dev)
 {
 	if (solo_dev->type == SOLO_DEV_6010) {
 		solo_reg_write(solo_dev, SOLO_VE_JPEG_QP_TBL,
@@ -267,7 +267,7 @@ static void solo_jpeg_config(struct solo6010_dev *solo_dev)
 	}
 }
 
-static void solo_mp4e_config(struct solo6010_dev *solo_dev)
+static void solo_mp4e_config(struct solo_dev *solo_dev)
 {
 	int i;
 	u32 cfg;
@@ -320,7 +320,7 @@ static void solo_mp4e_config(struct solo6010_dev *solo_dev)
 	}
 }
 
-int solo_enc_init(struct solo6010_dev *solo_dev)
+int solo_enc_init(struct solo_dev *solo_dev)
 {
 	int i;
 
@@ -336,7 +336,7 @@ int solo_enc_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-void solo_enc_exit(struct solo6010_dev *solo_dev)
+void solo_enc_exit(struct solo_dev *solo_dev)
 {
 	int i;
 

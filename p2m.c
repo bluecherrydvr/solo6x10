@@ -37,7 +37,7 @@ module_param(desc_mode, uint, 0644);
 MODULE_PARM_DESC(desc_mode,
 		 "Allow use of descriptor mode DMA (default: no, 6010-only)");
 
-int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
+int solo_p2m_dma(struct solo_dev *solo_dev, int wr,
 		 void *sys_addr, u32 ext_addr, u32 size,
 		 int repeat, u32 ext_size)
 {
@@ -62,7 +62,7 @@ int solo_p2m_dma(struct solo6010_dev *solo_dev, int wr,
 }
 
 /* Mutex must be held for p2m_id before calling this!! */
-int solo_p2m_dma_desc(struct solo6010_dev *solo_dev,
+int solo_p2m_dma_desc(struct solo_dev *solo_dev,
 		      struct solo_p2m_desc *desc, dma_addr_t desc_dma,
 		      int desc_cnt)
 {
@@ -155,7 +155,7 @@ void solo_p2m_fill_desc(struct solo_p2m_desc *desc, int wr,
 	desc->ext_addr = ext_addr;
 }
 
-int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
+int solo_p2m_dma_t(struct solo_dev *solo_dev, int wr,
 		   dma_addr_t dma_addr, u32 ext_addr, u32 size,
 		   int repeat, u32 ext_size)
 {
@@ -168,7 +168,7 @@ int solo_p2m_dma_t(struct solo6010_dev *solo_dev, int wr,
 	return solo_p2m_dma_desc(solo_dev, desc, 0, 1);
 }
 
-void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
+void solo_p2m_isr(struct solo_dev *solo_dev, int id)
 {
 	struct solo_p2m_dev *p2m_dev = &solo_dev->p2m_dev[id];
 	struct solo_p2m_desc *desc;
@@ -189,7 +189,7 @@ void solo_p2m_isr(struct solo6010_dev *solo_dev, int id)
 	solo_reg_write(solo_dev, SOLO_P2M_CONTROL(id), desc->ctrl);
 }
 
-void solo_p2m_error_isr(struct solo6010_dev *solo_dev)
+void solo_p2m_error_isr(struct solo_dev *solo_dev)
 {
 	unsigned int err = solo_reg_read(solo_dev, SOLO_PCI_ERR);
 	struct solo_p2m_dev *p2m_dev;
@@ -206,7 +206,7 @@ void solo_p2m_error_isr(struct solo6010_dev *solo_dev)
 	}
 }
 
-void solo_p2m_exit(struct solo6010_dev *solo_dev)
+void solo_p2m_exit(struct solo_dev *solo_dev)
 {
 	int i;
 
@@ -214,7 +214,7 @@ void solo_p2m_exit(struct solo6010_dev *solo_dev)
 		solo_irq_off(solo_dev, SOLO_IRQ_P2M(i));
 }
 
-static int solo_p2m_test(struct solo6010_dev *solo_dev, int base, int size)
+static int solo_p2m_test(struct solo_dev *solo_dev, int base, int size)
 {
 	u32 *wr_buf;
 	u32 *rd_buf;
@@ -260,7 +260,7 @@ test_fail:
 	return ret;
 }
 
-int solo_p2m_init(struct solo6010_dev *solo_dev)
+int solo_p2m_init(struct solo_dev *solo_dev)
 {
 	struct solo_p2m_dev *p2m_dev;
 	int i;

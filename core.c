@@ -38,7 +38,7 @@
 
 MODULE_DESCRIPTION("Softlogic 6x10 MPEG4/H.264/G.723 CODEC V4L2/ALSA Driver");
 MODULE_AUTHOR("Bluecherry <maintainers@bluecherrydvr.com>");
-MODULE_VERSION(SOLO6010_VERSION);
+MODULE_VERSION(SOLO6X10_VERSION);
 MODULE_LICENSE("GPL");
 
 unsigned video_nr = -1;
@@ -50,7 +50,7 @@ module_param(full_eeprom, uint, 0644);
 MODULE_PARM_DESC(full_eeprom, "Allow access to full 128B EEPROM (dangerous)");
 
 
-static void solo_set_time(struct solo6010_dev *solo_dev)
+static void solo_set_time(struct solo_dev *solo_dev)
 {
 	struct timespec ts;
 
@@ -60,7 +60,7 @@ static void solo_set_time(struct solo6010_dev *solo_dev)
 	solo_reg_write(solo_dev, SOLO_TIMER_USEC, ts.tv_nsec / NSEC_PER_USEC);
 }
 
-static void solo_timer_sync(struct solo6010_dev *solo_dev)
+static void solo_timer_sync(struct solo_dev *solo_dev)
 {
 	u32 sec, usec;
 	struct timespec ts;
@@ -100,9 +100,9 @@ static void solo_timer_sync(struct solo6010_dev *solo_dev)
 	}
 }
 
-static irqreturn_t solo6010_isr(int irq, void *data)
+static irqreturn_t solo_isr(int irq, void *data)
 {
-	struct solo6010_dev *solo_dev = data;
+	struct solo_dev *solo_dev = data;
 	u32 status;
 	int i;
 
@@ -143,7 +143,7 @@ static irqreturn_t solo6010_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static void free_solo_dev(struct solo6010_dev *solo_dev)
+static void free_solo_dev(struct solo_dev *solo_dev)
 {
 	struct pci_dev *pdev;
 
@@ -190,8 +190,8 @@ static void free_solo_dev(struct solo6010_dev *solo_dev)
 static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	unsigned short *p = (unsigned short *)buf;
 	int i;
 
@@ -220,8 +220,8 @@ static ssize_t eeprom_store(struct device *dev, struct device_attribute *attr,
 static ssize_t eeprom_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	unsigned short *p = (unsigned short *)buf;
 	int count = (full_eeprom ? 128 : 64);
 	int i;
@@ -243,8 +243,8 @@ static ssize_t video_type_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 
 	return sprintf(buf, "%s", solo_dev->video_type ==
 		       SOLO_VO_FMT_TYPE_NTSC ? "NTSC" : "PAL");
@@ -254,8 +254,8 @@ static ssize_t p2m_timeouts_show(struct device *dev,
 				 struct device_attribute *attr,
 				 char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 
 	return sprintf(buf, "%d\n", solo_dev->p2m_timeouts);
 }
@@ -264,8 +264,8 @@ static ssize_t sdram_size_show(struct device *dev,
 			       struct device_attribute *attr,
 			       char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 
 	return sprintf(buf, "%dMegs\n", solo_dev->sdram_size >> 20);
 }
@@ -274,8 +274,8 @@ static ssize_t tw28xx_show(struct device *dev,
 			   struct device_attribute *attr,
 			   char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 
 	return sprintf(buf, "tw2815[%d] tw2864[%d] tw2865[%d]\n",
 		       hweight32(solo_dev->tw2815),
@@ -287,8 +287,8 @@ static ssize_t input_map_show(struct device *dev,
 			      struct device_attribute *attr,
 			      char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	unsigned int val;
 	char *out = buf;
 
@@ -322,8 +322,8 @@ static ssize_t p2m_timeout_store(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t count)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	unsigned long ms;
 
 	int ret = kstrtoul(buf, 10, &ms);
@@ -338,8 +338,8 @@ static ssize_t p2m_timeout_show(struct device *dev,
 				struct device_attribute *attr,
 				char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 
 	return sprintf(buf, "%ums\n", jiffies_to_msecs(solo_dev->p2m_jiffies));
 }
@@ -348,8 +348,8 @@ static ssize_t intervals_show(struct device *dev,
 			      struct device_attribute *attr,
 			      char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	char *out = buf;
 	int fps = solo_dev->fps;
 	int i;
@@ -367,8 +367,8 @@ static ssize_t sdram_offsets_show(struct device *dev,
 				  struct device_attribute *attr,
 				  char *buf)
 {
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	char *out = buf;
 
 	out += sprintf(out, "DISP: 0x%08x @ 0x%08x\n",
@@ -423,8 +423,8 @@ static ssize_t sdram_show(struct kobject *kobj, struct bin_attribute *a,
 #endif
 {
 	struct device *dev = container_of(kobj, struct device, kobj);
-	struct solo6010_dev *solo_dev =
-		container_of(dev, struct solo6010_dev, dev);
+	struct solo_dev *solo_dev =
+		container_of(dev, struct solo_dev, dev);
 	const int size = solo_dev->sdram_size;
 
 	if (off >= size)
@@ -456,7 +456,7 @@ static void solo_device_release(struct device *dev)
 	/* Do nothing */
 }
 
-static int solo_sysfs_init(struct solo6010_dev *solo_dev)
+static int solo_sysfs_init(struct solo_dev *solo_dev)
 {
 	struct bin_attribute *sdram_attr = &solo_dev->sdram_attr;
 	struct device *dev = &solo_dev->dev;
@@ -499,10 +499,9 @@ static int solo_sysfs_init(struct solo6010_dev *solo_dev)
 	return 0;
 }
 
-static int solo6010_pci_probe(struct pci_dev *pdev,
-			      const struct pci_device_id *id)
+static int solo_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	struct solo6010_dev *solo_dev;
+	struct solo_dev *solo_dev;
 	int ret;
 	u8 chip_id;
 
@@ -533,7 +532,7 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	pci_write_config_byte(pdev, 0x40, 0x00);
 	pci_write_config_byte(pdev, 0x41, 0x00);
 
-	ret = pci_request_regions(pdev, SOLO6010_NAME);
+	ret = pci_request_regions(pdev, SOLO6X10_NAME);
 	if (ret)
 		goto fail_probe;
 
@@ -603,7 +602,7 @@ static int solo6010_pci_probe(struct pci_dev *pdev,
 	/* PLL locking time of 1ms */
 	mdelay(1);
 
-	ret = request_irq(pdev->irq, solo6010_isr, IRQF_SHARED, SOLO6010_NAME,
+	ret = request_irq(pdev->irq, solo_isr, IRQF_SHARED, SOLO6X10_NAME,
 			  solo_dev);
 	if (ret)
 		goto fail_probe;
@@ -683,14 +682,14 @@ fail_probe:
 	return ret;
 }
 
-static void solo6010_pci_remove(struct pci_dev *pdev)
+static void solo_pci_remove(struct pci_dev *pdev)
 {
-	struct solo6010_dev *solo_dev = pci_get_drvdata(pdev);
+	struct solo_dev *solo_dev = pci_get_drvdata(pdev);
 
 	free_solo_dev(solo_dev);
 }
 
-static DEFINE_PCI_DEVICE_TABLE(solo6010_id_table) = {
+static DEFINE_PCI_DEVICE_TABLE(solo_id_table) = {
 	/* 6010 based cards */
 	{ PCI_DEVICE(PCI_VENDOR_ID_SOFTLOGIC, PCI_DEVICE_ID_SOLO6010),
 	  .driver_data = SOLO_DEV_6010 },
@@ -718,13 +717,13 @@ static DEFINE_PCI_DEVICE_TABLE(solo6010_id_table) = {
 	{0,}
 };
 
-MODULE_DEVICE_TABLE(pci, solo6010_id_table);
+MODULE_DEVICE_TABLE(pci, solo_id_table);
 
-static struct pci_driver solo6010_pci_driver = {
-	.name = SOLO6010_NAME,
-	.id_table = solo6010_id_table,
-	.probe = solo6010_pci_probe,
-	.remove = solo6010_pci_remove,
+static struct pci_driver solo_pci_driver = {
+	.name = SOLO6X10_NAME,
+	.id_table = solo_id_table,
+	.probe = solo_pci_probe,
+	.remove = solo_pci_remove,
 };
 
-module_pci_driver(solo6010_pci_driver);
+module_pci_driver(solo_pci_driver);

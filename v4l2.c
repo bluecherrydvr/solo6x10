@@ -47,7 +47,7 @@
 
 /* Simple file handle */
 struct solo_filehandle {
-	struct solo6010_dev	*solo_dev;
+	struct solo_dev	*solo_dev;
 	struct videobuf_queue	vidq;
 	struct task_struct      *kthread;
 	spinlock_t		slock;
@@ -55,14 +55,14 @@ struct solo_filehandle {
 	struct list_head	vidq_active;
 };
 
-static inline void erase_on(struct solo6010_dev *solo_dev)
+static inline void erase_on(struct solo_dev *solo_dev)
 {
 	solo_reg_write(solo_dev, SOLO_VO_DISP_ERASE, SOLO_VO_DISP_ERASE_ON);
 	solo_dev->erasing = 1;
 	solo_dev->frame_blank = 0;
 }
 
-static inline int erase_off(struct solo6010_dev *solo_dev)
+static inline int erase_off(struct solo_dev *solo_dev)
 {
 	if (!solo_dev->erasing)
 		return 0;
@@ -77,12 +77,12 @@ static inline int erase_off(struct solo6010_dev *solo_dev)
 	return 1;
 }
 
-void solo_video_in_isr(struct solo6010_dev *solo_dev)
+void solo_video_in_isr(struct solo_dev *solo_dev)
 {
 	wake_up_interruptible_all(&solo_dev->disp_thread_wait);
 }
 
-static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
+static void solo_win_setup(struct solo_dev *solo_dev, u8 ch,
 			   int sx, int sy, int ex, int ey, int scale)
 {
 	if (ch >= solo_dev->nr_chans)
@@ -100,7 +100,7 @@ static void solo_win_setup(struct solo6010_dev *solo_dev, u8 ch,
 		       SOLO_VI_WIN_EY(ey));
 }
 
-static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
+static int solo_v4l2_ch_ext_4up(struct solo_dev *solo_dev, u8 idx, int on)
 {
 	u8 ch = idx * 4;
 
@@ -132,7 +132,7 @@ static int solo_v4l2_ch_ext_4up(struct solo6010_dev *solo_dev, u8 idx, int on)
 	return 0;
 }
 
-static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
+static int solo_v4l2_ch_ext_16up(struct solo_dev *solo_dev, int on)
 {
 	int sy, ysize, hsize, i;
 
@@ -162,7 +162,7 @@ static int solo_v4l2_ch_ext_16up(struct solo6010_dev *solo_dev, int on)
 	return 0;
 }
 
-static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
+static int solo_v4l2_ch(struct solo_dev *solo_dev, u8 ch, int on)
 {
 	u8 ext_ch;
 
@@ -187,7 +187,7 @@ static int solo_v4l2_ch(struct solo6010_dev *solo_dev, u8 ch, int on)
 	return solo_v4l2_ch_ext_16up(solo_dev, on);
 }
 
-static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
+static int solo_v4l2_set_ch(struct solo_dev *solo_dev, u8 ch)
 {
 	if (ch >= solo_dev->nr_chans + solo_dev->nr_ext)
 		return -EINVAL;
@@ -205,7 +205,7 @@ static int solo_v4l2_set_ch(struct solo6010_dev *solo_dev, u8 ch)
 static void solo_fillbuf(struct solo_filehandle *fh,
 			 struct videobuf_buffer *vb)
 {
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 	dma_addr_t vbuf;
 	unsigned int fdma_addr;
 	int error = -1;
@@ -284,7 +284,7 @@ static void solo_thread_try(struct solo_filehandle *fh)
 static int solo_thread(void *data)
 {
 	struct solo_filehandle *fh = data;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 	DECLARE_WAITQUEUE(wait, current);
 
 	set_freezable();
@@ -310,7 +310,7 @@ static int solo_start_thread(struct solo_filehandle *fh)
 	if (atomic_inc_return(&fh->solo_dev->disp_users) == 1)
 		solo_irq_on(fh->solo_dev, SOLO_IRQ_VIDEO_IN);
 
-	fh->kthread = kthread_run(solo_thread, fh, SOLO6010_NAME "_disp");
+	fh->kthread = kthread_run(solo_thread, fh, SOLO6X10_NAME "_disp");
 
 	if (IS_ERR(fh->kthread)) {
 		ret = PTR_ERR(fh->kthread);
@@ -336,7 +336,7 @@ static int solo_buf_setup(struct videobuf_queue *vq, unsigned int *count,
 			  unsigned int *size)
 {
 	struct solo_filehandle *fh = vq->priv_data;
-	struct solo6010_dev *solo_dev  = fh->solo_dev;
+	struct solo_dev *solo_dev  = fh->solo_dev;
 
 	*size = solo_image_size(solo_dev);
 
@@ -350,7 +350,7 @@ static int solo_buf_prepare(struct videobuf_queue *vq,
 			    struct videobuf_buffer *vb, enum v4l2_field field)
 {
 	struct solo_filehandle *fh  = vq->priv_data;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
 	vb->size = solo_image_size(solo_dev);
 	if (vb->baddr != 0 && vb->bsize < vb->size)
@@ -379,7 +379,7 @@ static void solo_buf_queue(struct videobuf_queue *vq,
 			   struct videobuf_buffer *vb)
 {
 	struct solo_filehandle *fh = vq->priv_data;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
 	vb->state = VIDEOBUF_QUEUED;
 	list_add_tail(&vb->queue, &fh->vidq_active);
@@ -421,7 +421,7 @@ static int solo_v4l2_open(struct file *file)
 static int solo_v4l2_open(struct inode *ino, struct file *file)
 #endif
 {
-	struct solo6010_dev *solo_dev = video_drvdata(file);
+	struct solo_dev *solo_dev = video_drvdata(file);
 	struct solo_filehandle *fh;
 	int ret;
 
@@ -489,20 +489,20 @@ static int solo_querycap(struct file *file, void  *priv,
 			 struct v4l2_capability *cap)
 {
 	struct solo_filehandle  *fh  = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
-	strcpy(cap->driver, SOLO6010_NAME);
-	strcpy(cap->card, "Softlogic 6010");
+	strcpy(cap->driver, SOLO6X10_NAME);
+	strcpy(cap->card, "Softlogic 6x10");
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI %s",
 		 pci_name(solo_dev->pdev));
-	cap->version = SOLO6010_VER_NUM;
+	cap->version = SOLO6X10_VER_NUM;
 	cap->capabilities =     V4L2_CAP_VIDEO_CAPTURE |
 				V4L2_CAP_READWRITE |
 				V4L2_CAP_STREAMING;
 	return 0;
 }
 
-static int solo_enum_ext_input(struct solo6010_dev *solo_dev,
+static int solo_enum_ext_input(struct solo_dev *solo_dev,
 			       struct v4l2_input *input)
 {
 	static const char * const dispnames_1[] = { "4UP" };
@@ -532,7 +532,7 @@ static int solo_enum_input(struct file *file, void *priv,
 			   struct v4l2_input *input)
 {
 	struct solo_filehandle *fh  = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
 	if (input->index >= solo_dev->nr_chans) {
 		int ret = solo_enum_ext_input(solo_dev, input);
@@ -595,7 +595,7 @@ static int solo_try_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
 	struct solo_filehandle *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 	int image_size = solo_image_size(solo_dev);
 
@@ -636,7 +636,7 @@ static int solo_get_fmt_cap(struct file *file, void *priv,
 			    struct v4l2_format *f)
 {
 	struct solo_filehandle *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	pix->width = solo_dev->video_hsize;
@@ -743,7 +743,7 @@ static int solo_disp_g_ctrl(struct file *file, void *priv,
 			    struct v4l2_control *ctrl)
 {
 	struct solo_filehandle *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
 	switch (ctrl->id) {
 	case V4L2_CID_MOTION_TRACE:
@@ -758,7 +758,7 @@ static int solo_disp_s_ctrl(struct file *file, void *priv,
 			    struct v4l2_control *ctrl)
 {
 	struct solo_filehandle *fh = priv;
-	struct solo6010_dev *solo_dev = fh->solo_dev;
+	struct solo_dev *solo_dev = fh->solo_dev;
 
 	switch (ctrl->id) {
 	case V4L2_CID_MOTION_TRACE:
@@ -818,7 +818,7 @@ static const struct v4l2_ioctl_ops solo_v4l2_ioctl_ops = {
 };
 
 static struct video_device solo_v4l2_template = {
-	.name			= SOLO6010_NAME,
+	.name			= SOLO6X10_NAME,
 	.fops			= &solo_v4l2_fops,
 	.ioctl_ops		= &solo_v4l2_ioctl_ops,
 	.minor			= -1,
@@ -828,7 +828,7 @@ static struct video_device solo_v4l2_template = {
 	.current_norm		= V4L2_STD_NTSC_M,
 };
 
-int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
+int solo_v4l2_init(struct solo_dev *solo_dev, unsigned nr)
 {
 	int ret;
 	int i;
@@ -853,7 +853,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 	video_set_drvdata(solo_dev->vfd, solo_dev);
 
 	snprintf(solo_dev->vfd->name, sizeof(solo_dev->vfd->name), "%s (%i)",
-		 SOLO6010_NAME, solo_dev->vfd->num);
+		 SOLO6X10_NAME, solo_dev->vfd->num);
 
 	dev_info(&solo_dev->pdev->dev,
 		 "Display as /dev/video%d with %d inputs (%d extended)\n",
@@ -874,7 +874,7 @@ int solo_v4l2_init(struct solo6010_dev *solo_dev, unsigned nr)
 	return 0;
 }
 
-void solo_v4l2_exit(struct solo6010_dev *solo_dev)
+void solo_v4l2_exit(struct solo_dev *solo_dev)
 {
 	if (solo_dev->vfd == NULL)
 		return;
