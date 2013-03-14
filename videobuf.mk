@@ -4,12 +4,16 @@ kerneltar := $(firstword \
 		$(wildcard $(patsubst %,/usr/src/linux-source-%.tar.bz2,\
 			$(shell uname -r | sed 's@-.*@@;p;s@\.[^.]*$$@@'))))
 ifeq ($(kerneltar),)
-$(error Missing files on the kernel source directory, and no tarball found)
-endif
-
+ktag = v$(basename $(KVERS))
+kurl = https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain
+$(obj)/%.in:
+	$(if $(KBUILD_VERBOSE:1=),@echo '  WGET   ' $@)
+	$(Q)wget -O $@ "$(kurl)/drivers/media/v4l2-core/$(@F:.in=)?id=$(ktag)"
+else
 $(obj)/%.in: $(kerneltar)
 	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
 	$(Q)tar -Oxf $< --wildcards '*/$(@F:.in=)' > $@
+endif
 else
 V4L2SRC = $(wildcard \
 	$(KERNELSRC)/drivers/media/video \
