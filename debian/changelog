@@ -1,3 +1,16 @@
+solo6010 (2.4.5-1) unstable; urgency=low
+
+  * Changes module name to solo6x10-edge.
+  * Blacklisting of mainline solo6x10 module.
+  * Fixed bug that enabled the encoder after VIDIOC_S_FMT.
+  * Fixed error handling on various conditions.
+  * Big code cleanup.
+  * Now allows to request full resolution (704x576 or 704x480) independently of
+    the color system used (PAL or NTSC).
+  * Downloads the videobuf dependencies automatically when unavailable locally.
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 14 Mar 2013 21:11:08 -0300
+
 solo6010 (2.4.4-1) precise; urgency=high
 
   * Added a check for conflicting modules.
