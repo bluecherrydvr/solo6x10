@@ -132,7 +132,6 @@ static const u32 solo_user_ctrls[] = {
 };
 
 static const u32 solo_mpeg_ctrls[] = {
-	V4L2_CID_MPEG_VIDEO_ENCODING,
 	V4L2_CID_MPEG_VIDEO_GOP_SIZE,
 	0
 };
@@ -353,7 +352,7 @@ static int __solo_enc_on(struct solo_enc_fh *fh)
 
 	/* Reset the encoder if we are the first mpeg reader, else only reset
 	 * on the first mjpeg reader. */
-	if (fh->fmt == V4L2_PIX_FMT_MPEG) {
+	if (fh->fmt == V4L2_PIX_FMT_MPEG4) {
 		atomic_inc(&solo_enc->readers);
 		if (atomic_inc_return(&solo_enc->mpeg_readers) > 1)
 			return 0;
@@ -414,7 +413,7 @@ static void __solo_enc_off(struct solo_enc_fh *fh)
 	list_del(&fh->list);
 	fh->enc_on = 0;
 
-	if (fh->fmt == V4L2_PIX_FMT_MPEG)
+	if (fh->fmt == V4L2_PIX_FMT_MPEG4)
 		atomic_dec(&solo_enc->mpeg_readers);
 
 	if (atomic_dec_return(&solo_enc->readers) > 0)
@@ -650,7 +649,7 @@ static int solo_enc_fillbuf(struct solo_enc_fh *fh,
 			svb->flags |= V4L2_BUF_FLAG_MOTION_DETECTED;
 	}
 
-	if (fh->fmt == V4L2_PIX_FMT_MPEG)
+	if (fh->fmt == V4L2_PIX_FMT_MPEG4)
 		ret = solo_fill_mpeg(fh, vb, vbuf, vh);
 	else
 		ret = solo_fill_jpeg(fh, vb, vbuf, vh);
@@ -947,7 +946,7 @@ static int solo_enc_open(struct inode *ino, struct file *file)
 	spin_lock_init(&fh->av_lock);
 	file->private_data = fh;
 	INIT_LIST_HEAD(&fh->vidq_active);
-	fh->fmt = V4L2_PIX_FMT_MPEG;
+	fh->fmt = V4L2_PIX_FMT_MPEG4;
 	fh->type = SOLO_ENC_TYPE_STD;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 37)
@@ -1076,7 +1075,7 @@ static int solo_enc_enum_fmt_cap(struct file *file, void *priv,
 {
 	switch (f->index) {
 	case 0:
-		f->pixelformat = V4L2_PIX_FMT_MPEG;
+		f->pixelformat = V4L2_PIX_FMT_MPEG4;
 		strcpy(f->description, "MPEG-4 AVC");
 		break;
 	case 1:
@@ -1100,7 +1099,7 @@ static int solo_enc_try_fmt_cap(struct file *file, void *priv,
 	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
-	if (pix->pixelformat != V4L2_PIX_FMT_MPEG &&
+	if (pix->pixelformat != V4L2_PIX_FMT_MPEG4 &&
 	    pix->pixelformat != V4L2_PIX_FMT_MJPEG)
 		return -EINVAL;
 
@@ -1271,7 +1270,7 @@ static int solo_enum_framesizes(struct file *file, void *priv,
 	struct solo_enc_fh *fh = priv;
 	struct solo_dev *solo_dev = fh->enc->solo_dev;
 
-	if (fsize->pixel_format != V4L2_PIX_FMT_MPEG)
+	if (fsize->pixel_format != V4L2_PIX_FMT_MPEG4)
 		return -EINVAL;
 
 	switch (fsize->index) {
@@ -1298,7 +1297,7 @@ static int solo_enum_frameintervals(struct file *file, void *priv,
 	struct solo_enc_fh *fh = priv;
 	struct solo_dev *solo_dev = fh->enc->solo_dev;
 
-	if (fintv->pixel_format != V4L2_PIX_FMT_MPEG || fintv->index)
+	if (fintv->pixel_format != V4L2_PIX_FMT_MPEG4 || fintv->index)
 		return -EINVAL;
 
 	fintv->type = V4L2_FRMIVAL_TYPE_STEPWISE;
@@ -1385,11 +1384,6 @@ static int solo_queryctrl(struct file *file, void *priv,
 		return v4l2_ctrl_query_fill(qc, 0x00, 0xff, 1, 0x80);
 	case V4L2_CID_SHARPNESS:
 		return v4l2_ctrl_query_fill(qc, 0x00, 0x0f, 1, 0x00);
-	case V4L2_CID_MPEG_VIDEO_ENCODING:
-		return v4l2_ctrl_query_fill(
-			qc, V4L2_MPEG_VIDEO_ENCODING_MPEG_1,
-			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC, 1,
-			V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC);
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		return v4l2_ctrl_query_fill(qc, 1, 255, 1, solo_dev->fps);
 #ifdef PRIVATE_CIDS
@@ -1462,9 +1456,6 @@ static int solo_g_ctrl(struct file *file, void *priv,
 	case V4L2_CID_SHARPNESS:
 		return tw28_get_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
 					 &ctrl->value);
-	case V4L2_CID_MPEG_VIDEO_ENCODING:
-		ctrl->value = V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC;
-		break;
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		if (atomic_read(&solo_enc->readers) > 0)
 			return -EBUSY;
@@ -1498,10 +1489,6 @@ static int solo_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_SHARPNESS:
 		return tw28_set_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
 					 ctrl->value);
-	case V4L2_CID_MPEG_VIDEO_ENCODING:
-		if (ctrl->value != V4L2_MPEG_VIDEO_ENCODING_MPEG_4_AVC)
-			return -ERANGE;
-		break;
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		if (ctrl->value < 1 || ctrl->value > 255)
 			return -ERANGE;
