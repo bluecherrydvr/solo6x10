@@ -11,9 +11,12 @@ solo6x10-objs	:= solo6010-core.o solo6010-i2c.o solo6010-p2m.o \
 # For when the kernel isn't compiled with it
 ifeq ($(CONFIG_VIDEOBUF_DMA_CONTIG),)
 solo6x10-objs += videobuf-dma-contig.o
+solo6x10-objs += videobuf-dma-sg.o
+solo6x10-objs += videobuf-core.o
 endif
 
 obj-m		:= solo6x10.o
+
 
 all:
 	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(shell pwd) modules
