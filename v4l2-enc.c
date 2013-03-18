@@ -1341,6 +1341,7 @@ static int solo_s_parm(struct file *file, void *priv,
 	struct solo_enc_dev *solo_enc = fh->enc;
 	struct solo_dev *solo_dev = solo_enc->solo_dev;
 	struct v4l2_captureparm *cp = &sp->parm.capture;
+	int tmp_numerator = 1;
 
 	mutex_lock(&solo_enc->enable_lock);
 
@@ -1355,14 +1356,22 @@ static int solo_s_parm(struct file *file, void *priv,
 		cp->timeperframe.numerator = 1;
 		cp->timeperframe.denominator = solo_dev->fps;
 	}
+	/** fix to enable setting other values than 1.667 and 25 fps with v4l2-ctl **/
+        while (( 1.0 * solo_dev->fps / tmp_numerator > 1.0 * cp->timeperframe.denominator / cp->timeperframe.numerator ) &&
+	       ( tmp_numerator < 15 )) {
+		tmp_numerator++;
+	}
+	        cp->timeperframe.numerator= tmp_numerator;
+	        solo_enc->interval = tmp_numerator;
+
 
 	if (cp->timeperframe.denominator != solo_dev->fps)
 		cp->timeperframe.denominator = solo_dev->fps;
 
-	if (cp->timeperframe.numerator > 15)
-		cp->timeperframe.numerator = 15;
+	//if (cp->timeperframe.numerator > 15)
+	//	cp->timeperframe.numerator = 15;
 
-	solo_enc->interval = cp->timeperframe.numerator;
+	//solo_enc->interval = cp->timeperframe.numerator;
 
 	cp->capability = V4L2_CAP_TIMEPERFRAME;
 
