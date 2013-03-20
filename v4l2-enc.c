@@ -1356,9 +1356,19 @@ static int solo_s_parm(struct file *file, void *priv,
 		cp->timeperframe.denominator = solo_dev->fps;
 	}
 
+	/** fix to enable setting other values than 1.667 and 25 fps with v4l2-ctl **/
+	
+	if (solo_dev->fps * cp->timeperframe.numerator % cp->timeperframe.denominator) 
+		cp->timeperframe.numerator = solo_dev->fps * cp->timeperframe.numerator / cp->timeperframe.denominator + 1;	
+	else 
+		cp->timeperframe.numerator = solo_dev->fps * cp->timeperframe.numerator / cp->timeperframe.denominator;
+	
 	if (cp->timeperframe.denominator != solo_dev->fps)
 		cp->timeperframe.denominator = solo_dev->fps;
 
+	if (!(cp->timeperframe.numerator))
+		cp->timeperframe.numerator++;
+	
 	if (cp->timeperframe.numerator > 15)
 		cp->timeperframe.numerator = 15;
 
