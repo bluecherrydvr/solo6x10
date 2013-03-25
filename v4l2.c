@@ -32,7 +32,7 @@
 #include <media/videobuf-dma-contig.h>
 
 #include "solo6x10.h"
-#include "tw28.h"
+#include "solo6x10-tw28.h"
 
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
 

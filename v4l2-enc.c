@@ -32,7 +32,7 @@
 #include <media/videobuf-dma-sg.h>
 
 #include "solo6x10.h"
-#include "tw28.h"
+#include "solo6x10-tw28.h"
 #include "solo6x10-jpeg.h"
 
 #define MIN_VID_BUFFERS		2

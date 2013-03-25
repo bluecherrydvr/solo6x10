@@ -39,7 +39,7 @@
 #include <media/v4l2-dev.h>
 #include <media/videobuf-core.h>
 
-#include "registers.h"
+#include "solo6x10-regs.h"
 
 #ifndef PCI_VENDOR_ID_SOFTLOGIC
 #define PCI_VENDOR_ID_SOFTLOGIC		0x9413
