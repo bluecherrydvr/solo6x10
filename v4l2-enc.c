@@ -1146,10 +1146,8 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	mutex_lock(&solo_enc->enable_lock);
 
 	ret = solo_enc_try_fmt_cap(file, priv, f);
-	if (ret) {
-		mutex_unlock(&solo_enc->enable_lock);
-		return ret;
-	}
+	if (ret)
+		goto error;
 
 	if (pix->width == solo_dev->video_hsize)
 		solo_enc->mode = SOLO_ENC_MODE_D1;
@@ -1162,9 +1160,10 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	if (pix->priv)
 		fh->type = SOLO_ENC_TYPE_EXT;
 
-	mutex_unlock(&solo_enc->enable_lock);
 
-	return 0;
+error:
+	mutex_unlock(&solo_enc->enable_lock);
+	return ret;
 }
 
 static int solo_enc_get_fmt_cap(struct file *file, void *priv,
