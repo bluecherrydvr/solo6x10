@@ -237,7 +237,7 @@ static void av_prepare(void)
 		err_out("Error opening video encoder");
 
 	/* Open output file */
-	if (avio_open(&oc->pb, outfile, URL_WRONLY) < 0)
+	if (avio_open(&oc->pb, outfile, AVIO_FLAG_WRITE) < 0)
 		err_out("Error opening out file");
 
 	avformat_write_header(oc, NULL);
