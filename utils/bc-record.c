@@ -178,6 +178,47 @@ static void v4l_prepare(void)
 	}
 }
 
+static int setup_codec(AVCodecContext *codec, __u32 pixfmt)
+{
+	switch (pixfmt) {
+	case V4L2_PIX_FMT_MPEG4:
+		codec->codec_id = CODEC_ID_MPEG4;
+		break;
+
+	case V4L2_PIX_FMT_H264:
+		codec->codec_id = CODEC_ID_H264;
+		/* deprecated: codec->crf = 20; */
+		codec->me_range = 16;
+		codec->me_subpel_quality = 7;
+		codec->qmin = 10;
+		codec->qmax = 51;
+		codec->max_qdiff = 4;
+		codec->qcompress = 0.6;
+		codec->i_quant_factor = 0.71;
+		codec->b_frame_strategy = 1;
+		break;
+
+	case V4L2_PIX_FMT_MJPEG:
+		/* FIXME */
+	default:
+		/* XXX: Older versions of solo6x10 incorrectly report MPEG */
+		return 1;
+	}
+
+	codec->codec_type = AVMEDIA_TYPE_VIDEO;
+	codec->pix_fmt = PIX_FMT_YUV420P;
+	return 0;
+}
+
+static inline void fourccstr(char s[5], unsigned int val)
+{
+	s[0] = val & 0xff;
+	s[1] = (val >> 8) & 0xff;
+	s[2] = (val >> 16) & 0xff;
+	s[3] = (val >> 24) & 0xff;
+	s[4] = 0;
+}
+
 static void av_prepare(void)
 {
 	AVCodec *codec;
@@ -202,28 +243,16 @@ static void av_prepare(void)
 	video_st->time_base.num =
 		vparm.parm.capture.timeperframe.numerator;
 
-	if (strstr((char *)vcap.card, "Softlogic 6010")) {
-		video_st->codec->codec_id = CODEC_ID_MPEG4;
-	} else if (strstr((char *)vcap.card, "Softlogic 6110")) {
-		video_st->codec->codec_id = CODEC_ID_H264;
-		video_st->codec->crf = 20;
-		video_st->codec->me_range = 16;
-		video_st->codec->me_subpel_quality = 7;
-		video_st->codec->qmin = 10;
-		video_st->codec->qmax = 51;
-		video_st->codec->max_qdiff = 4;
-		video_st->codec->qcompress = 0.6;
-		video_st->codec->i_quant_factor = 0.71;
-		video_st->codec->b_frame_strategy = 1;
-	} else {
-		err_out("Unknown card: %s\n", vcap.card);
-	}
-
-	video_st->codec->codec_type = AVMEDIA_TYPE_VIDEO;
-	video_st->codec->pix_fmt = PIX_FMT_YUV420P;
 	video_st->codec->width = vfmt.fmt.pix.width;
 	video_st->codec->height = vfmt.fmt.pix.height;
 	video_st->codec->time_base = video_st->time_base;
+
+	int ret = setup_codec(video_st->codec, vfmt.fmt.pix.pixelformat);
+	if (ret) {
+		char fourcc[5];
+		fourccstr(fourcc, vfmt.fmt.pix.pixelformat);
+		err_out("Unknown '%s' format on %s\n", fourcc, vcap.card);
+	}
 
 	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
 		video_st->codec->flags |= CODEC_FLAG_GLOBAL_HEADER;
