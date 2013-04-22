@@ -30,6 +30,7 @@
 #include <linux/delay.h>
 #include <linux/sysfs.h>
 #include <linux/ktime.h>
+#include <linux/slab.h>
 
 #include "solo6x10.h"
 #include "tw28.h"

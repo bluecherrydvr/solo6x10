@@ -34,6 +34,7 @@
 #include <linux/stringify.h>
 #include <linux/io.h>
 #include <linux/atomic.h>
+#include <linux/slab.h>
 
 #include <linux/videodev2.h>
 #include <media/v4l2-dev.h>
