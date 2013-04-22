@@ -28,6 +28,7 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
