@@ -1,9 +1,17 @@
+solo6010 (2.4.7-1) unstable; urgency=low
+
+  * Fixed accepted/reported pixel formats
+  * Fixed pixel format detection on bc-record
+  * Improved error checking
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Mon, 22 Apr 2013 09:48:07 -0300
+
 solo6010 (2.4.6-1) unstable; urgency=low
 
   * Fixed a bug related to updating the encoder on VIDIOC_S_FMT.
   * Fixed setting frame intervals with non-standard denominator.
 
- -- Ismael Luceno <ismael.luceno@gmail.com>  Thu, 11 Apr 2013 23:30:27 -0300
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 11 Apr 2013 23:30:27 -0300
 
 solo6010 (2.4.5-1) unstable; urgency=low
 
