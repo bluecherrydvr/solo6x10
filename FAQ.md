@@ -66,6 +66,17 @@ Below is a mplayer example on how to play the first channels MJPEG feed:
 
 mplayer -tv device=/dev/video1:outfmt=mjpeg tv://
 
+In order to turn the containerless h264 stream into a file you can use two 3rd party applications [avconv][avconvlink] and [l-smash muxer][lsmash]:
+
+```
+cat /dev/video1 > file.h264
+avconv -i file.h264 -c copy new.h264
+muxer -i new.h264 -o new.mp4
+```
+
+`avconv` is required because sometimes the `cat /dev/video` begins a stream in the middle of a frame.  This prevents the muxer from reading the file.
+
+
 How does the audio work?
 ------------------------
 The cards produce what is known as G.723, which is a voice codec typically found
@@ -83,3 +94,6 @@ We are very interested in speaking with core developers of popular Video4Linux2
 applications to add support for these cards.  Please contact
 support@bluecherrydvr.com for more information.  Please make sure to include
 links to your project and work that you have done in the past.
+
+[avconvlink]: http://libav.org/avconv.html
+[lsmash]: http://code.google.com/p/l-smash/
