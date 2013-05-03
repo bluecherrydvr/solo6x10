@@ -1365,9 +1365,9 @@ static int solo_g_parm(struct file *file, void *priv,
 
 static inline int calc_interval(u8 fps, u32 n, u32 d)
 {
-	if (unlikely(!n || !d))
+	if (!n || !d)
 		return 1;
-	if (likely(d == fps))
+	if (d == fps)
 		return n;
 	n *= fps;
 	return min(15U, n / d + (n % d >= (fps >> 1)));
