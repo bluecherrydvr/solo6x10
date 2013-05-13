@@ -6,9 +6,14 @@ kerneltar := $(firstword \
 ifeq ($(kerneltar),)
 ktag = v$(basename $(KVERS))
 kurl = https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain
+ifeq ($(basename $(ktag))$(filter .0 .1 .2 .3 .4 .5 .6,$(suffix $(ktag))),v3)
+v4lpath = drivers/media/v4l2-core
+else
+v4lpath = drivers/media/video
+endif
 $(obj)/%.in:
 	$(if $(KBUILD_VERBOSE:1=),@echo '  WGET   ' $@)
-	$(Q)wget -O $@ "$(kurl)/drivers/media/v4l2-core/$(@F:.in=)?id=$(ktag)"
+	$(Q)wget -O $@ "$(kurl)/$(v4lpath)/$(@F:.in=)?id=$(ktag)"
 else
 $(obj)/%.in: $(kerneltar)
 	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
