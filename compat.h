@@ -1,3 +1,7 @@
+#ifndef LINUX_VERSION_CODE
+#include <linux/version.h>
+#endif
+
 #ifndef module_driver
 /**
  * module_driver() - Helper macro for drivers that don't do anything
