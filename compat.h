@@ -73,3 +73,16 @@ int snd_card_create(int idx, const char *id,
 	return 0;
 }
 #endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38) && defined(_LINUX_KERNEL_H)
+#define kstrtoul strict_strtoul
+#endif
+
+#ifdef __LINUX_VIDEODEV2_H
+#ifndef V4L2_PIX_FMT_H264
+#define V4L2_PIX_FMT_H264     v4l2_fourcc('H', '2', '6', '4') /* H264 with start codes */
+#endif
+#ifndef V4L2_PIX_FMT_MPEG4
+#define V4L2_PIX_FMT_MPEG4    v4l2_fourcc('M', 'P', 'G', '4') /* MPEG-4 part 2 ES */
+#endif
+#endif

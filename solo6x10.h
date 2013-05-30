@@ -33,7 +33,11 @@
 #include <linux/wait.h>
 #include <linux/stringify.h>
 #include <linux/io.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+#include <asm/atomic.h>
+#else
 #include <linux/atomic.h>
+#endif
 #include <linux/slab.h>
 
 #include <linux/videodev2.h>
