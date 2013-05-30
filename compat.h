@@ -86,3 +86,7 @@ int snd_card_create(int idx, const char *id,
 #define V4L2_PIX_FMT_MPEG4    v4l2_fourcc('M', 'P', 'G', '4') /* MPEG-4 part 2 ES */
 #endif
 #endif
+
+#if !defined(sysfs_attr_init) && defined(_SYSFS_H_)
+#define sysfs_attr_init(attr) do {} while(0)
+#endif
