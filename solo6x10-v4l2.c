@@ -31,6 +31,8 @@
 #include <media/v4l2-common.h>
 #include <media/videobuf-dma-contig.h>
 
+#include "compat.h"
+
 #include "solo6x10.h"
 #include "solo6x10-tw28.h"
 
