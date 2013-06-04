@@ -1,3 +1,11 @@
+solo6010 (2.4.8-1) unstable; urgency=low
+
+  * Fixed compilation with older kernels (2.6.32+)
+  * Fixed download path of V4L2 components for 2.6
+  * Reimplemented SAA712x setup routine
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Mon, 03 Jun 2013 21:43:17 -0300
+
 solo6010 (2.4.7-1) unstable; urgency=low
 
   * Fixed accepted/reported pixel formats
