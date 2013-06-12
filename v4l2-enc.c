@@ -1160,7 +1160,7 @@ static int solo_enc_set_fmt_cap(struct file *file, void *priv,
 	if (pix->priv)
 		fh->type = SOLO_ENC_TYPE_EXT;
 
-	solo_update_mode(solo_enc);
+	ret = __solo_enc_on(fh);
 
 error:
 	mutex_unlock(&solo_enc->enable_lock);
