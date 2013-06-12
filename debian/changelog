@@ -1,3 +1,9 @@
+solo6010 (2.4.6-3) unstable; urgency=low
+
+  * Reverted to previous behaviour regarding VIDIOC_S_FMT (enables encoder)
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 12 Jun 2013 13:47:51 -0300
+
 solo6010 (2.4.6-2) unstable; urgency=low
 
   * Improved error checking
