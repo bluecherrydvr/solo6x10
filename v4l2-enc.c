@@ -1018,8 +1018,11 @@ static int solo_enc_querycap(struct file *file, void  *priv,
 	struct solo_dev *solo_dev = solo_enc->solo_dev;
 
 	strcpy(cap->driver, SOLO6X10_NAME);
-	snprintf(cap->card, sizeof(cap->card), "Softlogic 6x10 Enc %d",
-		 solo_enc->ch);
+	snprintf(cap->card, sizeof(cap->card), "Softlogic 6%c10 Enc %d",
+		solo_dev->type == SOLO_DEV_6010 ? '0' : '1',
+		solo_enc->ch);
+
+
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI %s",
 		 pci_name(solo_dev->pdev));
 	cap->version = SOLO6X10_VER_NUM;
