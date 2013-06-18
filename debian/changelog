@@ -1,3 +1,9 @@
+solo6010 (2.4.6-4) unstable; urgency=low
+
+  * Revert to reporting non-generic card name
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Tue, 18 Jun 2013 18:11:30 -0300
+
 solo6010 (2.4.6-3) unstable; urgency=low
 
   * Reverted to previous behaviour regarding VIDIOC_S_FMT (enables encoder)
