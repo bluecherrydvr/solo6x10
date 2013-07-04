@@ -301,7 +301,6 @@ int main(int argc, char **argv)
 {
 	int got_vop = 0;
 
-        avcodec_init();
         av_register_all();
 
 	if (argc != 2 && argc != 3)
