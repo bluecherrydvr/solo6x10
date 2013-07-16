@@ -1,3 +1,7 @@
+solo6010 (2.4.6-5) unstable; urgency=low
+
+  * Fixed mainline module blacklisting
+
 solo6010 (2.4.6-4) unstable; urgency=low
 
   * Revert to reporting non-generic card name
