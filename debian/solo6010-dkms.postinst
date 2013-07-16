@@ -2,7 +2,7 @@
 set -e
 
 PKG="solo6010-dkms"
-MOD="solo6010"
+MOD="solo6x10-edge"
 PKGVER=`dpkg-query -W -f='${Version}' "$PKG" | cut -d: -f2 | cut -f1 -d-`
 
 case "$1" in
