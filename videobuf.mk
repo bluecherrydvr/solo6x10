@@ -4,7 +4,11 @@ kerneltar := $(firstword \
 		$(wildcard $(patsubst %,/usr/src/linux-source-%.tar.bz2,\
 			$(shell uname -r | sed 's@-.*@@;p;s@\.[^.]*$$@@'))))
 ifeq ($(kerneltar),)
+ifeq ($(basename $(basename $(KVERS))),2)
+ktag = v$(KVERS)
+else
 ktag = v$(basename $(KVERS))
+endif
 kurl = https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain
 ifeq ($(basename $(ktag))$(filter .0 .1 .2 .3 .4 .5 .6,$(suffix $(ktag))),v3)
 v4lpath = drivers/media/v4l2-core
