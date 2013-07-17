@@ -36,6 +36,8 @@
 #include "solo6x10.h"
 #include "solo6x10-tw28.h"
 
+#include "compat.h"
+
 #define SOLO_DISP_PIX_FIELD	V4L2_FIELD_INTERLACED
 
 /* Image size is two fields, SOLO_HW_BPL is one horizontal line in hardware */
