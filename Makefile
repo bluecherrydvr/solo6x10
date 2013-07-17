@@ -4,6 +4,8 @@ MODDIR = /lib/modules/$(KVERS)
 KERNELDIR = $(MODDIR)/build
 KERNELSRC = $(MODDIR)/source
 
+export KERNELSRC
+
 solo6x10-edge-y := solo6x10-core.o solo6x10-i2c.o solo6x10-p2m.o \
 		   solo6x10-v4l2.o solo6x10-tw28.o solo6x10-gpio.o \
 		   solo6x10-disp.o solo6x10-enc.o solo6x10-v4l2-enc.o \
