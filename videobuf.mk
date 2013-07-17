@@ -1,4 +1,9 @@
-ifeq ($(wildcard $(KERNELSRC)/drivers),)
+v4l2_src := $(wildcard \
+	$(KERNELSRC)/drivers/media/video \
+	$(KERNELSRC)/drivers/media/v4l2-core)
+v4l2_src_test := $(wildcard $(v4l2_src)/videobuf-dma-contig.c)
+
+ifeq ($(v4l2_src_test),)
 # Workaround for Debian et al
 kerneltar := $(firstword \
 		$(wildcard $(patsubst %,/usr/src/linux-source-%.tar.bz2,\
@@ -24,10 +29,8 @@ $(obj)/%.in: $(kerneltar)
 	$(Q)tar -Oxf $< --wildcards '*/$(@F:.in=)' > $@
 endif
 else
-V4L2SRC = $(wildcard \
-	$(KERNELSRC)/drivers/media/video \
-	$(KERNELSRC)/drivers/media/v4l2-core)
-$(obj)/%.in: $(V4L2SRC)/%
+
+$(obj)/%.in: $(v4l2_src)/%
 	$(if $(KBUILD_VERBOSE:1=),@echo '  LN     ' $@)
 	$(Q)ln -sf $< $@
 endif
