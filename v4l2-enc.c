@@ -35,6 +35,8 @@
 #include "tw28.h"
 #include "solo6x10-jpeg.h"
 
+#include "compat.h"
+
 #define MIN_VID_BUFFERS		2
 #define FRAME_BUF_SIZE		(196 * 1024)
 #define MP4_QS			16

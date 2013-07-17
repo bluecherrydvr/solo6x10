@@ -41,6 +41,12 @@ module_exit(__driver##_exit);
 #endif
 
 
+/* This is a hack to keep RHEL kernels happy */
+#if defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE >= 0x604
+#undef LINUX_VERSION_CODE
+#define LINUX_VERSION_CODE KERNEL_VERSION(2, 6, 38)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 #define videobuf_queue_to_vaddr videobuf_queue_to_vmalloc
 #endif
