@@ -2,6 +2,8 @@ solo6010 (2.4.6-5) unstable; urgency=low
 
   * Fixed mainline module blacklisting
 
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Mon, 15 Jul 2013 22:46:06 -0300
+
 solo6010 (2.4.6-4) unstable; urgency=low
 
   * Revert to reporting non-generic card name
