@@ -46,7 +46,7 @@ module_exit(__driver##_exit);
 
 
 /* This is a hack to keep RHEL kernels happy */
-#if defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE >= 0x604
+#if defined(RHEL_RELEASE_CODE) && RHEL_RELEASE_CODE >= 0x604
 #undef LINUX_VERSION_CODE
 #define LINUX_VERSION_CODE KERNEL_VERSION(2, 6, 38)
 #endif
