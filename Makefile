@@ -13,6 +13,13 @@ solo6x10-edge-y := solo6x10-core.o solo6x10-i2c.o solo6x10-p2m.o \
 
 obj-m		:= solo6x10-edge.o
 
+# Must build modpost if not found
+ifeq ($(wildcard $(KERNELDIR)/scripts/mod/modpost),)
+modules: scripts
+scripts: FORCE
+	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) $@
+endif
+
 modules modules_install clean: FORCE
 	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(CURDIR) $@
 
