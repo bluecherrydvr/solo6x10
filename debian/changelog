@@ -1,3 +1,9 @@
+solo6010 (2.4.8-2) unstable; urgency=low
+
+  * Fixed the case where modpost was not built (2.6.32 kernels).
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Fri, 13 Sep 2013 17:45:48 -0300
+
 solo6010 (2.4.8-1) unstable; urgency=low
 
   * Fixed compilation with older kernels (2.6.32+)
