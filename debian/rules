@@ -4,9 +4,11 @@
 
 include /usr/share/cdbs/1/rules/debhelper.mk
 
+DRIVER_NAME := solo6010
+
 ver-regex = 's/^[^(]*(//;s/-.*//;q'
 VERSION := $(shell sed $(ver-regex) debian/changelog)
-PKG  := solo6010-dkms
+PKG  := $(DRIVER_NAME)-dkms
 GEN_FILES := dkms.conf $(PKG).install
 
 configure/$(PKG)::
