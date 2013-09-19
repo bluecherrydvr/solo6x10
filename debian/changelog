@@ -1,3 +1,10 @@
+solo6010 (2.4.8-3) unstable; urgency=low
+
+  * Reverted a commit that broke source directory path.
+  * Removed dependency on linux-source (still used if present).
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 19 Sep 2013 01:26:19 -0300
+
 solo6010 (2.4.8-2) unstable; urgency=low
 
   * Fixed the case where modpost was not built (2.6.32 kernels).
