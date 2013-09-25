@@ -1,3 +1,9 @@
+solo6010 (2.4.8-4) unstable; urgency=low
+
+  * Fixed mainline module blacklisting
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 25 Sep 2013 20:16:51 -0300
+
 solo6010 (2.4.8-3) unstable; urgency=low
 
   * Reverted a commit that broke source directory path.
