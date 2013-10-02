@@ -35,9 +35,9 @@ case "$1" in
                 echo "Doing initial module build"
                 dkms build -m $MOD -v $PKGVER >/dev/null
                 echo "Installing initial module"
+                echo blacklist solo6x10 > /etc/modprobe.d/solo6x10.conf
                 dkms install -m $MOD -v $PKGVER >/dev/null
                 echo "Done."
-                echo blacklist solo6x10 > /etc/modprobe.d/solo6x10.conf
         ;;
 esac
 
