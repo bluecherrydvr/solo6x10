@@ -23,7 +23,9 @@ endif
 modules modules_install clean: FORCE
 	$(MAKE) $(MAKEARGS) -C $(KERNELDIR) M=$(CURDIR) $@
 
-modules_install: blacklist-mainline
+install: modules_install FORCE
+modules_install: blacklist-mainline FORCE
+
 blacklist-mainline: FORCE
 	$(if $(KBUILD_VERBOSE:1=),@echo '  BLACKLIST solo6x10')
 	$(Q)echo blacklist solo6x10 > /etc/modprobe.d/solo6x10.conf
