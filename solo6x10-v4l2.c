@@ -827,7 +827,6 @@ static struct video_device solo_v4l2_template = {
 	.release		= video_device_release,
 
 	.tvnorms		= V4L2_STD_NTSC_M | V4L2_STD_PAL_B,
-	.current_norm		= V4L2_STD_NTSC_M,
 };
 
 int solo_v4l2_init(struct solo_dev *solo_dev, unsigned nr)

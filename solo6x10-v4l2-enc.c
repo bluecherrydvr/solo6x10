@@ -1700,7 +1700,6 @@ static const struct video_device solo_enc_template = {
 	.release		= video_device_release,
 
 	.tvnorms		= V4L2_STD_NTSC_M | V4L2_STD_PAL_B,
-	.current_norm		= V4L2_STD_NTSC_M,
 };
 
 static struct solo_enc_dev *solo_enc_alloc(struct solo_dev *solo_dev,
