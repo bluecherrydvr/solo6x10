@@ -96,3 +96,7 @@ int snd_card_create(int idx, const char *id,
 #if !defined(sysfs_attr_init) && defined(_SYSFS_H_)
 #define sysfs_attr_init(attr) do {} while(0)
 #endif
+
+#ifndef INIT_COMPLETION
+#define INIT_COMPLETION(a) reinit_completion(&(a))
+#endif

@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 
 #include "solo6x10.h"
+#include "compat.h"
 
 static int multi_p2m;
 module_param(multi_p2m, uint, 0644);
