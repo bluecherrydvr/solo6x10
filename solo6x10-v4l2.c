@@ -702,7 +702,12 @@ static int solo_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 	return videobuf_streamoff(&fh->vidq);
 }
 
-static int solo_s_std(struct file *file, void *priv, v4l2_std_id i)
+static
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+int solo_s_std(struct file *file, void *priv, v4l2_std_id i)
+#else
+int solo_s_std(struct file *file, void *priv, v4l2_std_id *i)
+#endif
 {
 	return 0;
 }
