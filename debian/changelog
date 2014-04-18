@@ -1,3 +1,11 @@
+solo6010 (2.4.8-7) unstable; urgency=low
+
+  * Fixed build against 3.13
+  * Fixed build against 3.8 and earlier
+  * Fixed build against 2.6.32
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 17 Apr 2014 21:16:24 -0300
+
 solo6010 (2.4.8-6) unstable; urgency=low
 
   * Fixed some function prototypes
