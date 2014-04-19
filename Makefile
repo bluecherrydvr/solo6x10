@@ -46,7 +46,11 @@ solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_SG)	+= videobuf-dma-sg.o
 -include $M/mk/videobuf.mk
 endif
 
-FORCE:
+FORCE:;
+
+-include mk/release.mk
+-include mk/checks.mk
+-include mk/autobuild.mk
 
 # For my local crud
 -include make.extras
