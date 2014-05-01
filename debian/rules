@@ -19,3 +19,6 @@ configure/$(PKG)::
 
 clean::
 	rm -f $(addprefix  debian/,$(GEN_FILES))
+
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip
