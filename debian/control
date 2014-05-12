@@ -1,7 +1,7 @@
 Source: solo6010
 Section: kernel
 Priority: optional
-Maintainer: Bluecherry <maintainers@bluecherry.net>
+Maintainer: Bluecherry <maintainers@bluecherrydvr.com>
 Build-Depends: debhelper (>= 7), cdbs
 Standards-Version: 3.8.4
 
