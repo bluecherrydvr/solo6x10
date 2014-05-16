@@ -1546,8 +1546,8 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		 * The 5th sample on the 10th row is (10*64)+5 = 645.
 		 *
 		 * Block is 0 to set the threshold globally, or any positive
-		 * number under 2049 to set block-1 individually. */
-		if (block > 2049)
+		 * number under 2349 to set block-1 individually. */
+		if (block > 2349)
 			return -ERANGE;
 
 		if (block == 0) {
