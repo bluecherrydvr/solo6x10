@@ -36,6 +36,9 @@
 #define SOLO_EOSD_EXT_AREA(__solo) \
 	(SOLO_EOSD_EXT_SIZE(__solo) * 32)
 
+#define SOLO_EOSD_EXT_ADDR_CHAN(__solo, ch) \
+	(SOLO_EOSD_EXT_ADDR + SOLO_EOSD_EXT_SIZE(__solo) * (ch))
+
 #define SOLO_MOTION_EXT_ADDR(__solo) \
 	(SOLO_EOSD_EXT_ADDR + SOLO_EOSD_EXT_AREA(__solo))
 #define SOLO_MOTION_EXT_SIZE			0x00080000
