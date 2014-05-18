@@ -181,18 +181,22 @@ static void solo_vout_config(struct solo_dev *solo_dev)
 static int solo_dma_vin_region(struct solo_dev *solo_dev, u32 off,
 			       u16 val, int reg_size)
 {
-	u16 buf[64];
+	const unsigned bufsz = 64 * sizeof(u16);
+	u16 *buf;
 	int i;
 	int ret = 0;
 
-	for (i = 0; i < sizeof(buf) >> 1; i++)
+	buf = kmalloc(bufsz, GFP_KERNEL);
+
+	for (i = 0; i < bufsz >> 1; i++)
 		buf[i] = val;
 
-	for (i = 0; i < reg_size; i += sizeof(buf))
+	for (i = 0; i < reg_size; i += bufsz)
 		ret |= solo_p2m_dma(solo_dev, 1, buf,
 				    SOLO_MOTION_EXT_ADDR(solo_dev) + off + i,
-				    sizeof(buf), 0, 0);
+				    bufsz, 0, 0);
 
+	kfree(buf);
 	return ret;
 }
 
