@@ -23,6 +23,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/device.h>
 #include <linux/module.h>
 #include <linux/videodev2.h>
 #include <media/v4l2-ioctl.h>
@@ -208,9 +209,13 @@ int solo_set_motion_threshold(struct solo_dev *solo_dev, u8 ch, u16 val)
 int solo_set_motion_block(struct solo_dev *solo_dev, u8 ch, u16 val,
 			   u16 block)
 {
-	u16 buf[64];
+	const unsigned bufsz = 64 * sizeof(u16);
+	u16 *buf;
 	u32 addr;
 	int re;
+
+
+	buf = kmalloc(bufsz, GFP_KERNEL | __GFP_ZERO);
 
 	addr = SOLO_MOTION_EXT_ADDR(solo_dev) +
 		SOLO_MOT_FLAG_AREA +
@@ -221,15 +226,15 @@ int solo_set_motion_block(struct solo_dev *solo_dev, u8 ch, u16 val,
 	   solo_p2m_dma silently failed. Bluecherry bug #908. */
 	re = solo_p2m_dma(solo_dev, 0, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
 	if (re)
-		return re;
+		goto error;
 
 	buf[(addr & 0x7f) / 2] = val;
 
 	re = solo_p2m_dma(solo_dev, 1, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
-	if (re)
-		return re;
 
-	return 0;
+error:
+	kfree(buf);
+	return re;
 }
 
 /* First 8k is motion flag (512 bytes * 16). Following that is an 8k+8k
