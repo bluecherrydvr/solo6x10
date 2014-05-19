@@ -1,3 +1,11 @@
+solo6010 (2.4.9-1) unstable; urgency=low
+
+  * DMA fixes
+  * Reduced OSD writes to 704 bytes
+  * Code cleanups
+
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Sun, 18 May 2014 21:26:36 -0300
+
 solo6010 (2.4.8-9) unstable; urgency=low
 
   * Fixed motion threshold block limit for PAL systems.
