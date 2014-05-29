@@ -37,13 +37,15 @@ clean_local: FORCE
 	      videobuf-dma-contig.c videobuf-dma-sg.c \
 	      videobuf-dma-contig.c.in videobuf-dma-sg.c.in
 
-
+# For when the kernel isn't compiled with videobuf-dma-*
 ifneq ($(CONFIG_VIDEOBUF_DMA_CONTIG)$(CONFIG_VIDEOBUF_DMA_SG),yy)
-# For when the kernel isn't compiled with it
+include $M/mk/videobuf.mk
+endif
+ifneq ($(CONFIG_VIDEOBUF_DMA_CONTIG),y)
 solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_CONTIG)	+= videobuf-dma-contig.o
+endif
+ifneq ($(CONFIG_VIDEOBUF_DMA_SG),y)
 solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_SG)	+= videobuf-dma-sg.o
-
--include $M/mk/videobuf.mk
 endif
 
 FORCE:;
