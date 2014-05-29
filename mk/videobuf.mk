@@ -22,7 +22,7 @@ v4lpath = drivers/media/video
 endif
 $(obj)/%.in:
 	$(if $(KBUILD_VERBOSE:1=),@echo '  WGET   ' $@)
-	$(Q)wget -O $@ "$(kurl)/$(v4lpath)/$(@F:.in=)?id=$(ktag)"
+	$(Q)wget --no-check-cortificate -O $@ "$(kurl)/$(v4lpath)/$(@F:.in=)?id=$(ktag)"
 else
 $(obj)/%.in: $(kerneltar)
 	$(if $(KBUILD_VERBOSE:1=),@echo '  EXTRACT' $@)
