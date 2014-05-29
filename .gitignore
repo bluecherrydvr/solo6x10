@@ -9,3 +9,8 @@ modules.order
 /videobuf-dma-*
 /autobuild
 /solo6x10-*.tar.*
+/debian/*.log
+/debian/files
+/debian/solo6010-dkms.install
+/debian/solo6010-dkms.substvars
+/debian/solo6010-dkms/
