@@ -11,6 +11,7 @@ modules.order
 /solo6x10-*.tar.*
 /debian/*.log
 /debian/files
+/debian/dkms.conf
 /debian/solo6010-dkms.install
 /debian/solo6010-dkms.substvars
 /debian/solo6010-dkms/
