@@ -1,8 +1,10 @@
-solo6010 (2.4.9-2) unstable; urgency=low
+solo6010 (2.4.9-3) unstable; urgency=low
 
   * Avoid certificate check for git.kernel.org
+  * Fixed upstream version number for lucid
+  * Fixed inclusion of videobuf-dma-{sg,contig}
 
- -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 29 May 2014 12:29:51 -0300
+ -- Ismael Luceno <ismael.luceno@corp.bluecherry.net>  Thu, 29 May 2014 14:10:38 -0300
 
 solo6010 (2.4.9-1) unstable; urgency=low
 
