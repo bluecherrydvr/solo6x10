@@ -8,11 +8,13 @@ ifeq ($(v4l2_src_test),)
 kerneltar := $(firstword \
 		$(wildcard $(patsubst %,/usr/src/linux-source-%.tar.bz2,\
 			$(shell uname -r | sed 's@-.*@@;p;s@\.[^.]*$$@@'))))
+
+kupver=$(shell echo $(KVERS) | sed 's/-.*//')
 ifeq ($(kerneltar),)
-ifeq ($(basename $(KVERS)),2.6)
-ktag = v$(KVERS)
+ifeq ($(basename $(kupver)),2.6)
+ktag = v$(kupver)
 else
-ktag = v$(basename $(KVERS))
+ktag = v$(basename $(kupver))
 endif
 kurl = https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain
 ifeq ($(basename $(ktag))$(filter .0 .1 .2 .3 .4 .5 .6,$(suffix $(ktag))),v3)
