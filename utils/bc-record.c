@@ -123,7 +123,7 @@ static void set_osd(char *fmt, ...)
 	ctrls.ctrl_class = V4L2_CTRL_CLASS_FM_TX;
 	ctrls.controls = &ctrl;
 	ctrl.id = V4L2_CID_RDS_TX_RADIO_TEXT;
-	ctrl.size = strlen(buf);
+	ctrl.size = *buf : strlen(buf) ? 1;
 	ctrl.string = buf;
 
 	ioctl(vfd, VIDIOC_S_EXT_CTRLS, &ctrls);
