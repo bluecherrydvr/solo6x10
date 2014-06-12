@@ -228,13 +228,13 @@ int solo_set_motion_block(struct solo_dev *solo_dev, u8 ch, u16 val,
 
 	/* Read and write only on a 128-byte boundary; 4-byte writes with
 	   solo_p2m_dma silently failed. Bluecherry bug #908. */
-	re = solo_p2m_dma(solo_dev, 0, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
+	re = solo_p2m_dma(solo_dev, 0, buf, addr & ~0x7f, bufsz, 0, 0);
 	if (re)
 		goto error;
 
 	buf[(addr & 0x7f) / 2] = val;
 
-	re = solo_p2m_dma(solo_dev, 1, &buf, addr & ~0x7f, sizeof(buf), 0, 0);
+	re = solo_p2m_dma(solo_dev, 1, buf, addr & ~0x7f, bufsz, 0, 0);
 
 error:
 	kfree(buf);
