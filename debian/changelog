@@ -1,3 +1,9 @@
+solo6010 (2.4.9-4) unstable; urgency=low
+
+  * Bugfix
+
+ -- Andrey Utkin <andrey.utkin@corp.bluecherry.net>  Mon, 16 Jun 2014 04:35:23 -0500
+
 solo6010 (2.4.9-3) unstable; urgency=low
 
   * Avoid certificate check for git.kernel.org
