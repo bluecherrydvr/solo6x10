@@ -49,14 +49,23 @@ FORCE:;
 
 ### Videobuf stuff
 # For when the kernel isn't compiled with videobuf-dma-*
+
+DMA_CONTIG_PRESENT := y
 ifneq ($(CONFIG_VIDEOBUF_DMA_CONTIG),y)
+ifneq ($(CONFIG_VIDEOBUF_DMA_CONTIG),m)
+DMA_CONTIG_PRESENT := n
 solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_CONTIG)	+= videobuf-dma-contig.o
 endif
+endif
+DMA_SG_PRESENT := y
 ifneq ($(CONFIG_VIDEOBUF_DMA_SG),y)
+ifneq ($(CONFIG_VIDEOBUF_DMA_SG),m)
+DMA_SG_PRESENT := n
 solo6x10-edge-y$(CONFIG_VIDEOBUF_DMA_SG)	+= videobuf-dma-sg.o
 endif
+endif
 
-ifneq ($(CONFIG_VIDEOBUF_DMA_CONTIG)$(CONFIG_VIDEOBUF_DMA_SG),yy)
+ifneq ($(DMA_CONTIG_PRESENT)$(DMA_SG_PRESENT),yy)
 v4l2_src := $(wildcard \
 	$(KERNELSRC)/drivers/media/video \
 	$(KERNELSRC)/drivers/media/v4l2-core)
