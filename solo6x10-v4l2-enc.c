@@ -1536,11 +1536,15 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		if (ctrl->value < 1 || ctrl->value > 255)
 			return -ERANGE;
 		solo_enc->gop = ctrl->value;
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP(solo_enc->ch), solo_enc->gop);
+		solo_reg_write(solo_dev, SOLO_VE_CH_GOP_E(solo_enc->ch), solo_enc->gop);
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 		if (ctrl->value < 0 || ctrl->value > 31)
 			return -ERANGE;
 		solo_enc->qp = ctrl->value;
+		solo_reg_write(solo_dev, SOLO_VE_CH_QP(solo_enc->ch), solo_enc->qp);
+		solo_reg_write(solo_dev, SOLO_VE_CH_QP_E(solo_enc->ch), solo_enc->qp);
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
 	{
@@ -1611,11 +1615,15 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 			if (ctrl->value < 1 || ctrl->value > 255)
 				return -ERANGE;
 			solo_enc->gop = ctrl->value;
+			solo_reg_write(solo_enc->solo_dev, SOLO_VE_CH_GOP(solo_enc->ch), solo_enc->gop);
+			solo_reg_write(solo_enc->solo_dev, SOLO_VE_CH_GOP_E(solo_enc->ch), solo_enc->gop);
 			break;
 		case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 			if (ctrl->value < 0 || ctrl->value > 31)
 				return -ERANGE;
 			solo_enc->qp = ctrl->value;
+			solo_reg_write(solo_enc->solo_dev, SOLO_VE_CH_QP(solo_enc->ch), solo_enc->qp);
+			solo_reg_write(solo_enc->solo_dev, SOLO_VE_CH_QP_E(solo_enc->ch), solo_enc->qp);
 			break;
 		default:
 			err = -EINVAL;
