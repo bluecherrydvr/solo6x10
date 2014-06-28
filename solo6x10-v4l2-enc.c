@@ -1499,8 +1499,6 @@ static int solo_g_ctrl(struct file *file, void *priv,
 		return tw28_get_ctrl_val(solo_dev, ctrl->id, solo_enc->ch,
 					 &ctrl->value);
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
-		if (atomic_read(&solo_enc->readers) > 0)
-			return -EBUSY;
 		ctrl->value = solo_enc->gop;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
@@ -1609,6 +1607,11 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 			}
 			break;
 #endif
+		case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+			if (ctrl->value < 1 || ctrl->value > 255)
+				return -ERANGE;
+			solo_enc->gop = ctrl->value;
+			break;
 		case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 			if (ctrl->value < 0 || ctrl->value > 31)
 				return -ERANGE;
@@ -1655,6 +1658,9 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 			}
 			break;
 #endif
+		case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+			ctrl->value = solo_enc->gop;
+			break;
 		case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
 			ctrl->value = solo_enc->qp;
 			break;
