@@ -135,6 +135,7 @@ static const u32 solo_user_ctrls[] = {
 
 static const u32 solo_mpeg_ctrls[] = {
 	V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+	V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
 	0
 };
 
@@ -1425,6 +1426,8 @@ static int solo_queryctrl(struct file *file, void *priv,
 		return v4l2_ctrl_query_fill(qc, 0x00, 0x0f, 1, 0x00);
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		return v4l2_ctrl_query_fill(qc, 1, 255, 1, solo_dev->fps);
+	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+		return v4l2_ctrl_query_fill(qc, 0, 31, 1, SOLO_DEFAULT_QP);
 #ifdef PRIVATE_CIDS
 	case V4L2_CID_MOTION_THRESHOLD:
 		qc->flags |= V4L2_CTRL_FLAG_SLIDER;
@@ -1500,6 +1503,9 @@ static int solo_g_ctrl(struct file *file, void *priv,
 			return -EBUSY;
 		ctrl->value = solo_enc->gop;
 		break;
+	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+		ctrl->value = solo_enc->qp;
+		break;
 	case V4L2_CID_MOTION_THRESHOLD:
 		ctrl->value = solo_enc->motion_thresh;
 		break;
@@ -1532,6 +1538,11 @@ static int solo_s_ctrl(struct file *file, void *priv,
 		if (ctrl->value < 1 || ctrl->value > 255)
 			return -ERANGE;
 		solo_enc->gop = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+		if (ctrl->value < 0 || ctrl->value > 31)
+			return -ERANGE;
+		solo_enc->qp = ctrl->value;
 		break;
 	case V4L2_CID_MOTION_THRESHOLD:
 	{
@@ -1577,7 +1588,7 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 
 	for (i = 0; i < ctrls->count; i++) {
 		struct v4l2_ext_control *ctrl = (ctrls->controls + i);
-		int err;
+		int err = 0;
 
 		switch (ctrl->id) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
@@ -1598,6 +1609,11 @@ static int solo_s_ext_ctrls(struct file *file, void *priv,
 			}
 			break;
 #endif
+		case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+			if (ctrl->value < 0 || ctrl->value > 31)
+				return -ERANGE;
+			solo_enc->qp = ctrl->value;
+			break;
 		default:
 			err = -EINVAL;
 		}
@@ -1620,7 +1636,7 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 
 	for (i = 0; i < ctrls->count; i++) {
 		struct v4l2_ext_control *ctrl = (ctrls->controls + i);
-		int err;
+		int err = 0;
 
 		switch (ctrl->id) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
@@ -1639,6 +1655,9 @@ static int solo_g_ext_ctrls(struct file *file, void *priv,
 			}
 			break;
 #endif
+		case V4L2_CID_MPEG_VIDEO_H264_MIN_QP:
+			ctrl->value = solo_enc->qp;
+			break;
 		default:
 			err = -EINVAL;
 		}
