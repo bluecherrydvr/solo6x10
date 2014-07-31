@@ -1,3 +1,10 @@
+solo6010 (2.4.10) unstable; urgency=low
+
+  * Improve conditional embedding of videobuf module
+  * Expose quantization setting (affects video quality and bitrate)
+
+ -- Andrey Utkin <andrey.utkin@corp.bluecherry.net>  Thu, 31 Jul 2014 22:09:00 +0300
+
 solo6010 (2.4.9-4) unstable; urgency=low
 
   * Bugfix
