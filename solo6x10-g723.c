@@ -366,8 +366,13 @@ int solo_g723_init(struct solo_dev *solo_dev)
 	/* Allows for easier mapping between video and audio */
 	sprintf(name, "Softlogic%d", solo_dev->vfd->num);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+	ret = snd_card_new(NULL, SNDRV_DEFAULT_IDX1, name, THIS_MODULE, 0,
+			      &solo_dev->snd_card);
+#else
 	ret = snd_card_create(SNDRV_DEFAULT_IDX1, name, THIS_MODULE, 0,
 			      &solo_dev->snd_card);
+#endif
 	if (ret < 0)
 		return ret;
 
