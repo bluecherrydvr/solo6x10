@@ -1,3 +1,9 @@
+solo6010 (2.4.11) unstable; urgency=low
+
+  * Support 3.16+ kernel versions
+
+ -- Andrey Utkin <andrey.utkin@corp.bluecherry.net>  Tue, 21 Oct 2014 02:01:17 +0400
+
 solo6010 (2.4.10) unstable; urgency=low
 
   * Improve conditional embedding of videobuf module
