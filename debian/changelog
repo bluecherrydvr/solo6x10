@@ -1,3 +1,9 @@
+solo6010 (2.4.12) unstable; urgency=low
+
+  * Enhance interrupt handling, fixes freeze
+
+ -- Andrey Utkin <andrey.utkin@corp.bluecherry.net>  Sat, 15 Nov 2014 13:46:03 +0400
+
 solo6010 (2.4.11) unstable; urgency=low
 
   * Support 3.16+ kernel versions
