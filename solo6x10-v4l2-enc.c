@@ -652,7 +652,12 @@ static int solo_send_desc(struct solo_enc_fh *fh, int skip,
 	int ret;
 
 	if (WARN_ON_ONCE(size > FRAME_BUF_SIZE))
+	{
+		dev_warn(&solo_dev->pdev->dev,
+				"solo_send_desc: actual frame size %d more than expected FRAME_BUF_SIZE %d\n",
+				size, FRAME_BUF_SIZE);
 		return -EINVAL;
+	}
 
 	fh->desc_count = 1;
 
