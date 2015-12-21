@@ -2,7 +2,8 @@ Source: solo6010
 Section: kernel
 Priority: optional
 Maintainer: Bluecherry <maintainers@bluecherrydvr.com>
-Build-Depends: debhelper (>= 7), cdbs
+Build-Depends: debhelper (>= 7), cdbs, linux-headers (<< 3.16.99), linux-image (<< 3.16.99)
+Build-Conflicts: linux-headers (>> 3.16), linux-image (>> 3.16)
 Standards-Version: 3.8.4
 
 Package: solo6010-dkms
