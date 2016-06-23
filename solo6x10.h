@@ -366,7 +366,7 @@ int solo_p2m_dma_desc(struct solo_dev *solo_dev,
 int solo_set_motion_threshold(struct solo_dev *solo_dev, u8 ch, u16 val);
 int solo_set_motion_block(struct solo_dev *solo_dev, u8 ch, u16 val,
 			   u16 block);
-#define SOLO_DEF_MOT_THRESH		0x0300
+#define SOLO_DEF_MOT_THRESH		0xffff
 
 /* Write text on OSD */
 int solo_osd_print(struct solo_enc_dev *solo_enc);
